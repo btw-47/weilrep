@@ -345,6 +345,53 @@ class WeilRep:
 
 
     ## constructors of modular forms for this representation. See also weilrep_modular_forms_class.sage
+    
+    def bb_lift(self, mf):
+        r"""
+        Construct vector-valued modular forms of prime level via the Bruinier--Bundschuh lift.
+
+        NOTE: this works *only* when self has odd prime discriminant. (In particular the lattice rank must be even.)
+
+        INPUT:
+        - ``mf`` -- a modular form of level equal to self's discriminant, with the quadratic character and lying in the correct plus/minus space
+
+        OUTPUT: WeilRepModularForm
+
+        EXAMPLES::
+
+            sage: w = WeilRep(matrix([[2,1],[1,2]]))
+            sage: mf = ModularForms(Gamma1(3), 3, prec = 20).basis()[0]
+            sage: w.bb_lift(mf)
+            [(0, 0), 1 + 72*q + 270*q^2 + 720*q^3 + 936*q^4 + 2160*q^5 + O(q^6)]
+            [(2/3, 2/3), 27*q^(2/3) + 216*q^(5/3) + 459*q^(8/3) + 1080*q^(11/3) + 1350*q^(14/3) + 2592*q^(17/3) + O(q^6)]
+            [(1/3, 1/3), 27*q^(2/3) + 216*q^(5/3) + 459*q^(8/3) + 1080*q^(11/3) + 1350*q^(14/3) + 2592*q^(17/3) + O(q^6)]
+
+        """
+        if not is_ModularFormElement(mf):
+            raise TypeError('The Bruinier-Bundschuh lift takes modular forms as input')
+        p = mf.level()
+        if not p.is_prime() and p != 2 and self.discriminant() == p:
+            raise TypeError('The Bruinier-Bundschuh lift takes modular forms of odd prime level as input')
+        if not mf.character() == DirichletGroup(p)[ZZ((p-1)/2)]:
+            raise TypeError('Invalid character')
+        mf_coeffs = mf.qexp().padded_list()
+        prec = len(mf_coeffs)//p
+        R.<q> = PowerSeriesRing(QQ)
+        ds = self.ds()
+        norm_list = self.norm_list()
+        Y = [None]*len(ds)
+        for i, g in enumerate(ds):
+            offset = norm_list[i]
+            if not g:
+                f = R(mf_coeffs[::p]) + O(q^prec)
+                zero = not f
+                Y[i] = g, offset, f
+            else:
+                u = q*R(mf_coeffs[p+ZZ(p*offset)::p])/2 + O(q^(prec+1))
+                if not (u or zero):#are we checking this too often?? how else do we tell whether a modform lies in the +/- subspace??
+                    raise ValueError('This modular form does not lie in the correct plus/minus subspace')
+                Y[i] = g, offset, u
+        return WeilRepModularForm(mf.weight(), self.gram_matrix(), Y, weilrep = self)
 
     def eisenstein_series(self, k, prec, allow_small_weight = False, components = None):
         r"""
@@ -1550,6 +1597,20 @@ class WeilRep:
             else:
                 return WeilRepModularFormsBasis(k, basis, self)
         else:#slow
+            p = self.discriminant()
+            if symm and p.is_prime() and p != 2:
+                if verbose:
+                    print('The discriminant is prime so I can construct cusp forms via the Bruinier--Bundschuh lift.')
+                chi = DirichletGroup(p)[(p-1)//2]
+                cusp_forms = CuspForms(chi, k, prec = p*prec).echelon_basis()
+                mod_sturm_bound = ceil(p * k / 12)
+                eps = self.signature() in [0, 6]
+                eps = 1 - 2 * eps
+                m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in cusp_forms])
+                v_basis = m.kernel().basis()
+                L = [sum([mf * v[i] for i, mf in enumerate(cusp_forms)]) for v in v_basis]
+                L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
+                return WeilRepModularFormsBasis(k, L, self)
             if verbose:
                 print('I am going to compute the spaces of cusp forms of weights %s and %s.' %(k+4, k+6))
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
@@ -1649,6 +1710,20 @@ class WeilRep:
                 return self.cusp_forms_basis(weight, prec, save_pivots = save_pivots, verbose = verbose)
             else:
                 pass
+        p = self.discriminant()
+        if symm and p.is_prime() and p != 2:
+            if verbose:
+                print('The discriminant is prime so I can construct modular forms via the Bruinier--Bundschuh lift.')
+            chi = DirichletGroup(p)[(p-1)//2]
+            mod_forms = ModularForms(chi, weight, prec = p*prec).echelon_basis()
+            mod_sturm_bound = p * ceil(weight / 12)
+            eps = self.signature() in [0, 6]
+            eps = 1 - 2 * eps
+            m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in mod_forms])
+            v_basis = m.kernel().basis()
+            L = [sum([mf * v[i] for i, mf in enumerate(mod_forms)]) for v in v_basis]
+            L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
+            return WeilRepModularFormsBasis(weight, L, self)
         dim1 = self.modular_forms_dimension(weight+4)
         dim2 = self.cusp_forms_dimension(weight+4)
         if symm and (dim1 <= dim2 + len(b_list)):
