@@ -403,6 +403,7 @@ class WeilRep:
         - ``k`` -- a weight (half-integer, and such that 2k + signature = 0 mod 4)
         - ``prec`` -- precision
         - ``allow_small_weight`` -- a boolean (default False). If True then we compute the Eisenstein series in weights less than or equal to 2 (where it may not be a true modular form)
+        - ``components`` -- optional parameter (default None). A sublist L of self's discriminant group and a list of indices (e.g. [None]*len(L) ) can be passed here as a tuple.
 
         OUTPUT: WeilRepModularForm
 
@@ -1109,16 +1110,14 @@ class WeilRep:
             two_shift_m = 2*m + tilde_b * b.transpose()
             S_new = block_matrix(ZZ, [[S, tilde_b.transpose()], [tilde_b, two_shift_m]])
         new_k = weight - 1
+        print(S_new)
         w = WeilRep(S_new)
         _components = [self.ds(), self.rds(indices = True)]
         X = w.eisenstein_series(weight - 1, prec, allow_small_weight = True).theta_contraction().theta_contraction(components = _components)
         if weight > 3:
             return X
         else:
-            try:
-                epsilon = QQ(12 * (-1)^((2 + w.signature())/4) / sqrt(w.discriminant()))
-            except TypeError:
-                return X #result was ok
+            raise NotImplementedError #to be fixed
             R.<q> = PowerSeriesRing(QQ)
             theta = w.eisenstein_series_shadow(prec+1).theta_contraction().theta_contraction(components = _components).fourier_expansion()
             Y = X.fourier_expansion()
@@ -1126,7 +1125,6 @@ class WeilRep:
             for i in range(len(theta)):
                 offset = theta[i][1]
                 theta_f = list(theta[i][2])
-                #Y[i][2] -= epsilon * sum((n + offset)*theta_f[n]*q^n for n in range(1, len(theta_f)) if theta_f[n])#fix it by adding derivative of thetacontraction of the weight 2 Eisenstein series' shadow.
                 Z[i] = Y[i][0], Y[i][1], Y[i][2] - epsilon * sum((n + offset) * theta_f[n] * (q ** n) for n in range(1, len(theta_f)) if theta_f[n])
         return WeilRepModularForm(weight, S, Z, weilrep = self)
 
@@ -1576,7 +1574,7 @@ class WeilRep:
                     if symm or 2 % vector(b).denominator():
                         m = m0 + _norm_dict[b]
                         if symm:
-                            if prec > 20: #more or less arbitrary cutoff...
+                            if prec > 20 and k > 3: #more or less arbitrary cutoff...
                                 P = self.pss_double(k, vector(b), m, prec)
                             else:
                                 P = self.pss(k, vector(b), m, prec)
