@@ -1206,6 +1206,18 @@ class WeilRep:
             [(1/7, 5/7), q^(1/7) + 4*q^(8/7) + 4*q^(22/7) + 2*q^(29/7) + O(q^5)]
             [(4/7, 6/7), 2*q^(2/7) + q^(9/7) + 5*q^(16/7) + 2*q^(23/7) + O(q^5)]
 
+            sage: R.<x,y> = PolynomialRing(QQ)
+            sage: P = x^2 - 2*y^2
+            sage: w = WeilRep(matrix([[-2,-1],[-1,-4]]))
+            sage: w.theta_series(5, P = P)
+            [(0, 0), 1 + 2*q - 6*q^2 + 10*q^4 + O(q^5)]
+            [(3/7, 1/7), 3/7*q^(2/7) - 9/7*q^(9/7) + 11/7*q^(16/7) - 18/7*q^(23/7) + O(q^5)]
+            [(6/7, 2/7), -1/7*q^(1/7) + 3/7*q^(8/7) - 18/7*q^(22/7) + 54/7*q^(29/7) + O(q^5)]
+            [(2/7, 3/7), -5/7*q^(4/7) + 6/7*q^(11/7) + 27/7*q^(18/7) - 25/7*q^(25/7) - 45/7*q^(32/7) + O(q^5)]
+            [(5/7, 4/7), -5/7*q^(4/7) + 6/7*q^(11/7) + 27/7*q^(18/7) - 25/7*q^(25/7) - 45/7*q^(32/7) + O(q^5)]
+            [(1/7, 5/7), -1/7*q^(1/7) + 3/7*q^(8/7) - 18/7*q^(22/7) + 54/7*q^(29/7) + O(q^5)]
+            [(4/7, 6/7), 3/7*q^(2/7) - 9/7*q^(9/7) + 11/7*q^(16/7) - 18/7*q^(23/7) + O(q^5)]
+
         """
         Q = self.__quadratic_form
         if not Q.is_negative_definite():
@@ -1245,7 +1257,7 @@ class WeilRep:
                     minus_g = tuple([frac(-x) for x in g])
                     j2 = _ds_dict[minus_g]
                     X[j2][2] += (-1)^deg_P * P_val * q^(v_norm_with_offset)
-            X[0][2] += 1
+            X[0][2] += P([0]*S_inv.nrows())
         except PariError: #when we are not allowed to use pari's qfminim with flag=2 for some reason. the code below is a little slower
             level = Q.level()
             Q_adj = QuadraticForm(level * S_inv)
