@@ -1110,7 +1110,6 @@ class WeilRep:
             two_shift_m = 2*m + tilde_b * b.transpose()
             S_new = block_matrix(ZZ, [[S, tilde_b.transpose()], [tilde_b, two_shift_m]])
         new_k = weight - 1
-        print(S_new)
         w = WeilRep(S_new)
         _components = [self.ds(), self.rds(indices = True)]
         X = w.eisenstein_series(weight - 1, prec, allow_small_weight = True).theta_contraction().theta_contraction(components = _components)
