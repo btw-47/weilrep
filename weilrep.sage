@@ -1235,11 +1235,11 @@ class WeilRep:
             X = [[g, n_dict[tuple(g)], O(q^(prec - floor(n_dict[tuple(g)])))] for g in _ds]
             for v in vs_list:
                 g = S_inv * v
+                P_val = P(list(g))
                 v_norm_with_offset = ceil(v*g/2)
                 list_g = [frac(x) for x in g]
                 g = tuple(list_g)
                 j1 = _ds_dict[g]
-                P_val = P(list_g)
                 X[j1][2] += P_val * q^(v_norm_with_offset)
                 if v:
                     minus_g = tuple([frac(-x) for x in g])
