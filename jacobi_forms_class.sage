@@ -103,7 +103,7 @@ class JacobiForms:
 
     ##construction of Jacobi Forms associated to this index
 
-    def eisenstein_series(self, k, prec):
+    def eisenstein_series(self, k, prec, allow_small_weight = False):
         r"""
         Compute the Jacobi Eisenstein series of weight k.
 
@@ -118,7 +118,43 @@ class JacobiForms:
 
         """
 
-        return self.weilrep().eisenstein_series(k - self.nvars()/2, prec).jacobi_form()
+        return self.weilrep().eisenstein_series(k - self.nvars()/2, prec, allow_small_weight = allow_small_weight).jacobi_form()
+
+    def eisenstein_newform(self, k, b, prec, allow_small_weight = False):
+        r"""
+        Compute certain newform Jacobi Eisenstein series of weight k.
+
+        WARNING: this is experimental and also slow!!
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``b`` -- a vector, or possibly (if self's index is an integer) an integer
+        - ``prec`` -- the precision of the Fourier expansion
+
+        """
+        if b in ZZ:
+            m = self.index()
+            f = m.squarefree_part()
+            f0 = isqrt(m / f)
+            b = vector([b / f0])
+        return self.weilrep().eisenstein_newform(k - self.nvars()/2, b, prec, allow_small_weight = allow_small_weight).jacobi_form()
+
+    def eisenstein_oldform(self, k, b, prec, allow_small_weight = False):
+        r"""
+        Compute certain oldform Jacobi Eisenstein series of weight k.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``b`` -- a vector, or possibly (if self's index is an integer) an integer
+        - ``prec`` -- the precision of the Fourier expansion
+
+        """
+        if b in ZZ:
+            m = self.index()
+            f = m.squarefree_part()
+            f0 = isqrt(m / f)
+            b = vector([b / f0])
+        return self.weilrep().eisenstein_oldform(k - self.nvars()/2, b, prec, allow_small_weight = allow_small_weight).jacobi_form()
 
     ## dimensions associated to this index
 
@@ -471,6 +507,12 @@ class JacobiForm:
         """
         return self.__index_matrix
 
+    def modform(self):
+        r"""
+        Try to return self's theta decomposition without computing.
+        """
+        return self.__theta
+
     def precision(self):
         r"""
         Return self's precision (with respect to the variable 'q').
@@ -506,7 +548,7 @@ class JacobiForm:
 
         OUTPUT: a WeilRepModularForm
 
-        WARNING: passing from JacobiForm back to WeilRepModularForm can incur a precision loss!
+        WARNING: passing to JacobiForm and back to WeilRepModularForm can incur a severe precision loss! we try to avoid this by caching the original modular form
 
         EXAMPLES::
 
@@ -514,27 +556,28 @@ class JacobiForm:
             [(0), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + O(q^5)]
             [(1/2), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^5)]
 
-            sage: (jacobi_eisenstein_series(4, 1, 5)^2).theta_decomposition() #we lose precision in nonzero components here! it's unavoidable I guess
-            [(0), 1 + 252*q + 23662*q^2 + 324184*q^3 + 2139012*q^4 + O(q^5)]
-            [(1/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + 1725024*q^(31/8) + O(q^4)]
-            [(1/2), 2*q^(1/2) + 3640*q^(3/2) + 99288*q^(5/2) + 896704*q^(7/2) + O(q^4)]
-            [(3/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + 1725024*q^(31/8) + O(q^4)]
+            sage: (jacobi_eisenstein_series(4, 1, 5)^2).theta_decomposition() #we lose precision here! it's unavoidable I guess
+            [(0), 1 + 252*q + 23662*q^2 + O(q^3)]
+            [(1/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + O(q^3)]
+            [(1/2), 2*q^(1/2) + 3640*q^(3/2) + 99288*q^(5/2) + O(q^3)]
+            [(3/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + O(q^3)]
         """
         try:
             return self.__theta
         except:
+            N = JacobiForms(self.index()).longest_short_vector_norm()
             f = self.fourier_expansion()
             S = self.index_matrix()
             w = self.weilrep()
             e = S.nrows()
-            prec = f.prec()
+            prec = f.prec() - ceil(N)
             val = f.valuation()
             S_inv = S.inverse()
             ds_dict = w.ds_dict()
             ds = w.ds()
             n_list = w.norm_list()
             R.<q> = PowerSeriesRing(QQ)
-            L = [[g, n_list[i], O(q ** (prec ))] for i, g in enumerate(ds)]
+            L = [[g, n_list[i], O(q ** (prec - 1 - floor(n_list[i])))] for i, g in enumerate(ds)]
             lower_bounds = [None]*len(ds)
             for i in range(val, prec):
                 h = f[i]
@@ -611,7 +654,11 @@ class JacobiForm:
             raise ValueError('Incompatible weights')
         if not self.index_matrix() == other.index_matrix():
             raise ValueError('Incompatible indices')
-        return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() + other.fourier_expansion(), weilrep = self.weilrep())
+        try:
+            modform = self.modform() + other.modform()
+        except AttributeError:
+            modform = None
+        return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() + other.fourier_expansion(), modform = modform, weilrep = self.weilrep())
 
     __radd__ = __add__
 
@@ -627,13 +674,21 @@ class JacobiForm:
             raise ValueError('Incompatible weights')
         if not self.index_matrix() == other.index_matrix():
             raise ValueError('Incompatible indices')
-        return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() - other.fourier_expansion(), weilrep = self.weilrep())
+        try:
+            modform = self.modform() - other.modform()
+        except AttributeError:
+            modform = None
+        return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() - other.fourier_expansion(), modform = modform, weilrep = self.weilrep())
 
     def __neg__(self):
         r"""
         Return the negative of self.
         """
-        return JacobiForm(self.weight, self.index_matrix, -self.fourier_expansion, weilrep = self.weilrep())
+        try:
+            modform = -self.modform()
+        except AttributeError:
+            modform = None
+        return JacobiForm(self.weight, self.index_matrix, -self.fourier_expansion, modform = modform, weilrep = self.weilrep())
 
     def __mul__(self, other):
         r"""
@@ -646,9 +701,17 @@ class JacobiForm:
                 raise ValueError('Incompatible indices')
             return JacobiForm(self.weight() + other.weight(), S1+S2, self.fourier_expansion() * other.fourier_expansion())
         elif is_ModularFormElement(other):
-            return JacobiForm(self.weight() + other.weight(), self.index_matrix(), self.qexp() * other.qexp())
+            try:
+                modform = self.modform() * smf(other.weight(), other.qexp())
+            except AttributeError:
+                modform = None
+            return JacobiForm(self.weight() + other.weight(), self.index_matrix(), self.qexp() * other.qexp(), modform = modform, weilrep = self.weilrep())
         elif other in QQ:
-            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() * other)
+            try:
+                modform = self.modform() * other
+            except AttributeError:
+                modform = None
+            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() * other, modform = modform, weilrep = self.weilrep())
         else:
             raise TypeError('Cannot multiply these objects')
 
@@ -665,9 +728,17 @@ class JacobiForm:
                 raise ValueError('Incompatible indices')
             return JacobiForm(self.weight() - other.weight(), S1-S2, self.fourier_expansion() / other.fourier_expansion())
         elif is_ModularFormElement(other):
-            return JacobiForm(self.weight() - other.weight(), self.index_matrix(), self.fourier_expansion() / other)
+            try:
+                modform = self.modform() / smf(-other.weight(), ~other.qexp())
+            except AttributeError:
+                modform = None
+            return JacobiForm(self.weight() - other.weight(), self.index_matrix(), self.fourier_expansion() / other, modform = modform)
         elif other in QQ:
-            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() / other)
+            try:
+                modform = self.modform() / other
+            except AttributeError:
+                modform = None
+            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() / other, modform = modform, weilrep = self.weilrep())
         else:
             raise TypeError('Cannot divide these objects')
 

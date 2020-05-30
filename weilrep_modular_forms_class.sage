@@ -374,6 +374,18 @@ class WeilRepModularForm:
         if isinstance(other,WeilRepModularForm):
             return self.fourier_expansion() == other.fourier_expansion()
         return False
+    
+    def __pow__(self, other):
+        if other in ZZ and other >= 1:
+            if other == 1:
+                return self
+            elif other == 2:
+                return self * self
+            else:
+                nhalf = other // 2
+                return (self ** nhalf) * (self ** (other - nhalf))
+        else:
+            raise NotImplementedError
 
     ## other operations
 
@@ -684,7 +696,7 @@ class WeilRepModularFormsBasis:
     def __repr__(self):
         X = self.__basis
         if X:
-            s = '\n' + '-'*80 + '\n'
+            s = '\n' + '-'*60 + '\n'
             return s.join([x.__repr__() for x in self.__basis])
         return '[]'
 
