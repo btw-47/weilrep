@@ -1016,17 +1016,17 @@ class WeilRep:
             sage: W.pssd(7/2, vector([0,1/2,1/3]), 1/4, 5)
             [(0, 0, 0), O(q^5)]
             [(0, 1/2, 1/3), 1/2*q^(1/4) - 3*q^(5/4) + 9/2*q^(9/4) + 6*q^(13/4) - 21*q^(17/4) + O(q^5)]
-            [(0, 0, 2/3), q - 6*q^2 + 9*q^3 + 10*q^4 - 30*q^5 + O(q^6)]
+            [(0, 0, 2/3), q - 6*q^2 + 9*q^3 + 10*q^4 + O(q^5)]
             [(0, 1/2, 0), O(q^5)]
-            [(0, 0, 1/3), -q + 6*q^2 - 9*q^3 - 10*q^4 + 30*q^5 + O(q^6)]
+            [(0, 0, 1/3), -q + 6*q^2 - 9*q^3 - 10*q^4 + O(q^5)]
             [(0, 1/2, 2/3), -1/2*q^(1/4) + 3*q^(5/4) - 9/2*q^(9/4) - 6*q^(13/4) + 21*q^(17/4) + O(q^5)]
-            [(1/3, 0, 0), q - 6*q^2 + 9*q^3 + 10*q^4 - 30*q^5 + O(q^6)]
+            [(1/3, 0, 0), q - 6*q^2 + 9*q^3 + 10*q^4 + O(q^5)]
             [(1/3, 1/2, 1/3), O(q^5)]
             [(1/3, 0, 2/3), q^(1/3) - 6*q^(4/3) + 10*q^(7/3) + 4*q^(10/3) - 20*q^(13/3) + O(q^5)]
             [(1/3, 1/2, 0), -1/2*q^(1/4) + 3*q^(5/4) - 9/2*q^(9/4) - 6*q^(13/4) + 21*q^(17/4) + O(q^5)]
             [(1/3, 0, 1/3), O(q^5)]
             [(1/3, 1/2, 2/3), -q^(7/12) + 5*q^(19/12) - 3*q^(31/12) - 19*q^(43/12) + 20*q^(55/12) + O(q^5)]
-            [(2/3, 0, 0), -q + 6*q^2 - 9*q^3 - 10*q^4 + 30*q^5 + O(q^6)]
+            [(2/3, 0, 0), -q + 6*q^2 - 9*q^3 - 10*q^4 + O(q^5)]
             [(2/3, 1/2, 1/3), q^(7/12) - 5*q^(19/12) + 3*q^(31/12) + 19*q^(43/12) - 20*q^(55/12) + O(q^5)]
             [(2/3, 0, 2/3), O(q^5)]
             [(2/3, 1/2, 0), 1/2*q^(1/4) - 3*q^(5/4) + 9/2*q^(9/4) + 6*q^(13/4) - 21*q^(17/4) + O(q^5)]
@@ -1086,14 +1086,6 @@ class WeilRep:
             [(1/4), 64*q^(7/8) + 448*q^(15/8) + 1344*q^(23/8) + 2688*q^(31/8) + 4928*q^(39/8) + O(q^5)]
             [(1/2), 14*q^(1/2) + 280*q^(3/2) + 840*q^(5/2) + 2368*q^(7/2) + 3542*q^(9/2) + O(q^5)]
             [(3/4), 64*q^(7/8) + 448*q^(15/8) + 1344*q^(23/8) + 2688*q^(31/8) + 4928*q^(39/8) + O(q^5)]
-
-            sage: W = WeilRep(matrix([[2,1],[1,2]]))
-            sage: b = matrix([[1/3,1/3],[1/3,1/3]])
-            sage: m = matrix([[2/3,-1/3],[-1/3,2/3]])
-            sage: W.pss_double(3,b,m,5)
-            [(0, 0), 1 + 72*q + 270*q^2 + 720*q^3 + 936*q^4 + O(q^5)]
-            [(2/3, 2/3), 27*q^(2/3) + 216*q^(5/3) + 459*q^(8/3) + 1080*q^(11/3) + 1350*q^(14/3) + O(q^5)]
-            [(1/3, 1/3), 27*q^(2/3) + 216*q^(5/3) + 459*q^(8/3) + 1080*q^(11/3) + 1350*q^(14/3) + O(q^5)]
         """
         if weight < 3:
             raise NotImplementedError
@@ -1209,14 +1201,14 @@ class WeilRep:
             sage: R.<x,y> = PolynomialRing(QQ)
             sage: P = x^2 - 2*y^2
             sage: w = WeilRep(matrix([[-2,-1],[-1,-4]]))
-            sage: w.theta_series(5, P = P)
-            [(0, 0), 1 + 2*q - 6*q^2 + 10*q^4 + O(q^5)]
-            [(3/7, 1/7), 3/7*q^(2/7) - 9/7*q^(9/7) + 11/7*q^(16/7) - 18/7*q^(23/7) + O(q^5)]
-            [(6/7, 2/7), -1/7*q^(1/7) + 3/7*q^(8/7) - 18/7*q^(22/7) + 54/7*q^(29/7) + O(q^5)]
-            [(2/7, 3/7), -5/7*q^(4/7) + 6/7*q^(11/7) + 27/7*q^(18/7) - 25/7*q^(25/7) - 45/7*q^(32/7) + O(q^5)]
-            [(5/7, 4/7), -5/7*q^(4/7) + 6/7*q^(11/7) + 27/7*q^(18/7) - 25/7*q^(25/7) - 45/7*q^(32/7) + O(q^5)]
-            [(1/7, 5/7), -1/7*q^(1/7) + 3/7*q^(8/7) - 18/7*q^(22/7) + 54/7*q^(29/7) + O(q^5)]
-            [(4/7, 6/7), 3/7*q^(2/7) - 9/7*q^(9/7) + 11/7*q^(16/7) - 18/7*q^(23/7) + O(q^5)]
+            sage: w.theta_series(10, P = P)
+            [(0, 0), 2*q - 6*q^2 + 10*q^4 - 14*q^7 - 6*q^8 + 18*q^9 + O(q^10)]
+            [(3/7, 1/7), 3/7*q^(2/7) - 9/7*q^(9/7) + 11/7*q^(16/7) - 18/7*q^(23/7) + 38/7*q^(37/7) + 30/7*q^(44/7) - 162/7*q^(58/7) + O(q^10)]
+            [(6/7, 2/7), -1/7*q^(1/7) + 3/7*q^(8/7) - 18/7*q^(22/7) + 54/7*q^(29/7) - 45/7*q^(36/7) - 58/7*q^(43/7) + 75/7*q^(50/7) + 13*q^(64/7) + O(q^10)]
+            [(2/7, 3/7), -5/7*q^(4/7) + 6/7*q^(11/7) + 27/7*q^(18/7) - 25/7*q^(25/7) - 45/7*q^(32/7) + 54/7*q^(46/7) + 6/7*q^(53/7) + 118/7*q^(67/7) + O(q^10)]
+            [(5/7, 4/7), -5/7*q^(4/7) + 6/7*q^(11/7) + 27/7*q^(18/7) - 25/7*q^(25/7) - 45/7*q^(32/7) + 54/7*q^(46/7) + 6/7*q^(53/7) + 118/7*q^(67/7) + O(q^10)]
+            [(1/7, 5/7), -1/7*q^(1/7) + 3/7*q^(8/7) - 18/7*q^(22/7) + 54/7*q^(29/7) - 45/7*q^(36/7) - 58/7*q^(43/7) + 75/7*q^(50/7) + 13*q^(64/7) + O(q^10)]
+            [(4/7, 6/7), 3/7*q^(2/7) - 9/7*q^(9/7) + 11/7*q^(16/7) - 18/7*q^(23/7) + 38/7*q^(37/7) + 30/7*q^(44/7) - 162/7*q^(58/7) + O(q^10)]
 
         """
         Q = self.__quadratic_form
@@ -1467,6 +1459,8 @@ class WeilRep:
         - ``prec`` -- precision (default None). If precision is not given then we use the Sturm bound.
         - ``save_pivots`` -- boolean (default False). If True then we return a list representing the smallest exponents with nonzero coefficient in each cusp form, as indices in their .coefficient_vector()s.
         - ``save_vectors_and_pivots`` -- boolean (default False). If True then we also return vectors consisting of basis' coefficients up to the sturm bound. (for internal use)
+        - ``verbose`` -- boolean (default False). If True then add comments throughout the computation.
+        - ``E`` -- WeilRepModularForm (default None). If this is given then the computation assumes that E is the Eisenstein series of weight k.
 
         OUTPUT: a list of WeilRepModularForms
 
@@ -1558,8 +1552,7 @@ class WeilRep:
             pivots = []
             #try some serre derivatives of eisenstein series first
             j = 2
-            first_test = False
-            #first_test = 1 * symm
+            first_test = symm + 0
             dim_old = self.modular_forms_dimension(k)
             while first_test:
                 if (rank == dim) or not k >= 5/2 + j:
@@ -1638,7 +1631,7 @@ class WeilRep:
                 return WeilRepModularFormsBasis(k, X, self)
             except AttributeError: #we SHOULD only get ``AttributeError: 'Objects_with_category' object has no attribute 'base_ring'`` when X1 or X2 is empty...
                 return [[],[[],[]]][save_pivots]
-            
+
     def modular_forms_basis(self, weight, prec = 0, eisenstein = False, save_pivots = False, verbose = False):
         r"""
         Compute a basis of the space of modular forms.
@@ -1653,6 +1646,7 @@ class WeilRep:
         - ``prec`` -- precision (default None). If precision is not given then we use the Sturm bound.
         - ``eisenstein`` -- boolean (default False). If True and weight >= 5/2 then the first element in the output is always the Eisenstein series (i.e. we do not pass to echelon form).
         - ``save_pivots`` -- boolean (default False). If True then we return a list representing the smallest exponents with nonzero coefficient in each cusp form, as indices in their .coefficient_vector()s.
+        - ``verbose`` -- boolean (default False). If true then we add comments throughout the computation.
 
         OUTPUT: a list of WeilRepModularForms
 
@@ -1907,10 +1901,39 @@ class WeilRep:
         """
         if verbose:
             print('I am now looking for modular forms of weight %s which are holomorphic on H and have a pole of order at most %s in infinity.' %(k, pole_order))
+        sturm_bound = k/12
+        if sturm_bound > prec:
+            raise ValueError('Low precision')
+        dual_sturm_bound = 1/6 - sturm_bound
+        symm = self.is_symmetric_weight(k)
+        if pole_order >= dual_sturm_bound + 1:
+            if verbose:
+                print('The pole order is large so I will compute modular forms with a smaller pole order and multiply them by the j-invariant.')
+            j_order = floor(pole_order - dual_sturm_bound)
+            new_pole_order = pole_order - j_order
+            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, save_pivots = False, force_N_positive = force_N_positive, verbose = verbose)
+            j = j_invariant_qexp(prec + j_order + 1) - 744
+            j = [smf(0, j^n) for n in range(1, j_order + 1)]
+            Y = [x for x in X]
+            Y.extend([x * j[n] for n in range(j_order) for x in X])
+            for y in Y:
+                y.reduce_precision(prec)
+            vs = [y.coefficient_vector(starting_from = -pole_order, ending_with = sturm_bound) for y in Y]
+            pivots = [next(j for j, v in enumerate(v) if v) for v in vs]
+            if verbose:
+                print('I found enough modular forms and will now put them in echelon form.')
+            for j in range(len(Y)-1,-1,-1):
+                for i in range(j-1,-1,-1):
+                    Y[j] = Y[j] - vs[j][pivots[i]]*Y[i]
+                    vs[j] -= vs[j][pivots[i]]*vs[i]
+            Y = [y for y in Y if y]
+            if not reverse:
+                Y.reverse()
+            if save_pivots:
+                return Y, pivots
+            return WeilRepModularFormsBasis(k, Y, self)
         ceil_pole_order = ceil(pole_order)
         computed_weight = k + 12*ceil_pole_order
-        symm = self.is_symmetric_weight(k)
-        sturm_bound = k/12
         N = ceil_pole_order
         while computed_weight < 7/2 or (symm and computed_weight < 5/2):
             computed_weight += 12
@@ -1971,8 +1994,8 @@ class WeilRep:
                 print('I am going to compute the obstruction spaces in weights %s and %s.' %(weight+4, weight+6))
             e4 = smf(-4,eisenstein_series_qexp(4,prec)^(-1))
             e6 = smf(-6,eisenstein_series_qexp(6,prec)^(-1))
-            X1 = self.borcherds_obstructions(weight+4,prec)
-            X2 = self.borcherds_obstructions(weight+6,prec)
+            X1 = self.borcherds_obstructions(weight+4, prec, verbose = verbose)
+            X2 = self.borcherds_obstructions(weight+6, prec, verbose = verbose)
             try:
                 V1 = span([(x * e4).coefficient_vector() for x in X1])
                 V2 = span([(x * e6).coefficient_vector() for x in X2])

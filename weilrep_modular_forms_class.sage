@@ -93,6 +93,11 @@ class WeilRepModularForm:
     def fourier_expansion(self):
         return self.__fourier_expansions
 
+    def __nonzero__(self):
+        return any(x[2] for x in self.__fourier_expansions)
+
+    __bool__ = __nonzero__
+
     def weilrep(self):
         r"""
         Returns the Weil Representation that produced this modular form.
@@ -113,6 +118,15 @@ class WeilRepModularForm:
             X = self.fourier_expansion()
             self.__precision = min([x[2].prec() for x in X])
             return self.__precision
+
+    def reduce_precision(self, prec):
+        r"""
+        Reduce self's precision.
+        """
+        prec = floor(prec)
+        R.<q> = PowerSeriesRing(QQ)
+        self.__fourier_expansions = [(x[0], x[1], x[2] + O(q**(prec - floor(x[1])))) for x in self.__fourier_expansions]
+        self.__precision = prec
 
     def valuation(self):
         r"""
@@ -632,7 +646,7 @@ class WeilRepModularForm:
                         theta_twist[i_m][r_square] += [1, r_shift][odd]
                     elif r > 0:
                         break
-                Y[i] = g, -offset, sum([R(theta_twist[j]) * X[g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])
+                Y[i] = g, -offset, sum([R(theta_twist[j]) * X[g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])+O(q ** prec_g)
             else:
                 Y[i] = g, -offset, eps * Y[_indices[i]][2]
         return WeilRepModularForm(self.weight() + 1/2 + odd, S, Y, weilrep = weilrep)
@@ -668,8 +682,11 @@ class WeilRepModularFormsBasis:
         self.__weilrep = weilrep
 
     def __repr__(self):
-        s = '\n' + '-'*80 + '\n'
-        return s.join([x.__repr__() for x in self.__basis])
+        X = self.__basis
+        if X:
+            s = '\n' + '-'*80 + '\n'
+            return s.join([x.__repr__() for x in self.__basis])
+        return '[]'
 
     def __iter__(self):
         for x in self.__basis:
