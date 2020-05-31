@@ -20,7 +20,7 @@ AUTHORS:
 
 from sage.modular.modform.element import is_ModularFormElement
 
-class WeilRepModularForm:
+class WeilRepModularForm(object):
 
     r"""
     The WeilRepModularForm class represents vector-valued modular forms which transform with the dual Weil representation.
@@ -501,6 +501,7 @@ class WeilRepModularForm:
                 _, _, vs_matrix = pari(S_inv).qfminim(precval + precval + 1, flag = 2)
                 vs_list = vs_matrix.sage().columns()
                 symm = self.is_symmetric()
+                symm = symm + symm - 1
                 for v in vs_list:
                     wv = Rb.monomial(*v)
                     r = S_inv * v
@@ -569,7 +570,7 @@ class WeilRepModularForm:
                 return WeilRepModularForm(self.weight() + 2, self.gram_matrix(), X, weilrep = self.weilrep()) / a
         return WeilRepModularForm(self.weight() + 2, self.gram_matrix(), X, weilrep = self.weilrep())
 
-    def theta_contraction(self,odd = False, components = None, weilrep = None):
+    def theta_contraction(self, odd = False, components = None, weilrep = None):
         r"""
         Compute the theta-contraction of self.
 
@@ -707,14 +708,101 @@ class WeilRepModularFormsBasis:
     def __getitem__(self, n):
         return self.__basis[n]
 
+    def gram_matrix(self):
+        return self.__weilrep.gram_matrix()
+
     def __len__(self):
         return len(self.__basis)
 
+    def precision(self):
+        return min(x.precision() for x in self.__basis)
+
+    def valuation(self):
+        return min(x.valuation() for x in self.__basis)
+
     def weight(self):
         return self.__weight
+
+    def is_symmetric(self):
+        return self.__weilrep.is_symmetric_weight(self.__weight)
 
     def weilrep(self):
         return self.__weilrep
 
     def list(self):
         return self.__basis
+
+    def theta(self, odd = False, weilrep = None):
+        symm = self.is_symmetric()
+        prec = self.precision()
+        R.<q> = PowerSeriesRing(QQ)
+        big_S = self.gram_matrix()
+        big_e = big_S.nrows()
+        e = big_e - 1
+        S = big_S[:e,:e]
+        try:
+            Sb = vector(big_S[:e,e])
+            b = S.inverse()*Sb
+        except ValueError:
+            Sb = vector([])
+            b = vector([])
+        m = (big_S[e,e] - b*Sb)/2
+        X = [x.fourier_expansion() for x in self.__basis]
+        X_ref = X[0]
+        g_list = []
+        S_indices = []
+        bound = 3 + 2*isqrt(m * (prec - self.valuation()))
+        if not weilrep:
+            weilrep = WeilRep(S)
+        _ds = weilrep.ds()
+        _indices = weilrep.rds(indices = True)
+        big_ds_dict = {tuple(x[0]) : i for i, x in enumerate(X_ref)}
+        b_denom = b.denominator()
+        bm2 = ZZ(2*m*b_denom)
+        Y = [None] * len(_ds)
+        Y = [copy(Y) for _ in range(self.__len__())]
+        eps = odd != symm
+        eps = eps + eps - 1
+        for i, g in enumerate(_ds):
+            offset = frac(g*S*g/2)
+            prec_g = prec + ceil(offset)
+            theta_twist = [[0]*prec_g for j in range(bm2)]
+            gSb = frac(g*S*b)
+            if (odd == symm) and g.denominator() in [1,2]:#component is zero
+                t = g, -offset, O(q ** prec_g)
+                for y in Y:
+                    y[i] = t
+            elif _indices[i] is None:
+                r_i = -1
+                g_ind = []
+                r_square = (bound + 1 + gSb)^2 / (4*m) + offset
+                old_offset = 0
+                big_offset_ind = []
+                for r in range(-bound, bound+1):
+                    r_i += 1
+                    r_shift = r - gSb
+                    if r_i < bm2:
+                        i_m = r_i
+                        g_new = list(g - b * r_shift/(2 * m)) + [r_shift/(2 * m)]
+                        g_new = tuple([frac(x) for x in g_new])
+                        j = big_ds_dict[g_new]
+                        g_ind.append(j)
+                        big_offset_ind.append(X_ref[j][1])
+                    else:
+                        i_m = r_i % bm2
+                        j = g_ind[i_m]
+                    new_offset = big_offset_ind[i_m]
+                    r_square += (new_offset - old_offset) + (2*r_shift - 1) / (4*m)
+                    old_offset = new_offset
+                    if r_square < prec_g:
+                        theta_twist[i_m][r_square] += [1, r_shift][odd]
+                    elif r > 0:
+                        break
+                for iy, y in enumerate(Y):
+                    y[i] = g, -offset, sum([R(theta_twist[j]) * X[iy][g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])+O(q ** prec_g)
+            else:
+                index = _indices[i]
+                for y in Y:
+                    y[i] = g, -offset, eps * y[_indices[i]][2]
+        k = self.weight() + 1/2 + odd
+        return WeilRepModularFormsBasis(k, [WeilRepModularForm(k, S, y, weilrep = weilrep) for y in Y], weilrep = weilrep)
