@@ -49,6 +49,8 @@ class WeilRep(object):
         else:
             raise TypeError('Invalid input')
         self.__eisenstein = {}
+        self.__cusp_forms_basis = {}
+        self.__modular_forms_basis = {}
 
     def __repr__(self):
         #when printed:
@@ -1700,6 +1702,19 @@ class WeilRep(object):
          """
         if k <= 0:
             return []
+        try:
+            old_prec, pivots, X = self.__cusp_forms_basis[k]
+            if old_prec >= prec or not X:
+                if old_prec == prec or not X:
+                    if save_pivots:
+                        return X, pivots
+                    return X
+                X = WeilRepModularFormsBasis(k, [x.reduce_precision(prec, in_place = False) for x in X], self)
+                if save_pivots:
+                    return X, pivots
+                return X
+        except KeyError:
+            pass
         S = self.gram_matrix()
         if verbose:
             print('I am now looking for cusp forms for the Weil representation for the Gram matrix\n%s'%S)
@@ -1715,6 +1730,7 @@ class WeilRep(object):
                 dim = min(dim, true_dim)
             if not dim:
                 X = WeilRepModularFormsBasis(k, [], self)
+                self.__cusp_forms_basis[k] = prec, [], X
                 if save_pivots:
                     return X, []
                 return X
@@ -1750,12 +1766,29 @@ class WeilRep(object):
                 if len(X) >= dim:
                     if verbose:
                         print('Done!')
+                    self.__cusp_forms_basis[k] = prec, pivots, X
                     if save_pivots:
                         return X, pivots
                     return X
+            rank = len(X)
+            try:
+                oldprec, _, Y = self.__cusp_forms_basis[k - 2]
+                if oldprec >= prec:
+                    Z = WeilRepModularFormsBasis(k, [y.reduce_precision(prec, in_place = False).serre_derivative() for y in Y], self)
+                    if verbose and len(X) > rank:
+                        print('I found %d cusp forms using the cached cusp forms basis of weight %s.' %(len(X) - rank, k - 2))
+                    rank = len(X)
+                    if rank >= dim:
+                        self.__cusp_forms_basis[k] = prec, pivots, X
+                        if save_pivots:
+                            return X, pivots
+                        return X
+            except KeyError:
+                pass
             m0 = 1
             skipped_indices = []
             failed_exponent = 0
+            somewhat_failed_exponent = 0
             G = self.sorted_rds()
             indices = self.rds(indices = True)
             ds = self.ds()
@@ -1777,12 +1810,16 @@ class WeilRep(object):
                                         if k > 3 and dim_rank > 2:
                                             if verbose:
                                                 print('-'*40)
-                                            y = w_new.cusp_forms_basis(k - 1/2, prec, verbose = verbose, dim = dim_rank).theta()
-                                            X.extend(y)
-                                            if verbose:
-                                                print('-'*40)
-                                                print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
-                                                print('I am returning to the Gram matrix\n%s'%S)
+                                            if m != somewhat_failed_exponent:
+                                                y = w_new.cusp_forms_basis(k - 1/2, prec, verbose = verbose, dim = dim_rank).theta()
+                                                if y:
+                                                    X.extend(y)
+                                                    if verbose:
+                                                        print('-'*40)
+                                                        print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
+                                                        print('I am returning to the Gram matrix\n%s'%S)
+                                                else:
+                                                    somewhat_failed_exponent = m
                                         if len(X) < dim:
                                             X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
                                             if verbose:
@@ -1804,12 +1841,16 @@ class WeilRep(object):
                                         if dim_rank > 1 and k > 4:
                                             if verbose:
                                                 print('-'*40)
-                                            y = w_new.cusp_forms_basis(k - 3/2, prec, verbose = verbose, dim = dim - len(X)).theta(odd = True)
-                                            X.extend(y)
-                                            if verbose:
-                                                print('-'*40)
-                                                print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
-                                                print('I am returning to the Gram matrix\n%s'%S)
+                                            if m != somewhat_failed_exponent:
+                                                y = w_new.cusp_forms_basis(k - 3/2, prec, verbose = verbose, dim = dim - len(X)).theta(odd = True)
+                                                if y:
+                                                    X.extend(y)
+                                                    if verbose:
+                                                        print('-'*40)
+                                                        print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
+                                                        print('I am returning to the Gram matrix\n%s'%S)
+                                                else:
+                                                    somewhat_failed_exponent = m
                                         if len(X) < dim:
                                             X.append(self.pssd(k, b, m, prec, weilrep = w_new))
                                             if verbose:
@@ -1871,6 +1912,7 @@ class WeilRep(object):
                     rank = len(X)
             if verbose:
                 print('Done!')
+            self.__cusp_forms_basis[k] = prec, pivots, X
             if save_pivots:
                 return X, pivots
             return X
@@ -1891,6 +1933,7 @@ class WeilRep(object):
                 L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
                 X = WeilRepModularFormsBasis(k, L, self)
                 pivots = X.echelonize(save_pivots)
+                self.__cusp_forms_basis[k] = prec, pivots, X
                 if save_pivots:
                     return X, pivots
                 return X
@@ -1907,6 +1950,7 @@ class WeilRep(object):
                 V2 = span((x * e6).coefficient_vector() for x in X2)
                 X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self)
                 pivots = X.echelonize(save_pivots)
+                self.__cusp_forms_basis[k] = prec, pivots, X
                 if save_pivots:
                     return X, pivots
                 return X
@@ -1952,6 +1996,15 @@ class WeilRep(object):
             [(1/2, 1/2), q^(1/4) + 8*q^(5/4) - 45*q^(9/4) - 8*q^(13/4) + 226*q^(17/4) - 96*q^(21/4) - 335*q^(25/4) + 88*q^(29/4) - 156*q^(33/4) + 456*q^(37/4) + O(q^10)]
             [(1/2, 3/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^10)]
         """
+        try:
+            old_prec, X = copy(self.__modular_forms_basis[weight])
+            if old_prec >= prec or not X:
+                if old_prec == prec or not X:
+                    return X
+                X = WeilRepModularFormsBasis(k, [x.reduce_precision(prec, in_place = False) for x in X], self)
+                return X
+        except KeyError:
+            pass
         symm = self.is_symmetric_weight(weight)
         _ds = self.ds()
         _indices = self.rds(indices = True)
@@ -1963,7 +2016,7 @@ class WeilRep(object):
             dim1 = self.modular_forms_dimension(weight)
             dim2 = self.cusp_forms_dimension(weight)
             if verbose:
-                print('I need to find %d modular forms of weight %s.' %(dim1, weight))
+                print('I need to find %d modular forms of weight %s to precision %d.' %(dim1, weight, prec))
             if (symm and dim1 <= dim2 + len(b_list)):
                 if verbose:
                     print('I found %d Eisenstein series.' %len(b_list))
@@ -1971,18 +2024,18 @@ class WeilRep(object):
                         print('I am now going to look for %d cusp forms of weight %s.' %(dim2, weight))
                 L = WeilRepModularFormsBasis(weight, [self.eisenstein_oldform(weight, _ds[i], prec) for i in b_list], self)
                 if eisenstein:
-                    L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L0))
+                    L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0]))
                     return L
                 else:
-                    X = self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])
+                    X = deepcopy(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0]))
                     X.extend(L)
-                    try:
-                        X.echelonize()
-                    except:
-                        assert False
+                    X.echelonize()
+                    self.__modular_forms_basis[weight] = prec, X
                     return X
             elif dim1 == dim2:
-                return self.cusp_forms_basis(weight, prec, verbose = verbose)
+                X = self.cusp_forms_basis(weight, prec, verbose = verbose)
+                self.__modular_forms_basis[weight] = prec, X
+                return X
             else:
                 pass
         p = self.discriminant()
@@ -2003,25 +2056,31 @@ class WeilRep(object):
             v_basis = m.kernel().basis()
             L = [sum([mf * v[i] for i, mf in enumerate(mod_forms)]) for v in v_basis]
             L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
-            return WeilRepModularFormsBasis(weight, L, self)
+            X = WeilRepModularFormsBasis(weight, L, self)
+            self.__modular_forms_basis[weight] = prec, X
+            return X
         dim1 = self.modular_forms_dimension(weight+4)
         dim2 = self.cusp_forms_dimension(weight+4)
         if symm and (dim1 <= dim2 + len(b_list)):
             if verbose:
                 print('I am going to compute the spaces of modular forms of weights %s and %s.' %(weight+4, weight+6))
-            e4 = smf(-4, ~eisenstein_series_qexp(4,prec))
-            e6 = smf(-6, ~eisenstein_series_qexp(6,prec))
-            X1 = self.modular_forms_basis(weight+4,prec, verbose = verbose)
-            X2 = self.modular_forms_basis(weight+6,prec, verbose = verbose)
+            e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
+            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
+            X1 = self.modular_forms_basis(weight+4, prec, verbose = verbose)
+            X2 = self.modular_forms_basis(weight+6, prec, verbose = verbose)
             if verbose:
                 print('I am now going to compute M_%s by intersecting the spaces E_4^(-1) * M_%s and E_6^(-1) * M_%s.' %(weight, weight +4, weight +6))
             try:
                 V1 = span([(x * e4).coefficient_vector() for x in X1])
                 V2 = span([(x * e6).coefficient_vector() for x in X2])
                 V = (V1.intersection(V2)).echelonized_basis()
-                return WeilRepModularFormsBasis(weight, [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V], self)
+                X = WeilRepModularFormsBasis(weight, [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V], self)
+                self.__modular_forms_basis[weight] = prec, X
+                return X
             except AttributeError:
-                return []
+                X = WeilRepModularFormsBasis(weight, [], self)
+                self.__modular_forms_basis[weight] = prec, X
+                return X
         else:
             if verbose:
                 print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.' %weight)

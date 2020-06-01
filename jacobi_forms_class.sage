@@ -449,7 +449,7 @@ class JacobiForm:
         """
         return LaurentPolynomialRing(QQ,list(var('w_%d' % i) for i in range(self.index_matrix().nrows())))
 
-    def coefficient_vector(self, starting_from = None, ending_with = None):
+    def coefficient_vector(self, starting_from = None, ending_with = None, correct = True):
         r"""
         Return self's non-redundant Fourier coefficients c(n, r) as a vector sorted by increasing value of n - r^2 / (4m) (or its appropriate generalization to matrix index)
 
@@ -464,8 +464,10 @@ class JacobiForm:
         try:
             return self.__coefficient_vector
         except:
-            self.__coefficient_vector = self.theta_decomposition().coefficient_vector(starting_from = starting_from, ending_with = ending_with)
-            return self.__coefficient_vector
+            v = self.theta_decomposition(correct = correct).coefficient_vector(starting_from = starting_from, ending_with = ending_with)
+            if correct:
+                self.__coefficient_vector = v
+            return v
 
     def fourier_expansion(self):
         r"""
@@ -546,7 +548,7 @@ class JacobiForm:
         """
         return list(self.fourier_expansion())
 
-    def theta_decomposition(self):
+    def theta_decomposition(self, correct = True):
         r"""
         Return self's theta decomposition.
 
@@ -569,7 +571,10 @@ class JacobiForm:
         try:
             return self.__theta
         except:
-            N = JacobiForms(self.index()).longest_short_vector_norm()
+            if correct:
+                N = JacobiForms(self.index()).longest_short_vector_norm()
+            else:
+                N = 0
             f = self.fourier_expansion()
             S = self.index_matrix()
             w = self.weilrep()
@@ -597,8 +602,10 @@ class JacobiForm:
                     if (lower_bounds[j] is None) or (exponent > lower_bounds[j]):
                         lower_bounds[j] = exponent
                         L[j][2] += h_coeffs[k] * q^(exponent)
-            self.__theta = WeilRepModularForm(self.weight() - e/2, S, L, weilrep = self.weilrep())
-            return self.__theta
+            if correct:
+                self.__theta = WeilRepModularForm(self.weight() - e/2, S, L, weilrep = self.weilrep())
+                return self.__theta
+            return WeilRepModularForm(self.weight() - e/2, S, L, weilrep = self.weilrep())
 
     def valuation(self):
         r"""

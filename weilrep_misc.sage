@@ -12,7 +12,7 @@ def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound)
 
     OUTPUT: an updated tuple (basis, basis_vectors, pivots, rank)
     """
-    v = X.coefficient_vector(starting_from = 0, ending_with = sturm_bound)
+    v = X.coefficient_vector(starting_from = 0, ending_with = sturm_bound, correct = False)
     for j, vec in enumerate(basis_vectors):
         X -= v[pivots[j]]*basis[j]
         v -= v[pivots[j]]*vec
@@ -114,6 +114,9 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose
                     if rank == dim:
                         return basis
                 except ValueError:
+                    if all(a == 1 for a in v):
+                        j = thetablocks[i](a, b, c, d, prec_d).hecke_V(N // _d)
+                        update_echelon_form_with(j, basis, basis_vectors, pivots, rank, 1/8)
                     pass
     if verbose:
         print('I did not find enough theta blocks. Time to try something else.')
