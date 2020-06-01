@@ -159,8 +159,8 @@ class WeilRepModularForm(object):
             return self.__is_symmetric
 
 
-    def rds(self):
-        return self.weilrep().rds()
+    def rds(self, indices = False):
+        return self.weilrep().rds(indices = indices)
 
     def ds(self):
         return self.weilrep().ds()
@@ -574,6 +574,43 @@ class WeilRepModularForm(object):
             if a != 0:
                 return WeilRepModularForm(self.weight() + 2, self.gram_matrix(), X, weilrep = self.weilrep()) / a
         return WeilRepModularForm(self.weight() + 2, self.gram_matrix(), X, weilrep = self.weilrep())
+
+    def symmetrized(self, b):
+        r"""
+        Compute the symmetrization of self over an isotropic subgroup of the finite quadratic module.
+
+        INPUT:
+        - ``b`` -- an integer-norm vector in self's discriminant group.
+
+        OUTPUT: WeilRepModularForm
+        """
+        d_b = denominator(b)
+        if d_b == 1:
+            return self
+        R.<q> = PowerSeriesRing(QQ)
+        S = self.__gram_matrix
+        X = self.components()
+        ds = self.ds()
+        symm = self.is_symmetric
+        if symm:
+            eps = 1
+        else:
+            eps = -1
+        indices = self.rds(indices = True)
+        norm_list = self.weilrep().norm_list()
+        Y = [None] * len(ds)
+        prec = self.precision()
+        for i, g in enumerate(ds):
+            if indices[i] is None:
+                g_b = frac(g * S * b)
+                if g_b:
+                    Y[i] = g, norm_list[i], O(q ** (prec - floor(norm_list[i])))
+                else:
+                    f = sum(X[tuple(frac(x) for x in g + j * b)] for j in range(d_b))
+                    Y[i] = g, norm_list[i], f
+            else:
+                Y[i] = g, norm_list[i], eps * Y[indices[i]][2]
+        return WeilRepModularForm(self.__weight, S, Y, weilrep = self)
 
     def theta_contraction(self, odd = False, components = None, weilrep = None):
         r"""
