@@ -18,7 +18,6 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
-
 class JacobiForms:
     r"""
     The JacobiForms class represents the graded module of Jacobi forms for some lattice index.
@@ -336,7 +335,7 @@ class JacobiForms:
             [(w_0^-1 + 2 + w_0) + (-2*w_0^-3 - 2*w_0^-2 + 2*w_0^-1 + 4 + 2*w_0 - 2*w_0^2 - 2*w_0^3)*q + (w_0^-5 - 2*w_0^-4 - 6*w_0^-3 - 4*w_0^-2 + 5*w_0^-1 + 12 + 5*w_0 - 4*w_0^2 - 6*w_0^3 - 2*w_0^4 + w_0^5)*q^2 + (2*w_0^-6 + 2*w_0^-5 - 4*w_0^-4 - 14*w_0^-3 - 10*w_0^-2 + 12*w_0^-1 + 24 + 12*w_0 - 10*w_0^2 - 14*w_0^3 - 4*w_0^4 + 2*w_0^5 + 2*w_0^6)*q^3 + (w_0^-7 + 4*w_0^-6 + 5*w_0^-5 - 10*w_0^-4 - 30*w_0^-3 - 20*w_0^-2 + 24*w_0^-1 + 52 + 24*w_0 - 20*w_0^2 - 30*w_0^3 - 10*w_0^4 + 5*w_0^5 + 4*w_0^6 + w_0^7)*q^4 + O(q^5), (w_0^-2 + 14 + w_0^2) + (w_0^-4 + 40*w_0^-3 - 76*w_0^-2 - 168*w_0^-1 + 406 - 168*w_0 - 76*w_0^2 + 40*w_0^3 + w_0^4)*q + (-76*w_0^-4 + 768*w_0^-3 - 1048*w_0^-2 - 1792*w_0^-1 + 4296 - 1792*w_0 - 1048*w_0^2 + 768*w_0^3 - 76*w_0^4)*q^2 + (14*w_0^-6 - 168*w_0^-5 - 1048*w_0^-4 + 7192*w_0^-3 - 7998*w_0^-2 - 12656*w_0^-1 + 29328 - 12656*w_0 - 7998*w_0^2 + 7192*w_0^3 - 1048*w_0^4 - 168*w_0^5 + 14*w_0^6)*q^3 + (406*w_0^-6 - 1792*w_0^-5 - 7998*w_0^-4 + 45312*w_0^-3 - 45558*w_0^-2 - 68096*w_0^-1 + 155452 - 68096*w_0 - 45558*w_0^2 + 45312*w_0^3 - 7998*w_0^4 - 1792*w_0^5 + 406*w_0^6)*q^4 + O(q^5), (w_0^-3 + 34 + w_0^3) + (-186*w_0^-3 + 2430*w_0^-2 - 8262*w_0^-1 + 12036 - 8262*w_0 + 2430*w_0^2 - 186*w_0^3)*q + (2430*w_0^-4 - 35307*w_0^-3 + 175932*w_0^-2 - 425493*w_0^-1 + 564876 - 425493*w_0 + 175932*w_0^2 - 35307*w_0^3 + 2430*w_0^4)*q^2 + (34*w_0^-6 - 8262*w_0^-5 + 175932*w_0^-4 - 1281814*w_0^-3 + 4623318*w_0^-2 - 9567396*w_0^-1 + 12116376 - 9567396*w_0 + 4623318*w_0^2 - 1281814*w_0^3 + 175932*w_0^4 - 8262*w_0^5 + 34*w_0^6)*q^3 + (12036*w_0^-6 - 425493*w_0^-5 + 4623318*w_0^-4 - 24202674*w_0^-3 + 72869868*w_0^-2 - 137425977*w_0^-1 + 169097844 - 137425977*w_0 + 72869868*w_0^2 - 24202674*w_0^3 + 4623318*w_0^4 - 425493*w_0^5 + 12036*w_0^6)*q^4 + O(q^5)]
 
             sage: JacobiForms(matrix([[2,1],[1,2]])).weak_forms_basis(-3, 5)
-            [(-w_0*w_1 + w_0 + w_1) + (w_0^2*w_1^2 - w_0^2 - 8*w_0*w_1 - w_1^2 + 8*w_0 + 8*w_1)*q + (-w_0^3*w_1^2 - w_0^2*w_1^3 + w_0^3*w_1 + 8*w_0^2*w_1^2 + w_0*w_1^3 - 8*w_0^2 - 44*w_0*w_1 - 8*w_1^2 + w_0^2*w_1^-1 + 44*w_0 + 44*w_1 - w_0*w_1^-2)*q^2 + (-8*w_0^3*w_1^2 - 8*w_0^2*w_1^3 + 8*w_0^3*w_1 + 44*w_0^2*w_1^2 + 8*w_0*w_1^3 - 44*w_0^2 - 192*w_0*w_1 - 44*w_1^2 + 8*w_0^2*w_1^-1 + 192*w_0 + 192*w_1 - 8*w_0*w_1^-2)*q^3 + (w_0^4*w_1^3 + w_0^3*w_1^4 - w_0^4*w_1 - 44*w_0^3*w_1^2 - 44*w_0^2*w_1^3 - w_0*w_1^4 + 44*w_0^3*w_1 + 192*w_0^2*w_1^2 + 44*w_0*w_1^3 - w_0^3*w_1^-1 - 192*w_0^2 - 726*w_0*w_1 - 192*w_1^2 + 44*w_0^2*w_1^-1 + 726*w_0 + 726*w_1 - 44*w_0*w_1^-2 + w_0*w_1^-3)*q^4 + O(q^5)]
+            [(-w_0*w_1 + w_0 + w_1 - w_1^-1 - w_0^-1 + w_0^-1*w_1^-1) + (w_0^2*w_1^2 - w_0^2 - 8*w_0*w_1 - w_1^2 + 8*w_0 + 8*w_1 - 8*w_1^-1 - 8*w_0^-1 + w_1^-2 + 8*w_0^-1*w_1^-1 + w_0^-2 - w_0^-2*w_1^-2)*q + (-w_0^3*w_1^2 - w_0^2*w_1^3 + w_0^3*w_1 + 8*w_0^2*w_1^2 + w_0*w_1^3 - 8*w_0^2 - 44*w_0*w_1 - 8*w_1^2 + w_0^2*w_1^-1 + 44*w_0 + 44*w_1 + w_0^-1*w_1^2 - w_0*w_1^-2 - 44*w_1^-1 - 44*w_0^-1 - w_0^-2*w_1 + 8*w_1^-2 + 44*w_0^-1*w_1^-1 + 8*w_0^-2 - w_0^-1*w_1^-3 - 8*w_0^-2*w_1^-2 - w_0^-3*w_1^-1 + w_0^-2*w_1^-3 + w_0^-3*w_1^-2)*q^2 + (-8*w_0^3*w_1^2 - 8*w_0^2*w_1^3 + 8*w_0^3*w_1 + 44*w_0^2*w_1^2 + 8*w_0*w_1^3 - 44*w_0^2 - 192*w_0*w_1 - 44*w_1^2 + 8*w_0^2*w_1^-1 + 192*w_0 + 192*w_1 + 8*w_0^-1*w_1^2 - 8*w_0*w_1^-2 - 192*w_1^-1 - 192*w_0^-1 - 8*w_0^-2*w_1 + 44*w_1^-2 + 192*w_0^-1*w_1^-1 + 44*w_0^-2 - 8*w_0^-1*w_1^-3 - 44*w_0^-2*w_1^-2 - 8*w_0^-3*w_1^-1 + 8*w_0^-2*w_1^-3 + 8*w_0^-3*w_1^-2)*q^3 + (w_0^4*w_1^3 + w_0^3*w_1^4 - w_0^4*w_1 - 44*w_0^3*w_1^2 - 44*w_0^2*w_1^3 - w_0*w_1^4 + 44*w_0^3*w_1 + 192*w_0^2*w_1^2 + 44*w_0*w_1^3 - w_0^3*w_1^-1 - 192*w_0^2 - 726*w_0*w_1 - 192*w_1^2 - w_0^-1*w_1^3 + 44*w_0^2*w_1^-1 + 726*w_0 + 726*w_1 + 44*w_0^-1*w_1^2 - 44*w_0*w_1^-2 - 726*w_1^-1 - 726*w_0^-1 - 44*w_0^-2*w_1 + w_0*w_1^-3 + 192*w_1^-2 + 726*w_0^-1*w_1^-1 + 192*w_0^-2 + w_0^-3*w_1 - 44*w_0^-1*w_1^-3 - 192*w_0^-2*w_1^-2 - 44*w_0^-3*w_1^-1 + w_0^-1*w_1^-4 + 44*w_0^-2*w_1^-3 + 44*w_0^-3*w_1^-2 + w_0^-4*w_1^-1 - w_0^-3*w_1^-4 - w_0^-4*w_1^-3)*q^4 + O(q^5)]
 
         """
         S = self.index_matrix()
@@ -345,11 +344,15 @@ class JacobiForms:
         N = self.longest_short_vector_norm()
         if verbose:
             print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'%N)
-        jacobi_forms = [x.jacobi_form() for x in self.weilrep().nearly_holomorphic_modular_forms_basis(weight - S.nrows()/2, N, prec)]
-        if verbose:
-            print('I found %d nearly-holomorphic modular forms.'%len(jacobi_forms))
-            print('I will now check whether any of these modular forms occur as theta decompositions of weak Jacobi forms.')
-        return [jf for jf in jacobi_forms if not any(jf.fourier_expansion()[-1-i] for i in range(ceil(N)))]
+        jacobi_forms = [x.jacobi_form() for x in self.weilrep().nearly_holomorphic_modular_forms_basis(weight - S.nrows()/2, N, prec, verbose = verbose)]
+        if jacobi_forms:
+            if verbose:
+                print('I found %d nearly-holomorphic modular forms.'%len(jacobi_forms))
+                print('I will now check whether any of these modular forms occur as theta decompositions of weak Jacobi forms.')
+            return [jf for jf in jacobi_forms if not any(jf.fourier_expansion()[-1-i] for i in range(ceil(N)))]
+        elif verbose:
+            print('I found no weak Jacobi forms.')
+        return []
 
     ## other:
 
@@ -377,7 +380,7 @@ class JacobiForms:
         found_vectors[0] = 0
         S_inv = S.inverse()
         try:
-            _, _, vs_matrix = pari(S_inv).qfminim(N_triv + N_triv + 1, flag = 2)
+            _, _, vs_matrix = pari(S_inv).qfminim(N_triv + 1, flag = 2)
             vs_list = vs_matrix.sage().columns()
             for v in vs_list:
                 r = S_inv * v
@@ -386,8 +389,9 @@ class JacobiForms:
                     j = indices[j]
                 if found_vectors[j] is None:
                     found_vectors[j] = v * r / 2
-                if all(x is not None for x in found_vectors):
-                    return max(found_vectors)
+                else:
+                    found_vectors[j] = min(v * r/2, found_vectors[j])
+            return max(found_vectors)
         except PariError:
             lvl = w.level()
             S_adj = S_inv * lvl
@@ -910,11 +914,11 @@ class JacobiForm:
         jf_sub = R([f[i].subs(d) for i in range(val, prec)])
         return JacobiForm(self.weight(), S[L,L], q^val * R(jf_sub)+O(q^prec))
 
-def jacobi_eisenstein_series(k, m, prec):
+def jacobi_eisenstein_series(k, m, prec, allow_small_weight = False):
     r"""
     Compute the Jacobi Eisenstein series.
     """
-    return JacobiForms(m).eisenstein_series(k, prec)
+    return JacobiForms(m).eisenstein_series(k, prec, allow_small_weight = allow_small_weight)
 
 def theta_block(a, n, prec):#theta block corresponding to a=[a1,...,ar] and eta^n
     r"""

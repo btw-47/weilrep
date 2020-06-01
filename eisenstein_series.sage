@@ -1037,6 +1037,8 @@ def L_values(L,c,S,p,k, t = None): #the Euler factors in the Eisenstein series, 
 
     NOTE: The output is actually renormalized to (1 - p^(d/2 - k)) * L_{\gamma, n}(k, p).
 
+    NOTE: if t is not None then the variable 'k' is never used
+
     INPUT:
     - ``L`` -- an integer vector of size equal to the dimension of S
     - ``c`` -- a list of integers

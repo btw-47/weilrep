@@ -26,7 +26,7 @@ load('weilrep_misc.sage')
 load('weilrep_modular_forms_class.sage')
 
 
-class WeilRep:
+class WeilRep(object):
     r"""
     The WeilRep class represents the module of vector-valued modular forms which transform with the dual Weil representation.
 
@@ -170,11 +170,11 @@ class WeilRep:
             """
         try:
             return self.__ds
-        except:
+        except AttributeError:
             if not self.gram_matrix():
                 self.__ds = [vector([])]
             else:
-                [D, U, V] = self.gram_matrix().smith_form()
+                D, U, V = self.gram_matrix().smith_form()
                 L = [vector(range(D[k, k])) / D[k, k] for k in range(D.nrows())]
                 self.__ds = [vector(frac(x) for x in V * vector(r)) for r in product(*L)]
             return self.__ds
@@ -215,6 +215,13 @@ class WeilRep:
 
         """
         return weilrep(-self.gram_matrix())
+
+    def embiggen(self, b, m):
+        S = self.gram_matrix()
+        tilde_b = b*S
+        shift_m = m + b*tilde_b/2
+        tilde_b = matrix(tilde_b)
+        return WeilRep(block_matrix(ZZ,[[S,tilde_b.transpose()],[tilde_b,2*shift_m]]))
 
     def level(self):
         try:
@@ -374,16 +381,17 @@ class WeilRep:
             raise TypeError('The Bruinier-Bundschuh lift takes modular forms of odd prime level as input')
         if not mf.character() == DirichletGroup(p)[ZZ((p-1)/2)]:
             raise TypeError('Invalid character')
-        mf_coeffs = mf.qexp().padded_list()
+        mfq = mf.qexp()
+        R, q = mfq.parent().objgen()
+        mf_coeffs = mfq.padded_list()
         prec = len(mf_coeffs)//p
-        R.<q> = PowerSeriesRing(QQ)
         ds = self.ds()
         norm_list = self.norm_list()
         Y = [None]*len(ds)
         for i, g in enumerate(ds):
             offset = norm_list[i]
             if not g:
-                f = R(mf_coeffs[::p]) + O(q^prec)
+                f = R(mf_coeffs[::p]) + O(q ** prec)
                 zero = not f
                 Y[i] = g, offset, f
             else:
@@ -400,7 +408,7 @@ class WeilRep:
         This constructs the Eisenstein series E_(k,0) of weight k and constant term e_0 with Fourier expansion up to precision `prec`.
 
         INPUT:
-        - ``k`` -- a weight (half-integer, and such that 2k + signature = 0 mod 4)
+        - ``k`` -- a weight (half-integer, and such that 2k + signature = 0 mod 4). also ``k`` can be a list of weights (then we produce a list of Eisenstein series).
         - ``prec`` -- precision
         - ``allow_small_weight`` -- a boolean (default False). If True then we compute the Eisenstein series in weights less than or equal to 2 (where it may not be a true modular form)
         - ``components`` -- optional parameter (default None). A sublist L of self's discriminant group and a list of indices (e.g. [None]*len(L) ) can be passed here as a tuple.
@@ -452,12 +460,21 @@ class WeilRep:
         """
         #check input
         prec = ceil(prec)
-        if prec <= 0:
-            raise ValueError('Precision must be at least 0')
-        if k <= 2 and not allow_small_weight and (k < 2 or self.discriminant().is_squarefree()):
-            raise ValueError('Weight must be at least 5/2')
-        if not self.is_symmetric_weight(k):
-            raise ValueError('Invalid weight')
+        k_is_list = type(k) is list
+        if not k_is_list:
+            if prec <= 0:
+                raise ValueError('Precision must be at least 0')
+            if k <= 2 and not allow_small_weight and (k < 2 or self.discriminant().is_squarefree()):
+                raise ValueError('Weight must be at least 5/2')
+            if not self.is_symmetric_weight(k):
+                raise ValueError('Invalid weight')
+            try:#did we do this already?
+                old_prec, e = self.__eisenstein
+                if old_prec >= prec:
+                    return e.reduce_precision(old_prec, in_place = False)
+                assert False
+            except:
+                pass
         #setup
         R.<q> = PowerSeriesRing(QQ)
         S = self.gram_matrix()
@@ -478,6 +495,9 @@ class WeilRep:
         precomputed_lists = {}
         dets_primes = dets.prime_factors()
         X = [None] * len(_ds)
+        if k_is_list:
+            len_k = len(k)
+            X = [copy(X) for _ in range(len_k)]
         #guess which Lvalues we have to look at. (this is always enough but sometimes its too many)
         def eisenstein_series_create_lists(g):
             d_gamma = denominator(g)
@@ -528,9 +548,15 @@ class WeilRep:
             return [little_n_list, n_lists, old_modulus, prime_list, removable_primes]
         #odd rank:
         if _dim % 2:
-            k_shift = ZZ(k - 1/2)
-            two_k_shift = k_shift + k_shift
-            front_multiplier = eps / zeta(1 - two_k_shift)
+            if k_is_list:
+                k_shift_list = [ZZ(j - 1/2) for j in k]
+                two_k_shift_list = [j + j for j in k_shift_list]
+                front_multiplier_list = [eps / zeta(1 - j) for j in two_k_shift_list]
+                k_shift = k_shift_list[0]
+            else:
+                k_shift = ZZ(k - 1/2)
+                two_k_shift = k_shift + k_shift
+                front_multiplier = eps / zeta(1 - two_k_shift)
             for i_g, g in enumerate(_ds):
                 _norm = _norm_list[i_g]
                 if _indices[i_g] is None: #have we computed the negative component yet?
@@ -539,57 +565,109 @@ class WeilRep:
                     modified_prec = prec - floor(_norm)
                     little_n_list, n_lists, old_modulus, prime_list, removable_primes = eisenstein_series_create_lists(g)
                     gSg = g * S * g
-                    Lvalue_list = [L_values(L, [2*n + gSg for n in n_lists[i_p][0]], S, p, k) for i_p, p in enumerate(prime_list)]
+                    if k_is_list:
+                        RPoly.<t> = PolynomialRing(QQ)
+                        Lvalue_list = [L_values(L, [2*n + gSg for n in n_lists[i_p][0]], S, p, 0, t=t) for i_p, p in enumerate(prime_list)]
+                    else:
+                        Lvalue_list = [L_values(L, [2*n + gSg for n in n_lists[i_p][0]], S, p, k) for i_p, p in enumerate(prime_list)]
                     try:#some things depend only on the exponents not the component-vector "g"
                         D_list, main_term_list = precomputed_lists[_norm]
                     except:
-                        main_term_list = [0]
-                        D_list = [0]
-                        for i_n, n in enumerate(little_n_list):
-                            D = ((-1) ** k_shift) * old_modulus
-                            for p, e in factor(n):
-                                if p==2 or (dets % p == 0):
-                                    D *= (p ** e)
-                                else:
-                                    D *= (p ** (e % 2))
-                            little_D = abs(fundamental_discriminant(D))
-                            sqrt_factor = sqrt(2 * n  * dets / little_D)
-                            correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
-                            D_list.append(D)
-                            main_term_list.append(correct_L_function * ((4 * n / little_D) ** k_shift) / sqrt_factor)
+                        if k_is_list:
+                            main_term_list = [[0] for _ in range(len_k)]
+                            D_list = [0]
+                            for i_n, n in enumerate(little_n_list):
+                                D = ((-1) ** k_shift) * old_modulus
+                                for p, e in factor(n):
+                                    if p==2 or (dets % p == 0):
+                                        D *= (p ** e)
+                                    else:
+                                        D *= (p ** (e % 2))
+                                little_D = abs(fundamental_discriminant(D))
+                                sqrt_factor = sqrt(2 * n  * dets / little_D)
+                                correct_L_function_list = [quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D) for k_shift in k_shift_list]
+                                D_list.append(D)
+                                for j, k_shift in enumerate(k_shift_list):
+                                    main_term_list[j].append(correct_L_function_list[j] * ((4 * n / little_D) ** k_shift) / sqrt_factor)
+                        else:
+                            main_term_list = [0]
+                            D_list = [0]
+                            for i_n, n in enumerate(little_n_list):
+                                D = ((-1) ** k_shift) * old_modulus
+                                for p, e in factor(n):
+                                    if p==2 or (dets % p == 0):
+                                        D *= (p ** e)
+                                    else:
+                                        D *= (p ** (e % 2))
+                                little_D = abs(fundamental_discriminant(D))
+                                sqrt_factor = sqrt(2 * n  * dets / little_D)
+                                correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
+                                D_list.append(D)
+                                main_term_list.append(correct_L_function * ((4 * n / little_D) ** k_shift) / sqrt_factor)
                     local_factor_list = [1] * (modified_prec)
-                    for i, p in enumerate(prime_list):
-                        p = prime_list[i]
-                        p_k_shift = p ** (-k_shift)
-                        p_k_shift_squared = p_k_shift * p_k_shift
-                        p1_mult = 1 / (1 + p_k_shift)
-                        p2_mult = (1 + p_k_shift) / (1 - p_k_shift_squared)
-                        for j in range(len(n_lists[i][0])):
-                            index_n = n_lists[i][1][j] + 1
-                            D = D_list[index_n]
-                            kron = kronecker_symbol(D, p)
-                            if kron == 1:
-                                mult = (Lvalue_list[i][j] * p1_mult)
-                            elif kron == -1:
-                                mult = (Lvalue_list[i][j] * p2_mult)
-                            else:
-                                mult = (Lvalue_list[i][j] / (1 - p_k_shift_squared))
-                            local_factor_list[index_n] *= mult
+                    if k_is_list:
+                        local_factor_list = [copy(local_factor_list) for _ in range(len_k)]
+                        for i, p in enumerate(prime_list):
+                            p = prime_list[i]
+                            p_e_power = p ** ((1 + _dim) // 2)
+                            for index_k, k_shift in enumerate(k_shift_list):
+                                p_k_shift = p ** (-k_shift)
+                                p_k_shift_squared = p_k_shift * p_k_shift
+                                p1_mult = 1 / (1 + p_k_shift)
+                                p2_mult = (1 + p_k_shift) / (1 - p_k_shift_squared)
+                                p_pow = p_k_shift * p_e_power
+                                p_tuple = (p2_mult, ~(1 - p_k_shift_squared), p1_mult)
+                                for j in range(len(n_lists[i][0])):
+                                    index_n = n_lists[i][1][j] + 1
+                                    D = D_list[index_n]
+                                    local_factor_list[index_k][index_n] *= Lvalue_list[i][j](p_pow) * p_tuple[kronecker_symbol(D, p) + 1]
+                    else:
+                        for i, p in enumerate(prime_list):
+                            p = prime_list[i]
+                            p_k_shift = p ** (-k_shift)
+                            p_k_shift_squared = p_k_shift * p_k_shift
+                            p1_mult = 1 / (1 + p_k_shift)
+                            p2_mult = (1 + p_k_shift) / (1 - p_k_shift_squared)
+                            p_tuple = (p2_mult, ~(1 - p_k_shift_squared), p1_mult)
+                            for j in range(len(n_lists[i][0])):
+                                index_n = n_lists[i][1][j] + 1
+                                D = D_list[index_n]
+                                local_factor_list[index_n] *= Lvalue_list[i][j] * p_tuple[kronecker_symbol(D, p) + 1]
                     E = (old_modulus == dets + dets) + O(q ** modified_prec)
-                    if (k == 1) and gSg == 0:
-                        E = E - weight_one_zero_val(g,S)
-                    X[i_g] = g, _norm, E + front_multiplier * (prod(1 / (1 - p ** (-two_k_shift)) for p in removable_primes)) * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
+                    if k_is_list:
+                        for i in range(len_k):
+                            X[i][i_g] = g, _norm, E + front_multiplier_list[i] * (prod(1 / (1 - p ** (-two_k_shift_list[i])) for p in removable_primes)) * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
+                    else:
+                        if (k == 1) and gSg == 0:
+                            E = E - weight_one_zero_val(g,S)
+                        X[i_g] = g, _norm, E + front_multiplier * (prod(1 / (1 - p ** (-two_k_shift)) for p in removable_primes)) * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
                     precomputed_lists[_norm] = D_list, main_term_list
                 else:
-                    X[i_g] = g, _norm, X[_indices[i_g]][2]
-            return WeilRepModularForm(k, S, X, weilrep = self)
+                    if k_is_list:
+                        ind_g = _indices[i_g]
+                        for i in range(len_k):
+                            X[i][i_g] = g, _norm, X[i][ind_g][2]
+                    else:
+                        X[i_g] = g, _norm, X[_indices[i_g]][2]
+            if k_is_list:
+                return [WeilRepModularForm(k[i], S, X[i], weilrep = self) for i in range(len_k)]
+            else:
+                e = WeilRepModularForm(k, S, X, weilrep = self)
+                self.__eisenstein = prec, e
+                return e
         #even rank
         else:
-            D = ((-1) ** k) * dets
-            littleD = fundamental_discriminant(D)
-            corrector = 1 / quadratic_L_function__corrector(k, D)
-            sqrt_factor = QQ(2/isqrt(abs(littleD * dets)))
-            multiplier = QQ(eps * corrector * (littleD ** k) * sqrt_factor / quadratic_L_function__cached(1 - k, littleD))
+            if k_is_list:
+                D = ((-1) ** k[0]) * dets
+                littleD = fundamental_discriminant(D)
+                sqrt_factor = QQ(2 / isqrt(abs(littleD * dets)))
+                multiplier_list = [eps * (littleD ** k_i) * sqrt_factor / (quadratic_L_function__corrector(k_i, D) * quadratic_L_function__cached(1 - k_i, littleD)) for i, k_i in enumerate(k)]
+            else:
+                D = ((-1) ** k) * dets
+                littleD = fundamental_discriminant(D)
+                corrector = 1 / quadratic_L_function__corrector(k, D)
+                sqrt_factor = QQ(2/isqrt(abs(littleD * dets)))
+                multiplier = QQ(eps * corrector * (littleD ** k) * sqrt_factor / quadratic_L_function__cached(1 - k, littleD))
             for i_g, g in enumerate(_ds):
                 _norm = _norm_list[i_g]
                 modified_prec = prec - floor(_norm)
@@ -599,31 +677,73 @@ class WeilRep:
                     _norm = _norm_list[i_g]
                     little_n_list, n_lists, old_modulus, prime_list, removable_primes = eisenstein_series_create_lists(g)
                     gSg = g * S * g
-                    Lvalue_list = [L_values(L, [2*n + gSg for n in n_lists[i_p][0]], S, p, k) for i_p, p in enumerate(prime_list)]
+                    if k_is_list:
+                        RPoly.<t> = PolynomialRing(QQ)
+                        Lvalue_list = [L_values(L, [2*n + gSg for n in n_lists[i_p][0]], S, p, 0, t=t) for i_p, p in enumerate(prime_list)]
+                    else:
+                        Lvalue_list = [L_values(L, [2*n + gSg for n in n_lists[i_p][0]], S, p, k) for i_p, p in enumerate(prime_list)]
                     try:
                         main_term_list = precomputed_lists[_norm]#some things depend only on the exponents not the component-vector "g"
                     except:
-                        main_term_list = [0]
-                        main_term_list.extend([n ** (k-1) for n in little_n_list])
+                        if k_is_list:
+                            main_term_list = [[0] for _ in range(len_k)]
+                            for i, k_i in enumerate(k):
+                                main_term_list[i].extend([n ** (k_i - 1) for n in little_n_list])
+                        else:
+                            main_term_list = [0]
+                            main_term_list.extend([n ** (k-1) for n in little_n_list])
                     local_factor_list = [1] * (modified_prec)
-                    for i, p in enumerate(prime_list):
-                        kron_p = kronecker_symbol(D, p) * (p ** (-k))
-                        p_factor = 1 + (p * kron_p)
-                        quot = 1 / (1 - kron_p)
-                        for j in range(len(n_lists[i][0])):
-                            index_n = n_lists[i][1][j] + 1
-                            local_factor_list[index_n] *= (Lvalue_list[i][j] * quot)
-                        for j in range(len(n_lists[i][2])):#p is bad but not too bad at N=local_factor_list[index_n]
-                            index_n = n_lists[i][3][j] + 1
-                            local_factor_list[index_n] *= p_factor
+                    if k_is_list:
+                        local_factor_list = [copy(local_factor_list) for _ in range(len_k)]
+                        for i, p in enumerate(prime_list):
+                            kron = kronecker_symbol(D, p)
+                            p_pow_e = p ** (1 + _dim//2)
+                            for index_k, k_i in enumerate(k):
+                                p_k = p ** (-k_i)
+                                kron_p = kron * p_k
+                                p_pow = p_pow_e * p_k
+                                p_factor = 1 + (p * kron_p)
+                                quot = 1 / (1 - kron_p)
+                                for j in range(len(n_lists[i][0])):
+                                    index_n = n_lists[i][1][j] + 1
+                                    local_factor_list[index_k][index_n] *= (Lvalue_list[i][j](p_pow) * quot)
+                                for j in range(len(n_lists[i][2])):
+                                    index_n = n_lists[i][3][j] + 1
+                                    local_factor_list[index_k][index_n] *= p_factor
+                    else:
+                        local_factor_list = [1] * (modified_prec)
+                        for i, p in enumerate(prime_list):
+                            kron_p = kronecker_symbol(D, p) * (p ** (-k))
+                            p_factor = 1 + (p * kron_p)
+                            quot = 1 / (1 - kron_p)
+                            for j in range(len(n_lists[i][0])):
+                                index_n = n_lists[i][1][j] + 1
+                                local_factor_list[index_n] *= (Lvalue_list[i][j] * quot)
+                            for j in range(len(n_lists[i][2])):#p is bad but not too bad at N=local_factor_list[index_n]
+                                index_n = n_lists[i][3][j] + 1
+                                local_factor_list[index_n] *= p_factor
                     E = (old_modulus == dets + dets) + O(q ** modified_prec)
-                    if (k == 1) and _norm == 0:
-                        E = E - weight_one_zero_val(g,S)
-                    X[i_g] = g, _norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
+                    if k_is_list:
+                        for i in range(len_k):
+                            X[i][i_g] = g, _norm, E + multiplier_list[i] * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
+                    else:
+                        if (k == 1) and _norm == 0:
+                            E = E - weight_one_zero_val(g,S)
+                        X[i_g] = g, _norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
                     precomputed_lists[_norm] = main_term_list
                 else:
-                    X[i_g] = g, _norm, X[_indices[i_g]][2]
-            return WeilRepModularForm(k, S, X, weilrep = self)
+                    if k_is_list:
+                        index = _indices[i_g]
+                        for i in range(len_k):
+                            X[i][i_g] = g, _norm, X[i][index][2]
+                    else:
+                        X[i_g] = g, _norm, X[_indices[i_g]][2]
+            if k_is_list:
+                return [WeilRepModularForm(k[i], S, X[i], weilrep = self) for i in range(len_k)]
+            else:
+                e = WeilRepModularForm(k, S, X, weilrep = self)
+                self.__eisenstein = prec, e
+                return e
 
     def eisenstein_newform(self, k, b, prec, allow_small_weight = False, print_exact = False):
         ## WARNING!! This is not fully tested and very likely has bugs!! it is also slow! ##
@@ -937,7 +1057,7 @@ class WeilRep:
         return WeilRepModularForm(0, S, X, weilrep = self)
 
 
-    def pss(self, weight, b, m, prec):
+    def pss(self, weight, b, m, prec, weilrep = None):
         r"""
         Compute Poincare square series.
 
@@ -962,16 +1082,19 @@ class WeilRep:
         """
         if weight < 5/2:
             raise NotImplementedError
-        S = self.gram_matrix()
-        if S:
-            tilde_b = b*S
-            shift_m = m + b*tilde_b/2
-            tilde_b = matrix(tilde_b)
-            S_new = block_matrix(ZZ,[[S,tilde_b.transpose()],[tilde_b,2*shift_m]])
+        if not weilrep:
+            S = self.gram_matrix()
+            if S:
+                tilde_b = b*S
+                shift_m = m + b*tilde_b/2
+                tilde_b = matrix(tilde_b)
+                S_new = block_matrix(ZZ,[[S,tilde_b.transpose()],[tilde_b,2*shift_m]])
+            else:
+                S_new = matrix(ZZ, [[2*m]])
+            w = WeilRep(S_new)
         else:
-            S_new = matrix(ZZ, [[2*m]])
+            w = weilrep
         new_k = weight - 1/2
-        w = WeilRep(S_new)
         _components = [self.ds(), self.rds(indices = True)]
         X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(components = _components)
         if weight > 5/2:
@@ -992,9 +1115,9 @@ class WeilRep:
                 Z[i] = Y[i][0], Y[i][1], Y[i][2] - epsilon * sum((n + offset) * theta_f[n] * (q ** n) for n in range(1, len(theta_f)) if theta_f[n])
                 #Y[i][2] -= epsilon * sum((n + offset)*theta_f[n]*q^n for n in range(1, len(theta_f)) if theta_f[n])#fix it by adding derivative of theta-contraction of the weight 2 Eisenstein series' shadow, multiplied by epsilon
             return WeilRepModularForm(weight, S, Z, weilrep = self)
-        
-    
-    def pssd(self, weight, b, m, prec, components = None):
+
+
+    def pssd(self, weight, b, m, prec, weilrep = None):
         r"""
         Compute antisymmetric modular forms.
 
@@ -1036,16 +1159,20 @@ class WeilRep:
         """
         if weight < 7/2:
             raise NotImplementedError
-        S = self.gram_matrix()
-        tilde_b = b*S
-        shift_m = m + b*tilde_b/2
-        tilde_b = matrix(tilde_b)
-        S_new = block_matrix(ZZ,[[S,tilde_b.transpose()],[tilde_b,2*shift_m]])
+        if not weilrep:
+            S = self.gram_matrix()
+            if S:
+                tilde_b = b*S
+                shift_m = m + b*tilde_b/2
+                tilde_b = matrix(tilde_b)
+                S_new = block_matrix(ZZ,[[S,tilde_b.transpose()],[tilde_b,2*shift_m]])
+            else:
+                S_new = matrix(ZZ, [[2*m]])
+            w = WeilRep(S_new)
+        else:
+            w = weilrep
         new_k = weight - 3/2
-        w = WeilRep(S_new)
-        if components is None:
-            components = [self.ds(), self.rds(indices = True)]
-        X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(odd = True, components = components, weilrep = self)
+        X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(odd = True, weilrep = self)
         if weight > 7/2:
             return X
         else:#result might be wrong so lets fix it
@@ -1054,7 +1181,7 @@ class WeilRep:
             except TypeError:
                 return X#result was ok
             R.<q> = PowerSeriesRing(QQ)
-            theta = w.eisenstein_shadow(prec+1).theta_contraction(odd = True, components = components).fourier_expansion()#this is a weight 3/2 theta
+            theta = w.eisenstein_shadow(prec+1).theta_contraction(odd = True).fourier_expansion()#this is a weight 3/2 theta
             Y = X.fourier_expansion()
             Z = [None] * len(theta)
             for i in range(len(theta)):
@@ -1446,7 +1573,52 @@ class WeilRep:
 
     ## bases of spaces associated to this representation
 
-    def cusp_forms_basis(self, k, prec=None, save_pivots = False, save_vectors_and_pivots = False, verbose = False, E = None):#basis of cusp forms
+    def _eisenstein_packet(self, k, prec, dim = None, include_E = False):#packet of cusp forms that can be computed using only Eisenstein series
+        j = floor((k - 1) / 2)
+        if not dim:
+            dim = j
+        else:
+            dim = min(dim, j)
+        k_list = [k - (j + j) for j in range(dim)]
+        E = self.eisenstein_series(k_list, prec)
+        if include_E:
+            X = [E[0]]
+        else:
+            X = []
+        def repeated_serre_deriv(x, N):
+            if N <= 0:
+                return x
+            return repeated_serre_deriv(x.serre_derivative(normalize_constant_term = True), N - 1)
+        if len(k_list) > 1:
+            e4 = eisenstein_series_qexp(4, prec, normalization='constant')
+            if len(k_list) > 2:
+                e6 = eisenstein_series_qexp(6, prec, normalization='constant')
+        for c in range(dim // 3 + 1):
+            if c:
+                s6 = smf(6*c, e6 ** c)
+            for b in range((dim - 3*c) // 2 + 1):
+                if b:
+                    s4 = smf(4*b, e4 ** b)
+                j = dim - 3*c - 2*b
+                for a in range(j):
+                    p = a + 2*b + 3*c
+                    if p:
+                        u = E[a + 2*b + 3*c]
+                        if b:
+                            u = u * s4
+                        if c:
+                            u = u * s6
+                        u = repeated_serre_deriv(u, a)
+                        if include_E:
+                            X.append(u)
+                        else:
+                            X.append(E[0] - u)
+        b = WeilRepModularFormsBasis(k, X, self)
+        if include_E:
+            return b
+        return E[0], b
+
+    def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False):#basis of cusp forms
         r"""
         Compute a basis of the space of cusp forms.
 
@@ -1457,10 +1629,10 @@ class WeilRep:
         INPUT:
         - ``k`` -- the weight (half-integer)
         - ``prec`` -- precision (default None). If precision is not given then we use the Sturm bound.
-        - ``save_pivots`` -- boolean (default False). If True then we return a list representing the smallest exponents with nonzero coefficient in each cusp form, as indices in their .coefficient_vector()s.
-        - ``save_vectors_and_pivots`` -- boolean (default False). If True then we also return vectors consisting of basis' coefficients up to the sturm bound. (for internal use)
         - ``verbose`` -- boolean (default False). If True then add comments throughout the computation.
         - ``E`` -- WeilRepModularForm (default None). If this is given then the computation assumes that E is the Eisenstein series of weight k.
+        - ``dim`` -- (default None) If given then we stop computing after having found 'dim' vectors. (this is automatically minimized to the true dimension)
+        - ``save_pivots`` -- boolean (default False) If True then we also output the pivots of each element of the basis' coefficient-vectors
 
         OUTPUT: a list of WeilRepModularForms
 
@@ -1521,18 +1693,23 @@ class WeilRep:
             return []
         S = self.gram_matrix()
         G = self.sorted_rds()
+        if verbose:
+            print('I am now looking for cusp forms for the Weil representation for the Gram matrix\n%s'%S)
         _norm_dict = self.norm_dict()
         symm = self.is_symmetric_weight(k)
         if symm is None:
             return [] #should this raise an error instead?
         if k > 2:
-            dim = self.cusp_forms_dimension(k)
+            true_dim = self.cusp_forms_dimension(k)
+            if dim is None:
+                dim = true_dim
+            else:
+                dim = min(dim, true_dim)
             if not dim:
-                if save_vectors_and_pivots:
-                    return [], [], []
-                elif save_pivots:
-                    return [], []
-                return []
+                X = WeilRepModularFormsBasis(k, [], self)
+                if save_pivots:
+                    return X, []
+                return X
             elif verbose:
                 print('I need to find %d cusp forms of weight %s.' %(dim, k))
         sturm_bound = k / 12
@@ -1547,57 +1724,118 @@ class WeilRep:
                     if verbose:
                         print('I computed the Eisenstein series of weight %s up to precision %s.' %(k, prec))
             rank = 0
-            basis_vectors = []
-            basis = []
-            pivots = []
-            #try some serre derivatives of eisenstein series first
-            j = 2
-            first_test = symm + 0
-            dim_old = self.modular_forms_dimension(k)
-            while first_test:
-                if (rank == dim) or not k >= 5/2 + j:
-                    first_test = False
-                else:
-                    dim_new = self.modular_forms_dimension(k - j)
-                    if dim_new < dim_old:
-                        E_j = self.eisenstein_series(k - j, prec)
-                        X = E_j
-                        for i in range(j/2):
-                            X = X.serre_derivative(normalize_constant_term = True)
-                        basis, basis_vectors, pivots, rank = update_echelon_form_with(E - X, basis, basis_vectors, pivots, rank, sturm_bound)
-                        j = j + 2
-                        dim_old = dim_new
-                    else: 
-                        first_test = False
+            if symm and k >= 9/2:
+                E, X = self._eisenstein_packet(k, prec, dim = dim+1)
+                if verbose and X:
+                    print('I computed a packet of %d cusp forms using Eisenstein series.'%len(X))
+            elif symm and not E:
+                E = self.eisenstein_series(k, prec)
+                X = WeilRepModularFormsBasis(k, [], self)
+                if verbose:
+                    print('I computed the Eisenstein series of weight %s up to precision %s.' %(k, prec))
+            else:
+                X = WeilRepModularFormsBasis(k, [], self)
             #use PSS to finish spanning
             if verbose and rank > 0:
                 print('I found %d cusp forms by subtracting the Eisenstein series away from Serre derivatives of Eisenstein series of lower weight.' %rank)
             m0 = 1
+            skipped_indices = []
+            failed_exponent = 0
             while rank < dim:
-                for b in G:
-                    if symm or 2 % vector(b).denominator():
-                        m = m0 + _norm_dict[b]
-                        if symm:
-                            if prec > 20 and k > 3: #more or less arbitrary cutoff...
-                                P = self.pss_double(k, vector(b), m, prec)
+                while len(X) < dim:
+                    for b_tuple in G:
+                        old_rank = rank
+                        b = vector(b_tuple)
+                        if symm or b.denominator() > 2:
+                            m = m0 + _norm_dict[b_tuple]
+                            if m != failed_exponent:
+                                dim_rank = dim - len(X)
+                                if symm:
+                                    if k in ZZ:
+                                        w_new = self.embiggen(b, m)
+                                        if k > 3 and dim_rank > 2:
+                                            if verbose:
+                                                print('-'*40)
+                                            y = w_new.cusp_forms_basis(k - 1/2, prec, verbose = verbose, dim = dim_rank).theta()
+                                            X.extend(y)
+                                            if verbose:
+                                                print('-'*40)
+                                                print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
+                                                print('I am returning to the Gram matrix\n%s'%S)
+                                        if len(X) < dim:
+                                            X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
+                                            if verbose:
+                                                print('I computed a Poincare square series of index %s.'%([b, m]))
+                                    else:
+                                        w_new = self.embiggen(b, m)
+                                        if dim_rank > 1 and k > 2:
+                                            _, x = w_new._eisenstein_packet(k - 1/2, prec, dim = dim_rank)
+                                            X.extend(x.theta())
+                                            if x and verbose:
+                                                print('I computed a packet of %d cusp forms using the index %s.'%(len(x), (b, m)))
+                                        if len(X) < dim:
+                                            X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
+                                            if verbose:
+                                                print('I computed a Poincare square series of index %s.'%([b, m]))
+                                else:
+                                    if k in ZZ:
+                                        w_new = self.embiggen(b, m)
+                                        if dim_rank > 1 and k > 4:
+                                            if verbose:
+                                                print('-'*40)
+                                            y = w_new.cusp_forms_basis(k - 3/2, prec, verbose = verbose, dim = dim - len(X)).theta(odd = True)
+                                            X.extend(y)
+                                            if verbose:
+                                                print('-'*40)
+                                                print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
+                                                print('I am returning to the Gram matrix\n%s'%S)
+                                        if len(X) < dim:
+                                            X.append(self.pssd(k, b, m, prec, weilrep = w_new))
+                                            if verbose:
+                                                print('I computed a Poincare square series of index %s.'%([b, m]))
+                                    else:
+                                        dim_rank = dim-len(X)
+                                        if dim_rank > 1 and k > 6:
+                                            w_new = self.embiggen(b, m)
+                                            y = w_new._eisenstein_packet(k - 3/2, prec, dim = dim_rank, include_E = true).theta(odd = True)
+                                            X.extend(y)
+                                            if verbose:
+                                                print('I computed a packet of %d cusp forms using the index %s.'%(len(y), (b, m)))
+                                        else:
+                                            X.append(self.pssd(k, b, m, prec))
+                                            if verbose:
+                                                print('I computed a Poincare square series of index %s.'%([b, m]))
+                                pivots = X.echelonize(save_pivots)
+                                rank = len(X)
+                                if rank >= dim:
+                                    break
+                                if rank == old_rank:
+                                    failed_exponent = m
+                                elif verbose:
+                                    print('I have found %d out of %d cusp forms.'%(rank, dim))
                             else:
-                                P = self.pss(k, vector(b), m, prec)
-                            EP = E - P
-                        else:
-                            EP = self.pssd(k, vector(b), m, prec)
-                        old_rank = rank + 0
-                        basis, basis_vectors, pivots, rank = update_echelon_form_with(EP, basis, basis_vectors, pivots, rank, sturm_bound)
-                        if verbose and rank > old_rank:
-                            print('I found a cusp form using a Poincare square series of index (%s, %s).' %(m, b))
-                        if rank == dim:
-                            break
-                m0 += 1
-            if save_vectors_and_pivots:
-                return basis, basis_vectors, pivots
-            elif save_pivots:
-                return basis, pivots
-            else:
-                return WeilRepModularFormsBasis(k, basis, self)
+                                if verbose:
+                                    print('I will skip the index %s.'%([b,m]))
+                                skipped_indices.append([b, m])
+                    m0 += 1
+                    if m0 > prec:#this will probably never happen but lets be safe
+                        for [b, m] in skipped_indices:
+                            if symm:
+                                X.append(E - self.pss(k, b, m, prec))
+                            else:
+                                X.append(self.pssd(k, b, m, prec))
+                            pivots = X.echelonize(save_pivots)
+                            rank = len(X)
+                            if rank >= dim:
+                                break
+                        if rank < dim:
+                            raise RuntimeError('Something went horribly wrong!')
+                if rank < dim:
+                    pivots = X.echelonize(save_pivots)
+                    rank = len(X)
+            if save_pivots:
+                return X, pivots
+            return X
         else:#slow
             p = self.discriminant()
             if symm and p.is_prime() and p != 2:
@@ -1606,13 +1844,18 @@ class WeilRep:
                 chi = DirichletGroup(p)[(p-1)//2]
                 cusp_forms = CuspForms(chi, k, prec = p*prec).echelon_basis()
                 mod_sturm_bound = ceil(p * k / 12)
-                eps = self.signature() in [0, 6]
+                sig = self.signature()
+                eps = sig == 0 or sig == 6
                 eps = 1 - 2 * eps
                 m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in cusp_forms])
                 v_basis = m.kernel().basis()
                 L = [sum([mf * v[i] for i, mf in enumerate(cusp_forms)]) for v in v_basis]
                 L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
-                return WeilRepModularFormsBasis(k, L, self)
+                X = WeilRepModularFormsBasis(k, L, self)
+                pivots = X.echelonize(save_pivots)
+                if save_pivots:
+                    return X, pivots
+                return X
             if verbose:
                 print('I am going to compute the spaces of cusp forms of weights %s and %s.' %(k+4, k+6))
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
@@ -1624,15 +1867,15 @@ class WeilRep:
             try:
                 V1 = span((x * e4).coefficient_vector() for x in X1)
                 V2 = span((x * e6).coefficient_vector() for x in X2)
-                X = [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).echelonized_basis()]
+                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self)
+                pivots = X.echelonize(save_pivots)
                 if save_pivots:
-                    pivs = matrix(V).pivots()
-                    return X, pivs
-                return WeilRepModularFormsBasis(k, X, self)
+                    return X, pivots
+                return X
             except AttributeError: #we SHOULD only get ``AttributeError: 'Objects_with_category' object has no attribute 'base_ring'`` when X1 or X2 is empty...
-                return [[],[[],[]]][save_pivots]
+                return []
 
-    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, save_pivots = False, verbose = False):
+    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False):
         r"""
         Compute a basis of the space of modular forms.
 
@@ -1645,7 +1888,6 @@ class WeilRep:
         - ``k`` -- the weight (half-integer)
         - ``prec`` -- precision (default None). If precision is not given then we use the Sturm bound.
         - ``eisenstein`` -- boolean (default False). If True and weight >= 5/2 then the first element in the output is always the Eisenstein series (i.e. we do not pass to echelon form).
-        - ``save_pivots`` -- boolean (default False). If True then we return a list representing the smallest exponents with nonzero coefficient in each cusp form, as indices in their .coefficient_vector()s.
         - ``verbose`` -- boolean (default False). If true then we add comments throughout the computation.
 
         OUTPUT: a list of WeilRepModularForms
@@ -1678,7 +1920,7 @@ class WeilRep:
         _norm_list = self.norm_list()
         sturm_bound = weight / 12
         prec = max(prec, ceil(sturm_bound))
-        b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and self.__ds_denominators_list[i] in [1,2,3,4,6]]
+        b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and (self.__ds_denominators_list[i] < 5 or self.__ds_denominators_list[i] == 6)]
         if weight > 3 or (symm and weight > 2):
             dim1 = self.modular_forms_dimension(weight)
             dim2 = self.cusp_forms_dimension(weight)
@@ -1689,39 +1931,33 @@ class WeilRep:
                     print('I found %d Eisenstein series.' %len(b_list))
                     if dim2 > 0:
                         print('I am now going to look for %d cusp forms of weight %s.' %(dim2, weight))
-                L = [self.eisenstein_oldform(weight, _ds[i], prec) for i in b_list]
+                L = WeilRepModularFormsBasis(weight, [self.eisenstein_oldform(weight, _ds[i], prec) for i in b_list], self)
                 if eisenstein:
-                    if save_pivots:
-                        cuspforms, pivs = self.cusp_forms_basis(weight, prec, save_pivots = True, verbose = verbose, E = L[0])
-                        L.extend(cuspforms)
-                        pivots = [0]
-                        pivots.extend(pivs)
-                        return [L,pivots]
-                    else:
-                        L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L0))
-                        return WeilRepModularFormsBasis(weight, L, self)
+                    L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L0))
+                    return L
                 else:
-                    basis, basis_vectors, pivots = self.cusp_forms_basis(weight, prec, save_vectors_and_pivots = True, verbose = verbose, E = L[0])
-                    rank = dim2
-                    for i in b_list:
-                        basis, basis_vectors, pivots, rank = update_echelon_form_with(self.eisenstein_oldform(weight, _ds[i], prec), basis, basis_vectors, pivots, rank, sturm_bound)
-                    if save_pivots:
-                        return basis, pivots
-                    else:
-                        return WeilRepModularFormsBasis(weight, basis, self)
+                    X = self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])
+                    X.extend(L)
+                    X.echelonize()
+                    return X
             elif dim1 == dim2:
-                return self.cusp_forms_basis(weight, prec, save_pivots = save_pivots, verbose = verbose)
+                return self.cusp_forms_basis(weight, prec, verbose = verbose)
             else:
                 pass
         p = self.discriminant()
         if symm and p.is_prime() and p != 2:
+            if weight == 0:
+                return []
             if verbose:
                 print('The discriminant is prime so I can construct modular forms via the Bruinier--Bundschuh lift.')
             chi = DirichletGroup(p)[(p-1)//2]
             mod_forms = ModularForms(chi, weight, prec = p*prec).echelon_basis()
             mod_sturm_bound = p * ceil(weight / 12)
-            eps = self.signature() in [0, 6]
-            eps = 1 - 2 * eps
+            sig = self.signature()
+            if (sig == 0 or sig == 6):
+                eps = -1
+            else:
+                eps = 1
             m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in mod_forms])
             v_basis = m.kernel().basis()
             L = [sum([mf * v[i] for i, mf in enumerate(mod_forms)]) for v in v_basis]
@@ -1732,8 +1968,8 @@ class WeilRep:
         if symm and (dim1 <= dim2 + len(b_list)):
             if verbose:
                 print('I am going to compute the spaces of modular forms of weights %s and %s.' %(weight+4, weight+6))
-            e4 = smf(-4,eisenstein_series_qexp(4,prec)^(-1))
-            e6 = smf(-6,eisenstein_series_qexp(6,prec)^(-1))
+            e4 = smf(-4, ~eisenstein_series_qexp(4,prec))
+            e6 = smf(-6, ~eisenstein_series_qexp(6,prec))
             X1 = self.modular_forms_basis(weight+4,prec, verbose = verbose)
             X2 = self.modular_forms_basis(weight+6,prec, verbose = verbose)
             if verbose:
@@ -1748,9 +1984,9 @@ class WeilRep:
         else:
             if verbose:
                 print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.' %weight)
-            return self.nearly_holomorphic_modular_forms_basis(weight, 0, prec, inclusive = True, reverse = False, save_pivots = save_pivots, force_N_positive = True, verbose = verbose)
+            return self.nearly_holomorphic_modular_forms_basis(weight, 0, prec, inclusive = True, reverse = False, force_N_positive = True, verbose = verbose)
 
-    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, save_pivots = False, keep_N = False, verbose = False):
+    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, verbose = False):
         r"""
         Compute bases of modular forms that vanish to a specified order at infinity.
 
@@ -1762,7 +1998,6 @@ class WeilRep:
         - ``prec`` -- the precision (default 0); will be raised to at least the Sturm bound
         - ``inclusive`` -- boolean (default False); if True then we also exclude modular forms whose order of vanishing is *exactly* N
         - ``inclusive_except_zero_component`` -- boolean (default False); if True then we exclude modular forms any of whose components (except the zero component) has order of vanishing exactly N
-        - ``save_pivots`` -- boolean (default False); if True then also returns a list of pivots (for internal use)
         - ``keep_N`` -- boolean (default False); if True then we skip the first step of trying to reduce to lower weight (for internal use)
 
         OUTPUT: a list of WeilRepModularForms
@@ -1795,16 +2030,16 @@ class WeilRep:
         sturm_bound = k/12
         prec = ceil(max(prec,sturm_bound))
         if N > sturm_bound:
-            return [[], ([],[])][save_pivots]
+            return []
         elif N == 0:
             if inclusive:
                 if verbose:
                     print('The vanishing condition is trivial so I am looking for all cusp forms.')
-                return self.cusp_forms_basis(k, prec, save_pivots, verbose = verbose)
+                return self.cusp_forms_basis(k, prec, verbose = verbose)
             else:
                 if verbose:
                     print('The vanishing condition is trivial so I am looking for all modular forms.')
-                return self.modular_forms_basis(k, prec, eisenstein = False, save_pivots = save_pivots, verbose = verbose)
+                return self.modular_forms_basis(k, prec, eisenstein = False, verbose = verbose)
         elif N >= 1 and not keep_N:
             frac_N = frac(N)
             floor_N = floor(N)
@@ -1816,16 +2051,9 @@ class WeilRep:
                 smf_delta_N = smf(12*floor_N, delta_qexp(prec)^floor_N)
                 if verbose:
                     print('I am going to find a basis of modular forms of weight %s which vanish to order %s at infinity and multiply them by Delta^%d.' %(computed_weight, frac_N, floor_N))
-                if save_pivots:
-                    X, pivs = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, save_pivots, keep_N = True, verbose = verbose)
-                    pivot_shift = N * len(self.rds())
-                    if not symm:
-                        pivot_shift = pivot_shift - sum(self.__order_two_in_rds_list)
-                    return [x * smf_delta_N for x in X], [p + pivot_shift for p in pivs]
-                else:
-                    X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose)
-                    return WeilRepModularFormsBasis(weight, [x * smf_delta_N for x in X], self)
-        cusp_forms, pivots = self.cusp_forms_basis(k, prec, save_pivots = True, verbose = verbose)
+                X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose)
+                return WeilRepModularFormsBasis(k, [x * smf_delta_N for x in X], self)
+        cusp_forms, pivots = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True)
         Y = self.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
         try:
             if inclusive:
@@ -1835,13 +2063,13 @@ class WeilRep:
             else:
                 j = next(i for i in range(len(cusp_forms)) if Y[pivots[i]] >= N)
         except:
-            return [[], ([],[])][save_pivots]
-        if save_pivots:
-            return cusp_forms[j:], pivots[j:]
-        else:
-            return WeilRepModularFormsBasis(k, cusp_forms[j:], self)
+            return []
+        Z = cusp_forms[j:]
+        if type(Z) is list:
+            return WeilRepModularFormsBasis(k, Z, self)
+        return Z
 
-    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, save_pivots = False, force_N_positive = False, verbose = False):
+    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, verbose = False):
         r"""
         Computes a basis of nearly holomorphic modular forms.
 
@@ -1898,6 +2126,13 @@ class WeilRep:
             [(0, 0), O(q^10)]
             [(2/3, 2/3), q^(-1/3) + 248*q^(2/3) + 4124*q^(5/3) + 34752*q^(8/3) + 213126*q^(11/3) + 1057504*q^(14/3) + 4530744*q^(17/3) + 17333248*q^(20/3) + 60655377*q^(23/3) + 197230000*q^(26/3) + 603096260*q^(29/3) + O(q^10)]
             [(1/3, 1/3), -q^(-1/3) - 248*q^(2/3) - 4124*q^(5/3) - 34752*q^(8/3) - 213126*q^(11/3) - 1057504*q^(14/3) - 4530744*q^(17/3) - 17333248*q^(20/3) - 60655377*q^(23/3) - 197230000*q^(26/3) - 603096260*q^(29/3) + O(q^10)]
+
+            sage: w = WeilRep(matrix([[4]]))
+            sage: w.nearly_holomorphic_modular_forms_basis(5/2, 1, 7)
+            [(0), O(q^7)]
+            [(1/4), q^(-1/8) + 243*q^(7/8) + 2889*q^(15/8) + 15382*q^(23/8) + 62451*q^(31/8) + 203148*q^(39/8) + 593021*q^(47/8) + 1551069*q^(55/8) + O(q^7)]
+            [(1/2), O(q^7)]
+            [(3/4), -q^(-1/8) - 243*q^(7/8) - 2889*q^(15/8) - 15382*q^(23/8) - 62451*q^(31/8) - 203148*q^(39/8) - 593021*q^(47/8) - 1551069*q^(55/8) + O(q^7)]
         """
         if verbose:
             print('I am now looking for modular forms of weight %s which are holomorphic on H and have a pole of order at most %s in infinity.' %(k, pole_order))
@@ -1906,32 +2141,22 @@ class WeilRep:
             raise ValueError('Low precision')
         dual_sturm_bound = 1/6 - sturm_bound
         symm = self.is_symmetric_weight(k)
-        if pole_order >= dual_sturm_bound + 1:
+        if pole_order >= dual_sturm_bound + 2:
             if verbose:
                 print('The pole order is large so I will compute modular forms with a smaller pole order and multiply them by the j-invariant.')
-            j_order = floor(pole_order - dual_sturm_bound)
+            j_order = floor(pole_order - dual_sturm_bound - 1)
             new_pole_order = pole_order - j_order
-            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, save_pivots = False, force_N_positive = force_N_positive, verbose = verbose)
+            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, verbose = verbose)
             j = j_invariant_qexp(prec + j_order + 1) - 744
             j = [smf(0, j^n) for n in range(1, j_order + 1)]
-            Y = [x for x in X]
+            Y = copy(X)
             Y.extend([x * j[n] for n in range(j_order) for x in X])
             for y in Y:
                 y.reduce_precision(prec)
-            vs = [y.coefficient_vector(starting_from = -pole_order, ending_with = sturm_bound) for y in Y]
-            pivots = [next(j for j, v in enumerate(v) if v) for v in vs]
-            if verbose:
-                print('I found enough modular forms and will now put them in echelon form.')
-            for j in range(len(Y)-1,-1,-1):
-                for i in range(j-1,-1,-1):
-                    Y[j] = Y[j] - vs[j][pivots[i]]*Y[i]
-                    vs[j] -= vs[j][pivots[i]]*vs[i]
-            Y = [y for y in Y if y]
-            if not reverse:
+            Y.echelonize(starting_from = -pole_order)
+            if reverse:
                 Y.reverse()
-            if save_pivots:
-                return Y, pivots
-            return WeilRepModularFormsBasis(k, Y, self)
+            return Y
         ceil_pole_order = ceil(pole_order)
         computed_weight = k + 12*ceil_pole_order
         N = ceil_pole_order
@@ -1944,21 +2169,13 @@ class WeilRep:
         prec = ceil(max(prec, (computed_weight / 12)))
         if verbose:
             print('I am going to compute modular forms of weight %s which vanish in infinity to order %s and divide them by Delta^%d.' %(computed_weight, N - pole_order, N))
-        X, pivots = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N, not inclusive, save_pivots = True, keep_N = True, verbose = verbose)
+        X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N, not inclusive, keep_N = True, verbose = verbose)
         delta_power = smf(-12 * N, ~(delta_qexp(prec + N + 1) ** N))
-        Y = [x * delta_power for x in X]
-        vs = [y.coefficient_vector(starting_from = -N, ending_with = sturm_bound) for y in Y]
-        if verbose:
-            print('I found enough modular forms and will now put them in echelon form.')
-        for j in range(len(Y)-1,-1,-1):
-            for i in range(j-1,-1,-1):
-                Y[i] = Y[i] - vs[i][pivots[j]]*Y[j]
-                vs[i] -= vs[i][pivots[j]]*vs[j]
+        Y = WeilRepModularFormsBasis(k, [x * delta_power for x in X], self)
+        Y.echelonize(starting_from = -N, ending_with = sturm_bound)
         if reverse:
             Y.reverse()
-        if save_pivots:
-            return Y, pivots
-        return WeilRepModularFormsBasis(k, Y, self)
+        return Y
 
     weakly_holomorphic_modular_forms_basis = nearly_holomorphic_modular_forms_basis
 

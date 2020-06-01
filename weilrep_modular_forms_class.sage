@@ -19,6 +19,7 @@ AUTHORS:
 # ****************************************************************************
 
 from sage.modular.modform.element import is_ModularFormElement
+from sage.structure.element import is_Matrix
 
 class WeilRepModularForm(object):
 
@@ -119,14 +120,18 @@ class WeilRepModularForm(object):
             self.__precision = min([x[2].prec() for x in X])
             return self.__precision
 
-    def reduce_precision(self, prec):
+    def reduce_precision(self, prec, in_place = True):
         r"""
         Reduce self's precision.
         """
         prec = floor(prec)
         R.<q> = PowerSeriesRing(QQ)
-        self.__fourier_expansions = [(x[0], x[1], x[2] + O(q**(prec - floor(x[1])))) for x in self.__fourier_expansions]
-        self.__precision = prec
+        X = [(x[0], x[1], x[2] + O(q**(prec - floor(x[1])))) for x in self.__fourier_expansions]
+        if in_place:
+            self.__fourier_expansions = X
+            self.__precision = prec
+        else:
+            return WeilRepModularForm(self.__weight, self.__gram_matrix, X, weilrep = self.weilrep())
 
     def valuation(self):
         r"""
@@ -208,7 +213,7 @@ class WeilRepModularForm(object):
         for n in range(floor(starting_from),ceil(ending_with)+1):
             for x in X:
                 if starting_from <= n + x[1] <= ending_with:
-                    if (x[0] in G) and (symm or not x[0].denominator() in [1,2]):
+                    if (x[0] in G) and (symm or x[0].denominator() > 2):
                         try:
                             Y.append(x[2][n])
                         except:
@@ -501,7 +506,7 @@ class WeilRepModularForm(object):
                 _, _, vs_matrix = pari(S_inv).qfminim(precval + precval + 1, flag = 2)
                 vs_list = vs_matrix.sage().columns()
                 symm = self.is_symmetric()
-                symm = symm + symm - 1
+                symm = 1 if symm else -1
                 for v in vs_list:
                     wv = Rb.monomial(*v)
                     r = S_inv * v
@@ -631,7 +636,7 @@ class WeilRepModularForm(object):
             prec_g = prec + ceil(offset)
             theta_twist = [[0]*prec_g for j in range(bm2)]
             gSb = frac(g*S*b)
-            if (odd == symm) and g.denominator() in [1,2]:#component is zero
+            if (odd == symm) and g.denominator() <= 2:#component is zero
                 Y[i] = g, -offset, O(q ** prec_g)
             elif _indices[i] is None:
                 r_i = -1
@@ -656,7 +661,10 @@ class WeilRepModularForm(object):
                     r_square += (new_offset - old_offset) + (2*r_shift - 1) / (4*m)
                     old_offset = new_offset
                     if r_square < prec_g:
-                        theta_twist[i_m][r_square] += [1, r_shift][odd]
+                        if odd:
+                            theta_twist[i_m][r_square] += r_shift
+                        else:
+                            theta_twist[i_m][r_square] += 1
                     elif r > 0:
                         break
                 Y[i] = g, -offset, sum([R(theta_twist[j]) * X[g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])+O(q ** prec_g)
@@ -686,13 +694,66 @@ class WeilRepModularFormsBasis:
     r"""
     The WeilRepModularFormsBasis class represents bases of vector-valued modular forms.
 
-    The only purpose of this class is to print lists of modular forms with a line of hyphens as delimiter.
+    The main purpose of this class is to print lists of modular forms with a line of hyphens as delimiter.
     """
+
+    def append(self, other):
+        self.__basis.append(other)
+
+    def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None):
+        r"""
+        Reduce self to echelon form in place.
+
+        INPUT:
+        - ``save_pivots`` -- if True then return the pivot columns
+        """
+        if ending_with is None:
+            ending_with = self.__weight / 12
+        m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis]).extended_echelon_form(subdivide = True)
+        b = m.subdivision(0, 1)
+        self.__basis = [self * v for v in b.rows()]
+        if save_pivots:
+            a = m.subdivision(0, 0)
+            return [next(j for j, w in enumerate(v) if w) for v in a.rows()]
+
+    def extend(self, other):
+        try:
+            self.__basis.extend(other.list())
+        except:
+            self.__basis.extend(other)
+
+    def __getitem__(self, n):
+        return self.__basis[n]
+
+    def __getslice__(self, i, j):
+        return WeilRepModularFormsBasis(self.__weight, self.__basis[i:j], self.__weilrep)
+
+    def gram_matrix(self):
+        return self.__weilrep.gram_matrix()
 
     def __init__(self, weight, basis, weilrep):
         self.__weight = weight
         self.__basis = basis
         self.__weilrep = weilrep
+
+    def is_symmetric(self):
+        return self.__weilrep.is_symmetric_weight(self.__weight)
+
+    def __iter__(self):
+        for x in self.__basis:
+            yield x
+
+    def __len__(self):
+        return len(self.__basis)
+
+    def list(self):
+        return self.__basis
+
+    def __mul__(self, v):
+        return sum([self.__basis[i] * w for i, w in enumerate(v)])
+
+    def precision(self):
+        return min(x.precision() for x in self.__basis)
 
     def __repr__(self):
         X = self.__basis
@@ -701,45 +762,27 @@ class WeilRepModularFormsBasis:
             return s.join([x.__repr__() for x in self.__basis])
         return '[]'
 
-    def __iter__(self):
-        for x in self.__basis:
-            yield x
+    def reverse(self):
+        self.__basis.reverse()
 
-    def __getitem__(self, n):
-        return self.__basis[n]
-
-    def gram_matrix(self):
-        return self.__weilrep.gram_matrix()
-
-    def __len__(self):
-        return len(self.__basis)
-
-    def precision(self):
-        return min(x.precision() for x in self.__basis)
-
-    def valuation(self):
-        return min(x.valuation() for x in self.__basis)
-
-    def weight(self):
-        return self.__weight
-
-    def is_symmetric(self):
-        return self.__weilrep.is_symmetric_weight(self.__weight)
-
-    def weilrep(self):
-        return self.__weilrep
-
-    def list(self):
-        return self.__basis
+    __rmul__ = __mul__
 
     def theta(self, odd = False, weilrep = None):
-        symm = self.is_symmetric()
-        prec = self.precision()
-        R.<q> = PowerSeriesRing(QQ)
+        r"""
+        Compute the theta-contraction of all of self's WeilRepModularForm's at the same time.
+        """
         big_S = self.gram_matrix()
         big_e = big_S.nrows()
         e = big_e - 1
         S = big_S[:e,:e]
+        k = self.weight() + 1/2 + odd
+        if not weilrep:
+            weilrep = WeilRep(S)
+        if not self.__basis:
+            return WeilRepModularFormsBasis(k, [], weilrep)
+        symm = self.is_symmetric()
+        prec = self.precision()
+        R.<q> = PowerSeriesRing(QQ)
         try:
             Sb = vector(big_S[:e,e])
             b = S.inverse()*Sb
@@ -748,12 +791,10 @@ class WeilRepModularFormsBasis:
             b = vector([])
         m = (big_S[e,e] - b*Sb)/2
         X = [x.fourier_expansion() for x in self.__basis]
-        X_ref = X[0]
+        X_ref = X[0]#reference
         g_list = []
         S_indices = []
         bound = 3 + 2*isqrt(m * (prec - self.valuation()))
-        if not weilrep:
-            weilrep = WeilRep(S)
         _ds = weilrep.ds()
         _indices = weilrep.rds(indices = True)
         big_ds_dict = {tuple(x[0]) : i for i, x in enumerate(X_ref)}
@@ -768,7 +809,7 @@ class WeilRepModularFormsBasis:
             prec_g = prec + ceil(offset)
             theta_twist = [[0]*prec_g for j in range(bm2)]
             gSb = frac(g*S*b)
-            if (odd == symm) and g.denominator() in [1,2]:#component is zero
+            if (odd == symm) and g.denominator() <= 2:#component is zero
                 t = g, -offset, O(q ** prec_g)
                 for y in Y:
                     y[i] = t
@@ -783,7 +824,8 @@ class WeilRepModularFormsBasis:
                     r_shift = r - gSb
                     if r_i < bm2:
                         i_m = r_i
-                        g_new = list(g - b * r_shift/(2 * m)) + [r_shift/(2 * m)]
+                        y = r_shift / (2*m)
+                        g_new = list(g - b * y) + [y]
                         g_new = tuple([frac(x) for x in g_new])
                         j = big_ds_dict[g_new]
                         g_ind.append(j)
@@ -795,7 +837,10 @@ class WeilRepModularFormsBasis:
                     r_square += (new_offset - old_offset) + (2*r_shift - 1) / (4*m)
                     old_offset = new_offset
                     if r_square < prec_g:
-                        theta_twist[i_m][r_square] += [1, r_shift][odd]
+                        if odd:
+                            theta_twist[i_m][r_square] += r_shift
+                        else:
+                            theta_twist[i_m][r_square] += 1
                     elif r > 0:
                         break
                 for iy, y in enumerate(Y):
@@ -804,5 +849,13 @@ class WeilRepModularFormsBasis:
                 index = _indices[i]
                 for y in Y:
                     y[i] = g, -offset, eps * y[_indices[i]][2]
-        k = self.weight() + 1/2 + odd
         return WeilRepModularFormsBasis(k, [WeilRepModularForm(k, S, y, weilrep = weilrep) for y in Y], weilrep = weilrep)
+
+    def valuation(self):
+        return min(x.valuation() for x in self.__basis)
+
+    def weight(self):
+        return self.__weight
+
+    def weilrep(self):
+        return self.__weilrep
