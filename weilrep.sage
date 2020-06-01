@@ -1769,7 +1769,7 @@ class WeilRep(object):
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
                                     else:
                                         w_new = self.embiggen(b, m)
-                                        if dim_rank > 1 and k > 2:
+                                        if dim_rank > 1 and k > 9/2:
                                             _, x = w_new._eisenstein_packet(k - 1/2, prec, dim = dim_rank)
                                             X.extend(x.theta())
                                             if x and verbose:
