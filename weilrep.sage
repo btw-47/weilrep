@@ -963,6 +963,7 @@ class WeilRep(object):
             [(3/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^5)]
             [(7/8), O(q^5)]
         """
+        k_is_list = type(k) is list
         E = self.eisenstein_series(k, prec, allow_small_weight = allow_small_weight)
         d_b = denominator(b)
         if d_b == 1:
@@ -1082,8 +1083,8 @@ class WeilRep(object):
         """
         if weight < 5/2:
             raise NotImplementedError
+        S = self.gram_matrix()
         if not weilrep:
-            S = self.gram_matrix()
             if S:
                 tilde_b = b*S
                 shift_m = m + b*tilde_b/2
@@ -1748,7 +1749,7 @@ class WeilRep(object):
                         b = vector(b_tuple)
                         if symm or b.denominator() > 2:
                             m = m0 + _norm_dict[b_tuple]
-                            if m != failed_exponent:
+                            if m != failed_exponent or m >= sturm_bound:
                                 dim_rank = dim - len(X)
                                 if symm:
                                     if k in ZZ:
