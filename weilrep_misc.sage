@@ -50,7 +50,7 @@ def serre_derivative_on_q_series(f,offset,weight,prec):
     if f:
         E2 = -24*eisenstein_series_qexp(2,f.prec())
         return q^(f.valuation())*R([f[i]*(i+offset) for i in range(f.valuation(),f.prec())]) - weight/12 * f * E2
-    return O(q ** prec)
+    return O(q ** (prec - floor(offset)))
 
 
 def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose = False):
