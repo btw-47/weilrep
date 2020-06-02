@@ -1760,16 +1760,35 @@ class WeilRep(object):
             else:
                 X = WeilRepModularFormsBasis(k, [], self)
             if X:
-                pivots = X.echelonize(save_pivots = True)
-                if X and verbose:
-                    print('I found %d linearly independent cusp forms in this packet.'%len(X))
                 if len(X) >= dim:
-                    if verbose:
-                        print('Done!')
-                    self.__cusp_forms_basis[k] = prec, pivots, X
-                    if save_pivots:
-                        return X, pivots
-                    return X
+                    Y = WeilRepModularFormsBasis(k, [], self)
+                    i = 0
+                    while len(Y) < dim + rank//10 and i < len(X):
+                        Y.append(X[i])
+                        i += 1
+                        if len(Y) == dim + rank//10:
+                            pivots = Y.echelonize(save_pivots = True)
+                            rank = len(Y)
+                            if rank >= dim:
+                                if verbose:
+                                    print('Done!')
+                                self.__cusp_forms_basis[k] = prec, pivots, Y
+                                if save_pivots:
+                                    return Y, pivots
+                                return Y
+                    X = Y
+                else:
+                    pivots = X.echelonize(save_pivots = True)
+                    rank = len(X)
+                    if rank >= dim:
+                        if verbose:
+                            print('Done!')
+                        self.__cusp_forms_basis[k] = prec, pivots, X
+                        if save_pivots:
+                            return X, pivots
+                        return X
+            if rank and verbose:
+                print('I found %d linearly independent cusp forms in this packet.'%len(X))
             rank = len(X)
             try:
                 oldprec, _, Y = self.__cusp_forms_basis[k - 2]

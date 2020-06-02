@@ -798,6 +798,92 @@ class WeilRepModularFormsBasis:
         for x in self.__basis:
             yield x
 
+    def jacobi_forms(self):
+        r"""
+        Return a list of the Jacobi forms associated to all elements of self.
+
+        If the Gram matrix is positive-definite (this is not checked!!) then this returns a list of Jacobi forms whose theta-decompositions are the vector valued modular forms that we started with.
+
+        OUTPUT: a list of JacobiForm's
+        """
+        X = [x.fourier_expansion() for x in self.__basis]
+        S = self.gram_matrix()
+        prec = self.precision()
+        val = self.valuation()
+        e = S.nrows()
+        Rb = LaurentPolynomialRing(QQ,list(var('w_%d' % i) for i in range(e) ))
+        R.<q> = PowerSeriesRing(Rb,prec)
+        if e > 1:
+            precval = prec - val
+            _ds_dict = self.weilrep().ds_dict()
+            jf = [[Rb(0)]*precval for _ in self.__basis]
+            Q = QuadraticForm(S)
+            if not Q.is_positive_definite():
+                raise ValueError('Index is not positive definite')
+            S_inv = S.inverse()
+            k = self.weight() + e/2
+            try:
+                _, _, vs_matrix = pari(S_inv).qfminim(precval + precval + 1, flag = 2)
+                vs_list = vs_matrix.sage().columns()
+                symm = self.is_symmetric()
+                symm = 1 if symm else -1
+                for v in vs_list:
+                    wv = Rb.monomial(*v)
+                    wv_symm = wv + (symm * (wv ** (-1)))
+                    r = S_inv * v
+                    r_norm = v*r / 2
+                    i_start = ceil(r_norm)
+                    j = _ds_dict[tuple(frac(x) for x in r)]
+                    f = [x[j][2] for x in X]
+                    m = ceil(i_start + val - r_norm)
+                    for i in range(i_start, precval):
+                        for ell, h in enumerate(f):
+                            jf[ell][i] += wv_symm * h[m]
+                        m += 1
+                f = [x[0][2] for x in X]#deal with v=0 separately
+                for i in range(precval):
+                    for ell, h in enumerate(f):
+                        jf[ell][i] += h[ceil(val) + i]
+                return [JacobiForm(k, S, q^val * R(x) + O(q ** prec), weilrep = self.__weilrep, modform = x) for x in jf]
+            except PariError:
+                pass
+            lvl = Q.level()
+            S_adj = lvl*S_inv
+            vs = QuadraticForm(S_adj).short_vector_list_up_to_length(lvl * precval, up_to_sign_flag = True)
+            for n in range(len(vs)):
+                r_norm = n/lvl
+                i_start = ceil(r_norm)
+                for v in vs[n]:
+                    r = S_inv*v
+                    rfrac = tuple(frac(r[i]) for i in range(e))
+                    wv = Rb.monomial(*v)
+                    if v:
+                        wv += symm * (wv ** (-1))
+                    j = _ds_dict[rfrac]
+                    f = [x[j][2] for x in X]
+                    m = ceil(i_start + val - r_norm)
+                    for i in range(i_start,prec):
+                        for ell, h in enumerate(f):
+                            jf[ell][i] += wv*h[m]
+                        m += 1
+            return [JacobiForm(k, S, q^val*R(x)+O(q^prec), weilrep = self.__weilrep, modform = x) for x in jf]
+        else:
+            w = Rb.0
+            m = S[0,0] #twice the index
+            if self.is_symmetric():
+                eps = 1
+            else:
+                eps = -1
+            jf = [[None]*(prec - val) for _ in self.__basis]
+            for i in range(prec - val):
+                for j, x in enumerate(X):
+                    jf[j][i] = x[0][2][i + val]
+                    for r in range(1, isqrt(2 * i * m) + 1):
+                        wr = (w ** r + eps * (w ** (-r)))
+                        jf[j][i] += x[r%m][2][ceil(i + val - r^2 / (2*m))]*wr
+            k = self.weight() + 1/2
+            return [JacobiForm(k, S, q^val * R(x) + O(q^prec), weilrep = self.__weilrep, modform = x) for x in jf]
+
     def __len__(self):
         return len(self.__basis)
 

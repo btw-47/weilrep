@@ -260,10 +260,16 @@ class JacobiForms:
         wt = weight - self.nvars() / 2
         if verbose:
             print('I will look for the corresponding vector-valued cusp forms of weight %s.' %wt)
+            print('-'*60)
         L = self.weilrep().cusp_forms_basis(wt, prec, verbose = verbose)
+        if not L:
+            return []
         if verbose:
+            print('-'*60)
             print('I will now convert these cusp forms to Jacobi forms.')
-        return [x.jacobi_form() for x in L]
+        if len(L) > 1:
+            return L.jacobi_forms()
+        return [L[0].jacobi_form()]
 
     def jacobi_forms_basis(self, weight, prec = 0, try_theta_blocks = None, verbose = False):
         r"""
@@ -305,10 +311,16 @@ class JacobiForms:
         wt = weight - self.nvars() / 2
         if verbose:
             print('I will look for the corresponding vector-valued modular forms of weight %s.' %wt)
+            print('-'*60)
         L = self.weilrep().modular_forms_basis(wt, prec, verbose = verbose)
+        if not L:
+            return []
         if verbose:
+            print('-'*60)
             print('I will now convert these modular forms to Jacobi forms.')
-        return [x.jacobi_form() for x in L]
+        if len(L) > 1:
+            return L.jacobi_forms()
+        return [L[0].jacobi_form()]
 
     basis = jacobi_forms_basis
 
@@ -344,7 +356,12 @@ class JacobiForms:
         N = self.longest_short_vector_norm()
         if verbose:
             print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'%N)
-        jacobi_forms = [x.jacobi_form() for x in self.weilrep().nearly_holomorphic_modular_forms_basis(weight - S.nrows()/2, N, prec, verbose = verbose)]
+            print('-'*60)
+        L = self.weilrep().nearly_holomorphic_modular_forms_basis(weight - S.nrows()/2, N, prec, verbose = verbose)
+        if verbose:
+            print('-'*60)
+            print('I am converting these modular forms to Jacobi forms.')
+        jacobi_forms = L.jacobi_forms()
         if jacobi_forms:
             if verbose:
                 print('I found %d nearly-holomorphic modular forms.'%len(jacobi_forms))
