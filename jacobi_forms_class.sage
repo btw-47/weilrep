@@ -297,6 +297,8 @@ class JacobiForms:
             if weight <= 1:
                 return []
             dim = self.dimension(weight)
+            if not dim:
+                return []
             if verbose:
                 print('I need to find %d Jacobi form' %dim + ['s.', '.'][dim == 1])
             if try_theta_blocks is None:
@@ -324,7 +326,7 @@ class JacobiForms:
 
     basis = jacobi_forms_basis
 
-    def weak_forms_basis(self, weight, prec = 0, verbose = False):
+    def weak_forms_basis(self, weight, prec = 0, verbose = False, convert_to_Jacobi_forms = True):
         r"""
         Compute a basis of weak Jacobi forms.
 
@@ -338,6 +340,7 @@ class JacobiForms:
         - ``weight`` -- the weight
         - ``prec`` -- the precision of the Fourier expansion (with respect to the variable 'q')
         - ``verbose`` -- boolean (default False); if True then we add commentary throughout the computation
+        - ``convert_to_Jacobi_forms`` -- boolean (default True); if True then we convert the computed vector-valued modular forms to Jacobi forms.
 
         OUTPUT: a list of JacobiForm's
 
@@ -351,29 +354,37 @@ class JacobiForms:
 
         """
         S = self.index_matrix()
+        w = self.weilrep()
+        indices = w.rds(indices = True)
         if verbose:
             print('I am looking for weak Jacobi forms of weight %d.' %weight)
-        N = self.longest_short_vector_norm()
+        #N = self.longest_short_vector_norm()
+        svn = self.short_vector_norms_by_component()
+        N = max(svn)
         if verbose:
             print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'%N)
             print('-'*60)
-        L = self.weilrep().nearly_holomorphic_modular_forms_basis(weight - S.nrows()/2, N, prec, verbose = verbose)
+        k = weight - S.nrows() / 2
+        L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose = verbose)
+        if not L:
+            return []
+        X = WeilRepModularFormsBasis(k, [x for x in L if all(f[2].valuation() + f[1] >= -svn[i] for i, f in enumerate(x.fourier_expansion()) if indices[i] is None)], w)
+        if not convert_to_Jacobi_forms:
+            return X
         if verbose:
             print('-'*60)
+            print('%d of these nearly-holomorphic forms appear to arise as theta decompositions of Jacobi forms.'%len(X))
             print('I am converting these modular forms to Jacobi forms.')
-        jacobi_forms = L.jacobi_forms()
-        if jacobi_forms:
-            if verbose:
-                print('I found %d nearly-holomorphic modular forms.'%len(jacobi_forms))
-                print('I will now check whether any of these modular forms occur as theta decompositions of weak Jacobi forms.')
-            return [jf for jf in jacobi_forms if not any(jf.fourier_expansion()[-1-i] for i in range(ceil(N)))]
-        elif verbose:
-            print('I found no weak Jacobi forms.')
-        return []
+        jf = WeilRepModularFormsBasis(k, [x for x in L if all(f[2].valuation() + f[1] >= -svn[i] for i, f in enumerate(x.fourier_expansion()) if indices[i] is None)], w).jacobi_forms()
+        if verbose:
+            print('I found %d nearly-holomorphic modular forms.'%len(jf))
+            print('I will now check whether any of these modular forms occur as theta decompositions of weak Jacobi forms.')
+        return jf
+        #return [jf for jf in jacobi_forms if not any(jf.fourier_expansion()[-1-i] for i in range(ceil(N)))]
 
     ## other:
 
-    def longest_short_vector_norm(self):
+    def short_vector_norms_by_component(self):
         r"""
         Computes the expression max( min( Q(x): x in ZZ^N + g): g in self.ds())
 
@@ -387,6 +398,10 @@ class JacobiForms:
             1/3
 
         """
+        try:
+            return self.__short_vector_norms
+        except AttributeError:
+            pass
         w = self.weilrep()
         ds_dict = w.ds_dict()
         rds = w.rds()
@@ -408,7 +423,9 @@ class JacobiForms:
                     found_vectors[j] = v * r / 2
                 else:
                     found_vectors[j] = min(v * r/2, found_vectors[j])
-            return max(found_vectors)
+            #return max(found_vectors)
+            self.__short_vector_norms = found_vectors
+            return found_vectors
         except PariError:
             lvl = w.level()
             S_adj = S_inv * lvl
@@ -423,7 +440,9 @@ class JacobiForms:
                 if found_vectors[j] is None:
                     found_vectors[j] = v * r / 2
                 if all(x is not None for x in found_vectors):
-                    return max(found_vectors)
+                    #return max(found_vectors)
+                    self.__short_vectors_norms = found_vectors
+                    return found_vectors
 
 class JacobiForm:
     r"""
