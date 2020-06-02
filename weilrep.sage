@@ -1775,6 +1775,8 @@ class WeilRep(object):
                 oldprec, _, Y = self.__cusp_forms_basis[k - 2]
                 if oldprec >= prec:
                     Z = WeilRepModularFormsBasis(k, [y.reduce_precision(prec, in_place = False).serre_derivative() for y in Y], self)
+                    X.extend(Z)
+                    pivots = X.echelonize(save_pivots)
                     if verbose and len(X) > rank:
                         print('I found %d cusp forms using the cached cusp forms basis of weight %s.' %(len(X) - rank, k - 2))
                     rank = len(X)
@@ -1788,7 +1790,6 @@ class WeilRep(object):
             m0 = 1
             skipped_indices = []
             failed_exponent = 0
-            somewhat_failed_exponent = 0
             G = self.sorted_rds()
             indices = self.rds(indices = True)
             ds = self.ds()
@@ -1796,31 +1797,35 @@ class WeilRep(object):
             b_list = [i for i in range(len(ds)) if not (indices[i] or norm_list[i])]
             #here we go!
             while rank < dim:
-                while len(X) < dim:
+                if True:
                     for b_tuple in G:
                         old_rank = rank
                         b = vector(b_tuple)
                         if symm or b.denominator() > 2:
                             m = m0 + _norm_dict[b_tuple]
-                            if m != failed_exponent or m >= sturm_bound:
+                            if True:
                                 dim_rank = dim - len(X)
                                 if symm:
                                     if k in ZZ:
                                         w_new = self.embiggen(b, m)
-                                        if k > 3 and dim_rank > 2:
+                                        #if k > 3 and dim_rank > 4:
+                                        if k > 3 and dim + dim > 3 * rank:
                                             if verbose:
                                                 print('-'*40)
-                                            if m != somewhat_failed_exponent:
+                                            if m != failed_exponent:
                                                 y = w_new.cusp_forms_basis(k - 1/2, prec, verbose = verbose, dim = dim_rank).theta()
                                                 if y:
                                                     X.extend(y)
-                                                    if verbose:
-                                                        print('-'*40)
-                                                        print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
-                                                        print('I am returning to the Gram matrix\n%s'%S)
+                                                    if len(X) > rank:
+                                                        if verbose:
+                                                            print('-'*40)
+                                                            print('I found %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
+                                                            print('I am returning to the Gram matrix\n%s'%S)
+                                                    else:
+                                                        failed_exponent = m
                                                 else:
-                                                    somewhat_failed_exponent = m
-                                        if len(X) < dim:
+                                                    failed_exponent = m
+                                        if len(X) < dim + (rank // 10):
                                             X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
@@ -1831,7 +1836,7 @@ class WeilRep(object):
                                             X.extend(x.theta())
                                             if x and verbose:
                                                 print('I computed a packet of %d cusp forms using the index %s.'%(len(x), (b, m)))
-                                        if len(X) < dim:
+                                        if len(X) < dim + (rank // 10):
                                             X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
@@ -1841,7 +1846,7 @@ class WeilRep(object):
                                         if dim_rank > 1 and k > 4:
                                             if verbose:
                                                 print('-'*40)
-                                            if m != somewhat_failed_exponent:
+                                            if m != failed_exponent:
                                                 y = w_new.cusp_forms_basis(k - 3/2, prec, verbose = verbose, dim = dim - len(X)).theta(odd = True)
                                                 if y:
                                                     X.extend(y)
@@ -1850,8 +1855,8 @@ class WeilRep(object):
                                                         print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
                                                         print('I am returning to the Gram matrix\n%s'%S)
                                                 else:
-                                                    somewhat_failed_exponent = m
-                                        if len(X) < dim:
+                                                    failed_exponent = m
+                                        if len(X) < dim + (rank // 10):
                                             X.append(self.pssd(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
@@ -1867,16 +1872,19 @@ class WeilRep(object):
                                             X.append(self.pssd(k, b, m, prec))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
-                                pivots = X.echelonize(save_pivots)
-                                rank = len(X)
-                                if rank >= dim:
-                                    break
-                                if rank == old_rank:
-                                    failed_exponent = m
-                                elif verbose:
-                                    print('I have found %d out of %d cusp forms.'%(rank, dim))
-                                old_rank = rank
-                                #symmetrization
+                                if len(X) >= dim + rank//10:
+                                    if verbose:
+                                        print('I have found %d cusp forms and am putting them in echelon form...'%len(X))
+                                    pivots = X.echelonize(save_pivots)
+                                    rank = len(X)
+                                    if rank >= dim:
+                                        break
+                                    if rank == old_rank:
+                                        failed_exponent = m
+                                    elif verbose:
+                                        print('I have found %d out of %d cusp forms.'%(rank, dim))
+                                    old_rank = rank
+                                #symmetrization?? should we do this??
                                 #for x in X:
                                 #    L = [x.symmetrized(b) for b in b_list]
                                 #    y = [y for y in L if y and y != x]
@@ -1908,8 +1916,12 @@ class WeilRep(object):
                         if rank < dim:
                             raise RuntimeError('Something went horribly wrong!')
                 if rank < dim:
+                    if verbose:
+                        print('I am computing an echelon form...')
                     pivots = X.echelonize(save_pivots)
                     rank = len(X)
+                    if verbose:
+                        print('I have found %d out of %d cusp forms.'%(rank, dim))
             if verbose:
                 print('Done!')
             self.__cusp_forms_basis[k] = prec, pivots, X

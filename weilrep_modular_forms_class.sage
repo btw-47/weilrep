@@ -117,7 +117,7 @@ class WeilRepModularForm(object):
             return self.__precision
         except AttributeError:
             X = self.fourier_expansion()
-            self.__precision = min([x[2].prec() for x in X])
+            self.__precision = min([floor(x[2].prec() + x[1]) for x in X])
             return self.__precision
 
     def reduce_precision(self, prec, in_place = True):
@@ -563,6 +563,16 @@ class WeilRepModularForm(object):
             [(0), -1/24 + 35/12*q + 5*q^2 + 10*q^3 + 275/12*q^4 + O(q^5)]
             [(1/2), 5/12*q^(1/4) + 2*q^(5/4) + 125/12*q^(9/4) + 10*q^(13/4) + 20*q^(17/4) + O(q^5)]
 
+            sage: WeilRep(matrix([[-8]])).zero(1/2, 5).serre_derivative()
+            [(0), O(q^5)]
+            [(7/8), O(q^5)]
+            [(3/4), O(q^5)]
+            [(5/8), O(q^5)]
+            [(1/2), O(q^5)]
+            [(3/8), O(q^5)]
+            [(1/4), O(q^5)]
+            [(1/8), O(q^5)]
+
         """
 
         X = self.fourier_expansion()
@@ -735,6 +745,9 @@ class WeilRepModularFormsBasis:
     """
 
     def append(self, other):
+        r"""
+        Append a WeilRepModularForm to self.
+        """
         self.__basis.append(other)
 
     def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None):
@@ -742,7 +755,9 @@ class WeilRepModularFormsBasis:
         Reduce self to echelon form in place.
 
         INPUT:
-        - ``save_pivots`` -- if True then return the pivot columns
+        - ``save_pivots`` -- if True then return the pivot columns. (Otherwise we return None)
+        - ``starting_from`` -- (default 0) the index at which we start looking at Fourier coefficients
+        - ``ending_with`` -- (default None) if given then it should be the index at which we stop looking at Fourier coefficients.
         """
         if ending_with is None:
             ending_with = self.__weight / 12
@@ -754,6 +769,9 @@ class WeilRepModularFormsBasis:
             return [next(j for j, w in enumerate(v) if w) for v in a.rows()]
 
     def extend(self, other):
+        r"""
+        Extend self by another WeilRepModularFormsBasis
+        """
         try:
             self.__basis.extend(other.list())
         except:
