@@ -923,7 +923,7 @@ def iaqqq(a,u,U0,U1,U2,t):
     elif Q2[0]:
         return tilde_hq(a,u,Q0,t)
     eps1 = (-1) ** Q1[1]
-    r1 = len(Q0[0]) + 2*(Q0[1] + Q0[2])
+    r1 = len(Q1[0]) + 2*(Q1[1] + Q1[2])
     two_r1 = eps1 * (2 ** ((-r1) // 2))
     if not Q1[0]:
         return tilde_hq(a,u,Q0,t) + two_r1 * tilde_hq_diff(a,u,Q0,t)

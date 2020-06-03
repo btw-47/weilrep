@@ -1063,7 +1063,6 @@ class WeilRep(object):
                 if offset:
                     X[i] = g, offset, o_q_prec_plus_one
                 else:
-                    #print(g, prod(L_values(L, [0], -S, p, 2, t=t)[0] / (1 + 1/p) for p in bad_primes))
                     X[i] = g, 0, o_q_prec + prod(L_values(L, [-c], -S, p, 2)[0] / (1 + 1/p) for p in bad_primes)
         return WeilRepModularForm(0, S, X, weilrep = self)
 
@@ -1947,7 +1946,7 @@ class WeilRep(object):
             if save_pivots:
                 return X, pivots
             return X
-        else:#slow
+        else:
             p = self.discriminant()
             if symm and p.is_prime() and p != 2:
                 if verbose:
@@ -1970,6 +1969,7 @@ class WeilRep(object):
                 return X
             if verbose:
                 print('I am going to compute the spaces of cusp forms of weights %s and %s.' %(k+4, k+6))
+            prec = max(prec, ceil(sturm_bound + 1/2))
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
             e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
             X1 = self.cusp_forms_basis(k + 4, prec, verbose = verbose)
@@ -2095,6 +2095,7 @@ class WeilRep(object):
         if symm and (dim1 <= dim2 + len(b_list)):
             if verbose:
                 print('I am going to compute the spaces of modular forms of weights %s and %s.' %(weight+4, weight+6))
+            prec = max(prec, ceil(sturm_bound + 1/2))
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
             e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
             X1 = self.modular_forms_basis(weight+4, prec, verbose = verbose)
