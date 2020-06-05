@@ -1766,7 +1766,7 @@ class WeilRep(object):
                         Y.append(X[i])
                         i += 1
                         if len(Y) == dim + rank//10:
-                            pivots = Y.echelonize(save_pivots = True)
+                            pivots = Y.echelonize(ending_with = sturm_bound, save_pivots = True)
                             rank = len(Y)
                             if rank >= dim:
                                 if verbose:
@@ -1777,7 +1777,7 @@ class WeilRep(object):
                                 return Y
                     X = Y
                 else:
-                    pivots = X.echelonize(save_pivots = True)
+                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = True)
                     rank = len(X)
                     if rank >= dim:
                         if verbose:
@@ -1794,7 +1794,7 @@ class WeilRep(object):
                 if oldprec >= prec:
                     Z = WeilRepModularFormsBasis(k, [y.reduce_precision(prec, in_place = False).serre_derivative() for y in Y], self)
                     X.extend(Z)
-                    pivots = X.echelonize(save_pivots)
+                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
                     if verbose and len(X) > rank:
                         print('I found %d cusp forms using the cached cusp forms basis of weight %s.' %(len(X) - rank, k - 2))
                     rank = len(X)
@@ -1831,7 +1831,7 @@ class WeilRep(object):
                                             if verbose:
                                                 print('-'*40)
                                             if m != failed_exponent:
-                                                y = w_new.cusp_forms_basis(k - 1/2, prec, verbose = verbose, dim = dim_rank).theta()
+                                                y = w_new.cusp_forms_basis(k - 1/2, prec, verbose = verbose, dim = min(dim_rank, ceil((3/4)*dim))).theta()
                                                 if y:
                                                     X.extend(y)
                                                     if len(X) > rank:
@@ -1839,8 +1839,6 @@ class WeilRep(object):
                                                             print('-'*40)
                                                             print('I found %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
                                                             print('I am returning to the Gram matrix\n%s'%S)
-                                                    else:
-                                                        failed_exponent = m
                                                 else:
                                                     failed_exponent = m
                                         if len(X) < dim + (rank // 10):
@@ -1893,7 +1891,7 @@ class WeilRep(object):
                                 if len(X) >= dim + rank//10:
                                     if verbose:
                                         print('I have found %d cusp forms and am putting them in echelon form...'%len(X))
-                                    pivots = X.echelonize(save_pivots)
+                                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
                                     rank = len(X)
                                     if rank >= dim:
                                         break
@@ -1927,7 +1925,7 @@ class WeilRep(object):
                                 X.append(E - self.pss(k, b, m, prec))
                             else:
                                 X.append(self.pssd(k, b, m, prec))
-                            pivots = X.echelonize(save_pivots)
+                            pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
                             rank = len(X)
                             if rank >= dim:
                                 break
@@ -1936,7 +1934,7 @@ class WeilRep(object):
                 if rank < dim:
                     if verbose:
                         print('I am computing an echelon form...')
-                    pivots = X.echelonize(save_pivots)
+                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
                     rank = len(X)
                     if verbose:
                         print('I have found %d out of %d cusp forms.'%(rank, dim))
@@ -1962,7 +1960,7 @@ class WeilRep(object):
                 L = [sum([mf * v[i] for i, mf in enumerate(cusp_forms)]) for v in v_basis]
                 L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
                 X = WeilRepModularFormsBasis(k, L, self)
-                pivots = X.echelonize(save_pivots)
+                pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
                 self.__cusp_forms_basis[k] = prec, pivots, X
                 if save_pivots:
                     return X, pivots
@@ -1980,7 +1978,7 @@ class WeilRep(object):
                 V1 = span((x * e4).coefficient_vector() for x in X1)
                 V2 = span((x * e6).coefficient_vector() for x in X2)
                 X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self)
-                pivots = X.echelonize(save_pivots)
+                pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
                 self.__cusp_forms_basis[k] = prec, pivots, X
                 if save_pivots:
                     return X, pivots

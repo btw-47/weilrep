@@ -197,6 +197,11 @@ class WeilRepModularForm(object):
                 return self.__coefficient_vector
             except:
                 pass
+        elif (not starting_from) and (ending_with == self.weight() / 12):
+            try:
+                return self.__coefficient_vector_sturm_bound
+            except:
+                pass
         if G is None:
             G = self.rds()
         symm = self.is_symmetric()
@@ -221,6 +226,8 @@ class WeilRepModularForm(object):
         v = vector(Y)
         if not (starting_from or ending_with):
             self.__coefficient_vector = v
+        elif (not starting_from) and (ending_with == self.weight() / 12):
+            self.__coefficient_vector_sturm_bound = v
         return v
 
     def coefficients(self):#returns a dictionary of self's Fourier coefficients
@@ -620,7 +627,7 @@ class WeilRepModularForm(object):
                     Y[i] = g, norm_list[i], f
             else:
                 Y[i] = g, norm_list[i], eps * Y[indices[i]][2]
-        return WeilRepModularForm(self.__weight, S, Y, weilrep = self)
+        return WeilRepModularForm(self.__weight, S, Y, weilrep = self.weilrep())
 
     def theta_contraction(self, odd = False, components = None, weilrep = None):
         r"""
@@ -807,6 +814,8 @@ class WeilRepModularFormsBasis:
         OUTPUT: a list of JacobiForm's
         """
         X = [x.fourier_expansion() for x in self.__basis]
+        if not X:
+            return []
         S = self.gram_matrix()
         prec = self.precision()
         val = self.valuation()
