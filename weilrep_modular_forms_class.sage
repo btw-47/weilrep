@@ -133,19 +133,24 @@ class WeilRepModularForm(object):
         else:
             return WeilRepModularForm(self.__weight, self.__gram_matrix, X, weilrep = self.weilrep())
 
-    def valuation(self):
+    def valuation(self, round_down = True):
         r"""
         Returns the lowest exponent in our Fourier expansion with a nonzero coefficient (rounded down).
         """
         try:
-            return self.__valuation
+            if round_down:
+                return self.__valuation
+            return self.__true_valuation
         except AttributeError:
             X = self.fourier_expansion()
             try:
-                self.__valuation = min([floor(x[2].valuation() + x[1]) for x in X if x[2]])
+                self.__true_valuation = min([x[2].valuation() + x[1] for x in X if x[2]])
+                self.__valuation = floor(self.__true_valuation)
             except ValueError: #probably trying to take valuation of 0
                 self.__valuation = 0 #for want of a better value
-            return self.__valuation
+            if round_down:
+                return self.__valuation
+            return self.__true_valuation
 
     def is_symmetric(self):
         r"""
@@ -757,7 +762,7 @@ class WeilRepModularFormsBasis:
         """
         self.__basis.append(other)
 
-    def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None):
+    def echelonize(self, save_pivots = False, starting_from = None, ending_with = None):
         r"""
         Reduce self to echelon form in place.
 
@@ -768,6 +773,8 @@ class WeilRepModularFormsBasis:
         """
         if ending_with is None:
             ending_with = self.__weight / 12
+        if starting_from is None:
+            starting_from = self.valuation()
         m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis]).extended_echelon_form(subdivide = True)
         b = m.subdivision(0, 1)
         self.__basis = [self * v for v in b.rows()]

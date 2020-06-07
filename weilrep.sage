@@ -224,7 +224,7 @@ class WeilRep(object):
         tilde_b = b*S
         shift_m = m + b*tilde_b/2
         tilde_b = matrix(tilde_b)
-        return WeilRep(block_matrix(ZZ,[[S,tilde_b.transpose()],[tilde_b,2*shift_m]]))
+        return WeilRep(block_matrix(ZZ,[[S,tilde_b.transpose()],[tilde_b,2*shift_m]], subdivide = False))
 
     def level(self):
         try:
@@ -1776,16 +1776,15 @@ class WeilRep(object):
                                     return Y, pivots
                                 return Y
                     X = Y
-                else:
-                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = True)
-                    rank = len(X)
-                    if rank >= dim:
-                        if verbose:
-                            print('Done!')
-                        self.__cusp_forms_basis[k] = prec, pivots, X
-                        if save_pivots:
-                            return X, pivots
-                        return X
+                pivots = X.echelonize(ending_with = sturm_bound, save_pivots = True)
+                rank = len(X)
+                if rank >= dim:
+                    if verbose:
+                        print('Done!')
+                    self.__cusp_forms_basis[k] = prec, pivots, X
+                    if save_pivots:
+                        return X, pivots
+                    return X
             if rank and verbose:
                 print('I found %d linearly independent cusp forms in this packet.'%len(X))
             rank = len(X)
@@ -1821,13 +1820,14 @@ class WeilRep(object):
                         b = vector(b_tuple)
                         if symm or b.denominator() > 2:
                             m = m0 + _norm_dict[b_tuple]
-                            if True:
+                            small_rank = dim + dim > 3 * rank
+                            if small_rank or (k < 12 * m):
                                 dim_rank = dim - len(X)
                                 if symm:
+                                    small_rank = dim + dim > 3 * rank
                                     if k in ZZ:
                                         w_new = self.embiggen(b, m)
-                                        #if k > 3 and dim_rank > 4:
-                                        if k > 3 and dim + dim > 3 * rank:
+                                        if k > 3 and small_rank:
                                             if verbose:
                                                 print('-'*40)
                                             if m != failed_exponent:
@@ -1845,6 +1845,10 @@ class WeilRep(object):
                                             X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
+                                            #if not small_rank:
+                                            #    X.append(E - self.pss(k, b, m + 1, prec))
+                                            #    if verbose:
+                                            #        print('I computed a Poincare square series of index %s.'%([b, m + 1]))
                                     else:
                                         w_new = self.embiggen(b, m)
                                         if dim_rank > 1 and k > 9/2:
@@ -1856,6 +1860,10 @@ class WeilRep(object):
                                             X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
+                                                #if not small_rank:
+                                                #    X.append(E - self.pss(k, b, m + 1, prec))
+                                                #    if verbose:
+                                                #        print('I computed a Poincare square series of index %s.'%([b, m + 1]))
                                 else:
                                     if k in ZZ:
                                         w_new = self.embiggen(b, m)
@@ -2280,12 +2288,12 @@ class WeilRep(object):
             new_pole_order = pole_order - j_order
             X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, verbose = verbose)
             j = j_invariant_qexp(prec + j_order + 1) - 744
-            j = [smf(0, j^n) for n in range(1, j_order + 1)]
+            j = [smf(0, j ** n) for n in range(1, j_order + 1)]
             Y = copy(X)
             Y.extend([x * j[n] for n in range(j_order) for x in X])
             for y in Y:
                 y.reduce_precision(prec)
-            Y.echelonize(starting_from = -pole_order)
+            Y.echelonize(starting_from = -pole_order, ending_with = sturm_bound)
             if reverse:
                 Y.reverse()
             return Y

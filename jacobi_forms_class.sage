@@ -444,6 +444,9 @@ class JacobiForms:
                     self.__short_vectors_norms = found_vectors
                     return found_vectors
 
+    def longest_short_vector_norm(self):
+        return max(self.short_vector_norms_by_component())
+
 class JacobiForm:
     r"""
     The JacobiForm class represents Jacobi forms.
