@@ -91,6 +91,28 @@ class OrthogonalModularForms(object):
         return [x.theta_lift(prec) for x in X]
     maass_space = spezialschar
 
+    def modular_form_from_fourier_jacobi_expansion(self, k, fj):
+        r"""
+        Recover an orthogonal modular form from its Fourier--Jacobi coefficients.
+
+        WARNING: we do not check whether the Fourier--Jacobi coefficients actually correspond to a modular form!
+        """
+        if len(fj) < 2:
+            raise ValueError('Too few coefficients')
+        rb_w = fj[1].base_ring()
+        S = self.gram_matrix()
+        nrows = S.nrows()
+        rb_r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(nrows)))
+        rb_x.<x> = LaurentPolynomialRing(rb_r)
+        rb_q.<q> = PowerSeriesRing(rb_r)
+        r.<t> = PowerSeriesRing(rb_x)
+        change_ring = {w_j:rb_r('r_%d'%j) for j, w_j in enumerate(rb_w.gens())}
+        f = sum([rb_q(fj[i].fourier_expansion().map_coefficients(lambda x: x.subs(change_ring)))(x*t) * (~x*t)**i for i in range(1, len(fj))]) + O(t ** len(fj))
+        h = fj[0].fourier_expansion()
+        if h:
+            f += rb_q(h)(x * t)
+        return OrthogonalModularForm(k, S, f, 1, vector([0] * (nrows + 2)))
+
     ## methods for borcherds products
 
     def borcherds_input_basis(self, pole_order, prec):

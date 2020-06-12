@@ -861,7 +861,21 @@ class JacobiForm:
         return self.theta_decomposition().borcherds_lift()
 
     def gritsenko_lift(self):
-        return self.theta_decomposition().gritsenko_lift()
+        r"""
+        Compute the Gritsenko lift.
+
+        We first try to compute the additive lift of the underlying vector-valued modular form. If this is not available then we compute the Gritsenko lift directly from the definition (hecke V operators).
+
+        EXAMPLES::
+
+            sage: JacobiForms(37).basis(2, 5)[0].gritsenko_lift()
+            (r^-12 - 3*r^-11 + 6*r^-9 - r^-8 - 4*r^-7 - 4*r^-6 + 3*r^-5 + 3*r^-4 + 4*r^-2 - 2*r^-1 - 6 - 2*r + 4*r^2 + 3*r^4 + 3*r^5 - 4*r^6 - 4*r^7 - r^8 + 6*r^9 - 3*r^11 + r^12)*q*s + (-r^-17 + 2*r^-16 + r^-15 - 3*r^-14 + r^-13 - 2*r^-12 + r^-11 + 6*r^-8 - 4*r^-7 + 2*r^-6 - r^-5 - 6*r^-4 - r^-3 + r^-2 + 4*r^-1 + 4*r + r^2 - r^3 - 6*r^4 - r^5 + 2*r^6 - 4*r^7 + 6*r^8 + r^11 - 2*r^12 + r^13 - 3*r^14 + r^15 + 2*r^16 - r^17)*q^2*s + (-r^-17 + 2*r^-16 + r^-15 - 3*r^-14 + r^-13 - 2*r^-12 + r^-11 + 6*r^-8 - 4*r^-7 + 2*r^-6 - r^-5 - 6*r^-4 - r^-3 + r^-2 + 4*r^-1 + 4*r + r^2 - r^3 - 6*r^4 - r^5 + 2*r^6 - 4*r^7 + 6*r^8 + r^11 - 2*r^12 + r^13 - 3*r^14 + r^15 + 2*r^16 - r^17)*q*s^2 + (r^-21 - r^-20 - r^-19 - 2*r^-18 + 2*r^-17 + 3*r^-16 + r^-15 - 3*r^-13 + r^-12 - 2*r^-11 - 4*r^-9 + 2*r^-7 + 4*r^-6 + 3*r^-5 + 2*r^-3 - 2*r^-2 - r^-1 - 6 - r - 2*r^2 + 2*r^3 + 3*r^5 + 4*r^6 + 2*r^7 - 4*r^9 - 2*r^11 + r^12 - 3*r^13 + r^15 + 3*r^16 + 2*r^17 - 2*r^18 - r^19 - r^20 + r^21)*q^3*s + (2*r^-23 - 3*r^-22 - 2*r^-21 + 2*r^-20 - r^-19 + 6*r^-18 - r^-17 - 2*r^-15 - 4*r^-14 + 4*r^-13 - 6*r^-12 + r^-11 + 3*r^-10 + 3*r^-9 - r^-7 - 3*r^-5 + 4*r^-4 + r^-3 - 2*r^-2 - r^-1 - r - 2*r^2 + r^3 + 4*r^4 - 3*r^5 - r^7 + 3*r^9 + 3*r^10 + r^11 - 6*r^12 + 4*r^13 - 4*r^14 - 2*r^15 - r^17 + 6*r^18 - r^19 + 2*r^20 - 2*r^21 - 3*r^22 + 2*r^23)*q^2*s^2 + (r^-21 - r^-20 - r^-19 - 2*r^-18 + 2*r^-17 + 3*r^-16 + r^-15 - 3*r^-13 + r^-12 - 2*r^-11 - 4*r^-9 + 2*r^-7 + 4*r^-6 + 3*r^-5 + 2*r^-3 - 2*r^-2 - r^-1 - 6 - r - 2*r^2 + 2*r^3 + 3*r^5 + 4*r^6 + 2*r^7 - 4*r^9 - 2*r^11 + r^12 - 3*r^13 + r^15 + 3*r^16 + 2*r^17 - 2*r^18 - r^19 - r^20 + r^21)*q*s^3 + O(q, s)^5
+        """
+        try:
+            return self.modform().gritsenko_lift()
+        except AttributeError:
+            fj = [self.hecke_V(N) for N in range(self.precision())]
+            return OrthogonalModularForms(self.index_matrix()).modular_form_from_fourier_jacobi_expansion(self.weight(), fj)
 
     def hecke_U(self, N):
         r"""
@@ -909,8 +923,14 @@ class JacobiForm:
         """
         if N == 1:
             return self
-        elif N < 1:
-            raise NotImplementedError
+        elif N == 0:
+            c = self.q_coefficients()[0]
+            try:
+                c = c[0]
+            except:
+                pass
+            k = self.weight()
+            return JacobiForm(k, matrix([]), c * eisenstein_series_qexp(k, self.precision()))
         S = self.index_matrix()
         e = S.nrows()
         k_1 = self.weight() - 1
