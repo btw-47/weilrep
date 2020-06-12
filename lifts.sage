@@ -1,0 +1,1083 @@
+r"""
+
+Basic methods for additive and multiplicative theta lifts
+
+AUTHORS:
+
+- Brandon Williams
+
+"""
+
+# ****************************************************************************
+#       Copyright (C) 2020 Brandon Williams
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#                  https://www.gnu.org/licenses/
+# ****************************************************************************
+
+
+class OrthogonalModularForms(object):
+    r"""
+    This class represents spaces of modular forms on the type IV domain attached to a lattice of the form L + II_{2,2}, where L is positive-definite.
+
+    INPUT: an OrthogonalModularForms instance is constructed by calling ``OrthogonalModularForms(S)``, where:
+    - ``S`` -- a Gram matrix for the lattice; or
+    - ``S`` -- a quadratic form; or
+    - ``S`` -- the WeilRep instance WeilRep(S)
+    """
+
+    def __init__(self, w):
+        try:
+            self.__weilrep = w
+            self.__gram_matrix = w.gram_matrix()
+        except AttributeError:
+            w = WeilRep(w)
+            self.__weilrep = w
+            self.__gram_matrix = w.gram_matrix()
+
+    def __repr__(self):
+        return 'Orthogonal modular forms associated to the Gram matrix\n%s'%self.__gram_matrix
+
+    def gram_matrix(self):
+        return self.__gram_matrix
+
+    def weilrep(self):
+        return self.__weilrep
+
+    ## constructors of modular forms
+    def eisenstein_series(self, k, prec):
+        r"""
+        Compute the orthogonal Eisenstein series.
+
+        This computes the additive lift of the Jacobi Eisenstein series, renormalized to have constant coefficient 1.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``prec`` -- the precision of the output
+
+        OUTPUT: OrthogonalModularForm
+
+        EXAMPLES::
+
+            sage: m = OrthogonalModularForms(matrix([[2]]))
+            sage: m.eisenstein_series(4, 5)
+            1 + 240*q + 240*s + 2160*q^2 + (240*r^-2 + 13440*r^-1 + 30240 + 13440*r + 240*r^2)*q*s + 2160*s^2 + 6720*q^3 + (30240*r^-2 + 138240*r^-1 + 181440 + 138240*r + 30240*r^2)*q^2*s + (30240*r^-2 + 138240*r^-1 + 181440 + 138240*r + 30240*r^2)*q*s^2 + 6720*s^3 + 17520*q^4 + (13440*r^-3 + 181440*r^-2 + 362880*r^-1 + 497280 + 362880*r + 181440*r^2 + 13440*r^3)*q^3*s + (2160*r^-4 + 138240*r^-3 + 604800*r^-2 + 967680*r^-1 + 1239840 + 967680*r + 604800*r^2 + 138240*r^3 + 2160*r^4)*q^2*s^2 + (13440*r^-3 + 181440*r^-2 + 362880*r^-1 + 497280 + 362880*r + 181440*r^2 + 13440*r^3)*q*s^3 + 17520*s^4 + O(q, s)^5
+        """
+        return orthogonal_eisenstein_series(k, self.gram_matrix(), prec, w = self.weilrep())
+
+    def spezialschar(self, k, prec):
+        r"""
+        Compute a basis of the Maass Spezialschar of weight ``k`` up to precision ``prec``.
+
+        This computes the theta lifts of a basis of cusp forms.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``prec`` -- the precision of the output
+
+        OUTPUT: list of OrthogonalModularForm's
+
+        EXAMPLE::
+            sage: ParamodularForms(N = 1).spezialschar(10, 5)
+            [(r^-1 - 2 + r)*q*s + (-2*r^-2 - 16*r^-1 + 36 - 16*r - 2*r^2)*q^2*s + (-2*r^-2 - 16*r^-1 + 36 - 16*r - 2*r^2)*q*s^2 + (r^-3 + 36*r^-2 + 99*r^-1 - 272 + 99*r + 36*r^2 + r^3)*q^3*s + (-16*r^-3 + 240*r^-2 - 240*r^-1 + 32 - 240*r + 240*r^2 - 16*r^3)*q^2*s^2 + (r^-3 + 36*r^-2 + 99*r^-1 - 272 + 99*r + 36*r^2 + r^3)*q*s^3 + O(q, s)^5]
+        """
+        S = self.gram_matrix()
+        nrows = S.nrows()
+        w = self.weilrep()
+        X = w.cusp_forms_basis(k - nrows/2, ceil(prec * prec / 4) + 1)
+        return [x.theta_lift(prec) for x in X]
+    maass_space = spezialschar
+
+    ## methods for borcherds products
+
+    def borcherds_input_basis(self, pole_order, prec):
+        r"""
+        Compute a basis of input functions into the Borcherds lift with pole up to pole_order.
+
+        This method computes a list of Borcherds lift inputs F_0, ..., F_d which is a basis in the following sense: it is minimal with the property that every modular form with pole order at most pole_order whose Borcherds lift is holomorphic can be expressed in the form (k_0 F_0 + ... + k_d F_d) where k_i are nonnegative integers.
+
+        WARNING: this can take a long time, and the output list might be longer than you expect!!
+
+        INPUT:
+        - ``pole_order`` -- positive number (does not need to be an integer)
+        - ``prec`` -- precision of the output
+
+        OUTPUT: WeilRepModularFormsBasis
+
+        EXAMPLES::
+
+            sage: m = OrthogonalModularForms(matrix([[10]]))
+            sage: m.borcherds_input_basis(1/4, 5)
+            [(0), 8 + 98*q + 604*q^2 + 2822*q^3 + 10836*q^4 + O(q^5)]
+            [(1/10), q^(-1/20) - 34*q^(19/20) - 253*q^(39/20) - 1381*q^(59/20) - 5879*q^(79/20) - 21615*q^(99/20) + O(q^5)]
+            [(1/5), q^(-1/5) + 6*q^(4/5) + 107*q^(9/5) + 698*q^(14/5) + 3436*q^(19/5) + 13644*q^(24/5) + O(q^5)]
+            [(3/10), -31*q^(11/20) - 257*q^(31/20) - 1343*q^(51/20) - 5635*q^(71/20) - 20283*q^(91/20) + O(q^5)]
+            [(2/5), 9*q^(1/5) + 94*q^(6/5) + 612*q^(11/5) + 2816*q^(16/5) + 10958*q^(21/5) + O(q^5)]
+            [(1/2), q^(-1/4) - 2*q^(3/4) - 61*q^(7/4) - 518*q^(11/4) - 2677*q^(15/4) - 11280*q^(19/4) + O(q^5)]
+            [(3/5), 9*q^(1/5) + 94*q^(6/5) + 612*q^(11/5) + 2816*q^(16/5) + 10958*q^(21/5) + O(q^5)]
+            [(7/10), -31*q^(11/20) - 257*q^(31/20) - 1343*q^(51/20) - 5635*q^(71/20) - 20283*q^(91/20) + O(q^5)]
+            [(4/5), q^(-1/5) + 6*q^(4/5) + 107*q^(9/5) + 698*q^(14/5) + 3436*q^(19/5) + 13644*q^(24/5) + O(q^5)]
+            [(9/10), q^(-1/20) - 34*q^(19/20) - 253*q^(39/20) - 1381*q^(59/20) - 5879*q^(79/20) - 21615*q^(99/20) + O(q^5)]
+            ------------------------------------------------------------
+            [(0), 10 + 50*q + 260*q^2 + 1030*q^3 + 3500*q^4 + O(q^5)]
+            [(1/10), 6*q^(-1/20) + 16*q^(19/20) + 82*q^(39/20) + 304*q^(59/20) + 1046*q^(79/20) + 3120*q^(99/20) + O(q^5)]
+            [(1/5), q^(-1/5) - 24*q^(4/5) - 143*q^(9/5) - 622*q^(14/5) - 2204*q^(19/5) - 6876*q^(24/5) + O(q^5)]
+            [(3/10), -16*q^(11/20) - 102*q^(31/20) - 448*q^(51/20) - 1650*q^(71/20) - 5248*q^(91/20) + O(q^5)]
+            [(2/5), -q^(1/5) + 14*q^(6/5) + 92*q^(11/5) + 386*q^(16/5) + 1318*q^(21/5) + O(q^5)]
+            [(1/2), 20*q^(3/4) + 160*q^(7/4) + 700*q^(11/4) + 2560*q^(15/4) + 8000*q^(19/4) + O(q^5)]
+            [(3/5), -q^(1/5) + 14*q^(6/5) + 92*q^(11/5) + 386*q^(16/5) + 1318*q^(21/5) + O(q^5)]
+            [(7/10), -16*q^(11/20) - 102*q^(31/20) - 448*q^(51/20) - 1650*q^(71/20) - 5248*q^(91/20) + O(q^5)]
+            [(4/5), q^(-1/5) - 24*q^(4/5) - 143*q^(9/5) - 622*q^(14/5) - 2204*q^(19/5) - 6876*q^(24/5) + O(q^5)]
+            [(9/10), 6*q^(-1/20) + 16*q^(19/20) + 82*q^(39/20) + 304*q^(59/20) + 1046*q^(79/20) + 3120*q^(99/20) + O(q^5)]
+            ------------------------------------------------------------
+            [(0), 22 + 342*q + 2156*q^2 + 10258*q^3 + 39844*q^4 + O(q^5)]
+            [(1/10), -2*q^(-1/20) - 152*q^(19/20) - 1094*q^(39/20) - 5828*q^(59/20) - 24562*q^(79/20) - 89580*q^(99/20) + O(q^5)]
+            [(1/5), 3*q^(-1/5) + 48*q^(4/5) + 571*q^(9/5) + 3414*q^(14/5) + 15948*q^(19/5) + 61452*q^(24/5) + O(q^5)]
+            [(3/10), -108*q^(11/20) - 926*q^(31/20) - 4924*q^(51/20) - 20890*q^(71/20) - 75884*q^(91/20) + O(q^5)]
+            [(2/5), 37*q^(1/5) + 362*q^(6/5) + 2356*q^(11/5) + 10878*q^(16/5) + 42514*q^(21/5) + O(q^5)]
+            [(1/2), 4*q^(-1/4) - 28*q^(3/4) - 404*q^(7/4) - 2772*q^(11/4) - 13268*q^(15/4) - 53120*q^(19/4) + O(q^5)]
+            [(3/5), 37*q^(1/5) + 362*q^(6/5) + 2356*q^(11/5) + 10878*q^(16/5) + 42514*q^(21/5) + O(q^5)]
+            [(7/10), -108*q^(11/20) - 926*q^(31/20) - 4924*q^(51/20) - 20890*q^(71/20) - 75884*q^(91/20) + O(q^5)]
+            [(4/5), 3*q^(-1/5) + 48*q^(4/5) + 571*q^(9/5) + 3414*q^(14/5) + 15948*q^(19/5) + 61452*q^(24/5) + O(q^5)]
+            [(9/10), -2*q^(-1/20) - 152*q^(19/20) - 1094*q^(39/20) - 5828*q^(59/20) - 24562*q^(79/20) - 89580*q^(99/20) + O(q^5)]
+            ------------------------------------------------------------
+            [(0), 36 + 586*q + 3708*q^2 + 17694*q^3 + 68852*q^4 + O(q^5)]
+            [(1/10), -5*q^(-1/20) - 270*q^(19/20) - 1935*q^(39/20) - 10275*q^(59/20) - 43245*q^(79/20) - 157545*q^(99/20) + O(q^5)]
+            [(1/5), 5*q^(-1/5) + 90*q^(4/5) + 1035*q^(9/5) + 6130*q^(14/5) + 28460*q^(19/5) + 109260*q^(24/5) + O(q^5)]
+            [(3/10), -185*q^(11/20) - 1595*q^(31/20) - 8505*q^(51/20) - 36145*q^(71/20) - 131485*q^(91/20) + O(q^5)]
+            [(2/5), 65*q^(1/5) + 630*q^(6/5) + 4100*q^(11/5) + 18940*q^(16/5) + 74070*q^(21/5) + O(q^5)]
+            [(1/2), 7*q^(-1/4) - 54*q^(3/4) - 747*q^(7/4) - 5026*q^(11/4) - 23859*q^(15/4) - 94960*q^(19/4) + O(q^5)]
+            [(3/5), 65*q^(1/5) + 630*q^(6/5) + 4100*q^(11/5) + 18940*q^(16/5) + 74070*q^(21/5) + O(q^5)]
+            [(7/10), -185*q^(11/20) - 1595*q^(31/20) - 8505*q^(51/20) - 36145*q^(71/20) - 131485*q^(91/20) + O(q^5)]
+            [(4/5), 5*q^(-1/5) + 90*q^(4/5) + 1035*q^(9/5) + 6130*q^(14/5) + 28460*q^(19/5) + 109260*q^(24/5) + O(q^5)]
+            [(9/10), -5*q^(-1/20) - 270*q^(19/20) - 1935*q^(39/20) - 10275*q^(59/20) - 43245*q^(79/20) - 157545*q^(99/20) + O(q^5)]
+        """
+        S = self.gram_matrix()
+        wt = -S.nrows()/2
+        w = self.weilrep()
+        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec)
+        N = len([i for i in w.norm_list() if not i])
+        v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
+        exp_list = [v[1] for v in v_list]
+        v_list = [vector(v[0]) for v in v_list]
+        positive = [None]*len(exp_list)
+        zero = vector([0] * (len(exp_list) + 1))
+        M = matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
+        vs = M.transpose().kernel().basis()
+        for i, n in enumerate(exp_list):
+            ieq = copy(zero)
+            ieq[i+1] = 1
+            for j, m in enumerate(exp_list[:i]):
+                N = sqrt(m / n)
+                if N in ZZ:
+                    v1 = v_list[i]
+                    v2 = v_list[j]
+                    ieq[j + 1] = denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1
+            positive[i] = ieq
+        p = Polyhedron(ieqs = positive, eqns = [vector([0] + list(v)) for v in vs])
+        u = M.solve_left(matrix(Cone(p).Hilbert_basis()))
+        Y = [v * X for v in u.rows()]
+        g0 = tuple([0] * (S.nrows() + 1))
+        Y.sort(key = lambda x: x.coefficients()[g0])
+        return WeilRepModularFormsBasis(wt, Y, w)
+
+    def borcherds_input_by_weight(self, k, prec, pole_order = None):
+        r"""
+        Compute all input functions that yield a holomorphic Borcherds product of the given weight.
+
+        This method computes a list of all input functions that yield holomorphic Borcherds products of weight ``k``.
+
+        INPUT:
+        - ``k`` -- the weight of the products
+        - ``prec`` -- the precision to which the input functions are given
+        - ``pole_order`` -- optional. If given then we look only for input functions with pole order up to ``pole_order``. (Otherwise an appropriate value for pole_order is computed automatically.)
+
+        OUTPUT: WeilRepModularFormsBasis
+
+        EXAMPLE::
+
+            sage: OrthogonalModularForms(CartanMatrix(['A', 2])).borcherds_input_by_weight(45, 5)
+            [(0, 0), 90 + 1890*q + 17820*q^2 + 111240*q^3 + 555120*q^4 + O(q^5)]
+            [(2/3, 1/3), 5*q^(-1/3) - 410*q^(2/3) - 4460*q^(5/3) - 31170*q^(8/3) - 165660*q^(11/3) - 739540*q^(14/3) + O(q^5)]
+            [(1/3, 2/3), 5*q^(-1/3) - 410*q^(2/3) - 4460*q^(5/3) - 31170*q^(8/3) - 165660*q^(11/3) - 739540*q^(14/3) + O(q^5)]
+            ------------------------------------------------------------
+            [(0, 0), q^-1 + 90 + 100116*q + 8046620*q^2 + 268478010*q^3 + 5499299952*q^4 + O(q^5)]
+            [(2/3, 1/3), 16038*q^(2/3) + 2125035*q^(5/3) + 89099838*q^(8/3) + 2095831260*q^(11/3) + 34171889580*q^(14/3) + O(q^5)]
+            [(1/3, 2/3), 16038*q^(2/3) + 2125035*q^(5/3) + 89099838*q^(8/3) + 2095831260*q^(11/3) + 34171889580*q^(14/3) + O(q^5)]
+        """
+        S = self.gram_matrix()
+        d = S.determinant()
+        e = S.nrows()
+        wt = -e / 2
+        l = 2 - wt
+        if pole_order is None:
+            if e % 2:
+                eisenstein_bound = (2*math.pi)**l / (5 * (1 - 2**(-3-e)) * math.gamma(l) * (l - 0.5).zeta() * math.sqrt(d))
+                for p in d.prime_factors():
+                    eisenstein_bound *= (1 - p^(-1)) / (1 - p^(-3 - e))
+            else:
+                D = (-1)^(e/2) * d
+                l = ZZ(l)
+                eisenstein_bound = (2*math.pi)**l * (2 - (1 - 2^(1-l))*(l - 1.0).zeta()) / (math.sqrt(d) * math.gamma(l) * quadratic_L_function__correct(l, D).n())
+                for p in (2 * d).prime_factors():
+                    eisenstein_bound *= (1 - p^(-1))
+            pole_order = (2 * k / eisenstein_bound) ** (1 / (1 - wt))
+        w = self.weilrep()
+        e = w.dual().eisenstein_series(l, ceil(pole_order))
+        e_coeffs = e.coefficients()
+        N = len([i for i in w.norm_list() if not i]) - 1
+        pole_order = max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0])
+        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec)
+        v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
+        exp_list = [v[1] for v in v_list]
+        v_list = [vector(v[0]) for v in v_list]
+        positive = []
+        zero = vector([0] * (len(exp_list) + 2))
+        if N:
+            M = matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
+        else:
+            M = matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0) for x in X])
+        vs = M.transpose().kernel().basis()
+        for i, n in enumerate(exp_list):
+            ieq = copy(zero)
+            ieq[i+1] = 1
+            for j, m in enumerate(exp_list[:i]):
+                N = sqrt(m / n)
+                if N in ZZ:
+                    v1 = v_list[i]
+                    v2 = v_list[j]
+                    if denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1:
+                        ieq[j+1] = 1
+            positive.append(ieq)
+        r = vector(QQ, [k + k] + [0] * (len(exp_list) + 1))
+        for i, g in enumerate(v_list):
+            g_tup = tuple(list(g) + [-exp_list[i]])
+            if 2 % denominator(g):
+                r[i + 1] = 2 * e_coeffs[g_tup]
+            else:
+                r[i + 1] = e_coeffs[g_tup]
+        p = Polyhedron(ieqs = positive, eqns = [r] + [vector([0] + list(v)) for v in vs])
+        try:
+            u = M.solve_left(matrix(p.integral_points()))
+            Y = [v * X for v in u.rows()]
+        except ValueError:
+            Y = []
+            pass
+        return WeilRepModularFormsBasis(wt, Y, self.weilrep())
+
+def ParamodularForms(N):
+    r"""
+    Orthogonal modular forms for the lattice A_1(N) + II_{2,2}.
+    """
+    return OrthogonalModularForms(matrix([[2 * N]]))
+
+class OrthogonalModularForm:
+    r"""
+    This class represents modular forms on type IV domains attached to lattices of the form L + II_{2,2}, where L is positive-definite.
+
+    INPUT: Orthogonal modular forms are constructed by calling ``OrthogonalModularForm(k, S, f, scale, weylvec)``, where:
+    - ``k`` -- the weight
+    - ``S`` -- Gram matrix of the underlying positive-definite lattice.
+    - ``f`` -- the Fourier expansion. This is a power series in the variables q, s over a base ring of Laurent polynomials in the variables r_0,...,r_d
+    - ``scale`` -- a natural number. If scale != 1 then all exponents in the Fourier expansion should be divided by `scale`. (This is done in the __repr__ method)
+    - ``weylvec`` -- a ``Weyl vector``. For modular forms that are not constructed as Borcherds products this vector should be zero.
+    - ``precision`` -- optional: the total precision of the Fourier expansion
+    - ``valuation`` -- optional: the total valuation of the Fourier expansion
+    """
+    def __init__(self, k, S, f, scale, weylvec):
+        self.__weight = k
+        self.__gram_matrix = S
+        self.__fourier_expansion = f
+        self.__precision = f.prec()
+        self.__scale = scale
+        self.__valuation = f.valuation()
+        self.__weylvec = weylvec
+
+    def __repr__(self):
+        r"""
+        Print self's Fourier expansion. If 'scale' > 1 then we divide all exponents by 'scale' in order to print modular forms with characters. If the Gram matrix is 1x1 then we pretend to use the variable 'r' instead of 'r_0'.
+        """
+        try:
+            return self.__string
+        except AttributeError:
+            s = str(self.fourier_expansion())
+            d = self.__scale
+            if d == 1:
+                self.__string = s
+            else:
+                def m(obj):
+                    m1, m2 = obj.span()
+                    obj_s = obj.string[m1 : m2]
+                    x = obj_s[0]
+                    if x == '^':
+                        u = ZZ(obj_s[1:])/d
+                        if u.is_integer():
+                            if u == 1:
+                                return ''
+                            return '^%d'%u
+                        return '^(%s)'%u
+                    return (x, obj_s)[x == '_'] + '^(%s)'%(1/d)
+                self.__string = sub(r'\^-?\d+|(?<!O\(|\, )(\_\d+|q|s)(?!\^)', m, s)
+            if self.gram_matrix().nrows() == 1:
+                self.__string = self.__string.replace('r_0', 'r')
+            return self.__string
+
+    ## basic attributes
+
+    def base_ring(self):
+        r"""
+        Return the underlying Laurent polynomial ring.
+        """
+        return self.__fourier_expansion.base_ring().base_ring()
+
+    def gram_matrix(self):
+        r"""
+        Return our Gram matrix.
+        """
+        return self.__gram_matrix
+
+    def precision(self):
+        r"""
+        Return our precision.
+        """
+        return self.__precision
+
+    def rescale(self, d):
+        r"""
+        Rescale the Fourier expansion of an orthogonal modular form.
+
+        For internal use. This rescales q, s, and all r_i in self's Fourier expansion by the power 'd'. This does not happen in-place.
+
+        NOTE: this method will not appear to have any effect unless you explicitly call .fourier_expansion() or .true_fourier_expansion()
+        """
+        f = self.true_fourier_expansion()
+        rb_x = f.base_ring()
+        rbgens = rb_x.base_ring().gens()
+        x = rb_x.0
+        S = self.__gram_matrix
+        rescale_dict = {a : a ** d for a in rbgens}
+        return OrthogonalModularForm(self.__weight, S, (f.map_coefficients(lambda y: (x ** (d * y.polynomial_construction()[1])) * rb_x([p.subs(rescale_dict) for p in list(y)]).subs({x : x ** d}))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector())
+
+    def scale(self):
+        r"""
+        Return self's scale.
+        """
+        return self.__scale
+
+    def valuation(self):
+        r"""
+        Return self's valuation.
+        """
+        return self.__valuation
+
+    def weight(self):
+        r"""
+        Return self's weight.
+        """
+        return self.__weight
+
+    def weyl_vector(self):
+        r"""
+        Return self's Weyl vector.
+        """
+        return self.__weylvec
+
+    ## methods to extract Fourier coefficients
+
+    def coefficients(self):
+        r"""
+        Return a dictionary of self's known Fourier coefficients.
+
+        The input into the dictionary should be a tuple of the form (a, b_0, ..., b_d, c). The output will then be the Fourier coefficient of the monomial q^a r_0^(b_0)...r_d^(b_d) s^c.
+
+        EXAMPLES::
+
+            sage: f = ParamodularForms(4).borcherds_input_by_weight(1/2, 10)[0].borcherds_lift()
+            sage: f.coefficients()[(1/8, -1/2, 1/8)]
+            -1
+        """
+        L = {}
+        d = self.scale()
+        nrows = self.gram_matrix().nrows()
+        f = self.fourier_expansion()
+        coeffs = f.coefficients()
+        q, s = f.parent().gens()
+        for j, x in coeffs.items():
+            a, c = j.exponents()[0]
+            x_coeffs = x.coefficients()
+            if nrows > 1:
+                for i, y in enumerate(x.exponents()):
+                    g = tuple([a/d] + list(vector(y)/d) + [c/d])
+                    L[g] = x_coeffs[i]
+            else:
+                for i, y in enumerate(x.exponents()):
+                    g = a/d, y/d, c/d
+                    L[g] = x_coeffs[i]
+        return L
+
+    def fourier_expansion(self):
+        r"""
+        Return our Fourier expansion as a power series in 'q' and 's' over a ring of Laurent polynomials in the variables 'r_i'.
+
+        EXAMPLES::
+
+            sage: f = ParamodularForms(1).spezialschar(10, 5)[0]
+            sage: f.fourier_expansion()
+            (r_0^-1 - 2 + r_0)*q*s + (-2*r_0^-2 - 16*r_0^-1 + 36 - 16*r_0 - 2*r_0^2)*q^2*s + (-2*r_0^-2 - 16*r_0^-1 + 36 - 16*r_0 - 2*r_0^2)*q*s^2 + (r_0^-3 + 36*r_0^-2 + 99*r_0^-1 - 272 + 99*r_0 + 36*r_0^2 + r_0^3)*q^3*s + (-16*r_0^-3 + 240*r_0^-2 - 240*r_0^-1 + 32 - 240*r_0 + 240*r_0^2 - 16*r_0^3)*q^2*s^2 + (r_0^-3 + 36*r_0^-2 + 99*r_0^-1 - 272 + 99*r_0 + 36*r_0^2 + r_0^3)*q*s^3 + O(q, s)^5
+        """
+        try:
+            return self.__qexp
+        except AttributeError:
+            h = self.__fourier_expansion
+            r.<q, s> = PowerSeriesRing(self.base_ring())
+            u = O(q ** h.prec())
+            for i, p in enumerate(h.list()):
+                coeffs = p.coefficients()
+                u += sum([(q ** ((i - n)//2)) * (s ** ((i + n)//2)) * coeffs[j] for j, n in enumerate(p.exponents())])
+            self.__qexp = u
+            return self.__qexp
+
+    def fourier_jacobi(self):
+        r"""
+        Computes self's Fourier--Jacobi expansion.
+
+        OUTPUT: a list [phi_0, phi_1, ... phi_N] where N is self's precision. Each phi_i is a JacobiForm of index N * S where S is self's gram matrix. The series \sum_{i=0}^{\infty} \phi_i(\tau, z) s^i recovers the Fourier expansion where q = e^{2pi i \tau} and w_i = e^{2pi i z_i}.
+
+        EXAMPLE::
+
+            sage: f = ParamodularForms(1).spezialschar(10, 5)[0]
+            sage: f.fourier_jacobi()
+            [O(q^5), (w^-1 - 2 + w)*q + (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q^2 + (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q^3 + O(q^4), (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q + (-16*w^-3 + 240*w^-2 - 240*w^-1 + 32 - 240*w + 240*w^2 - 16*w^3)*q^2 + O(q^3), (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q + O(q^2), O(q^1)]
+        """
+        try:
+            return self.__fourier_jacobi
+        except AttributeError:
+            pass
+        S = self.gram_matrix()
+        nrows = S.nrows()
+        rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(nrows)))
+        r.<q> = PowerSeriesRing(rb)
+        k = self.weight()
+        if self.scale() != 1:
+            v = self.weyl_vector()
+            if v[0] in ZZ and v[-1] in ZZ: #ok we'll try this but it's not a good solution
+                prec = self.precision() // self.scale()
+                L = [O(q ** (prec - n)) for n in range(prec)]
+                coeffs = self.coefficients()
+                for x, y in coeffs.items():
+                    a = x[0]
+                    c = x[2]
+                    b = x[1:-1]
+                    if nrows > 1:
+                        u = rb.monomial(*b)
+                    else:
+                        u = rb.0**b[0]
+                    L[c] += q^a * u * y
+                self.__fourier_jacobi = [JacobiForm(k, n * S, j) for n, j in enumerate(L)]
+                return self.__fourier_jacobi
+            raise NotImplementedError('Nontrivial character')
+        f = self.fourier_expansion()
+        rb_old = f.base_ring()
+        r_old = f.parent()
+        s = r_old.1
+        r_new = r_old.remove_var(s)
+        change_name = {rb_old('r_%d'%j):rb('w_%d'%j) for j in range(nrows)}
+        prec = self.precision()
+        f = f.polynomial()
+        _change_ring = lambda f: r([x.subs(change_name) for x in f.list()])
+        self.__fourier_jacobi = [JacobiForm(k, n * S, _change_ring(r_new(f.coefficient({s : n}))) + O(q ** (prec - n))) for n in range(prec)]
+        return self.__fourier_jacobi
+
+
+    def true_fourier_expansion(self):
+        r"""
+        Return self's Fourier expansion as it is actually stored (as a univariate power series over a ring of Laurent polynomials).
+
+        EXAMPLE::
+
+            sage: f = ParamodularForms(4).borcherds_input_by_weight(1/2, 10)[0].borcherds_lift()
+            sage: f.true_fourier_expansion()
+            ((-r_0^-4 + r_0^4))*t^2 + ((r_0^-12 - r_0^12)*x^-8 + (r_0^-12 - r_0^12)*x^8)*t^10 + ((-r_0^-36 + r_0^36))*t^18 + ((-r_0^-20 + r_0^20)*x^-24 + (-r_0^-20 + r_0^20)*x^24)*t^26 + ((r_0^-60 - r_0^60)*x^-16 + (r_0^-60 - r_0^60)*x^16)*t^34 + O(t^50)
+        """
+        return self.__fourier_expansion
+
+
+    ## arithmetic operations
+
+    def __add__(self, other):
+        r"""
+        Add modular forms, rescaling if necessary.
+        """
+        if not other:
+            return self
+        if not self.gram_matrix() == other.gram_matrix():
+            raise ValueError('Incompatible Gram matrices')
+        if not self.weight() == other.weight():
+            raise ValueError('Incompatible weights')
+        self_v = self.weyl_vector()
+        other_v = other.weyl_vector()
+        if self_v or other_v:
+            if not denominator(self_v - other_v) == 1:
+                raise ValueError('Incompatible characters')
+        self_scale = self.scale()
+        other_scale = other.scale()
+        if not self_scale == other_scale:
+            new_scale = lcm(self_scale, other_scale)
+            X1 = self.rescale(new_scale // self_scale)
+            X2 = other.rescale(new_scale // other_scale)
+            return OrthogonalModularForm(self.__weight, self.__gram_matrix, X1.true_fourier_expansion() + X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v)
+        return OrthogonalModularForm(self.__weight, self.__gram_matrix, self.true_fourier_expansion() + other.true_fourier_expansion(), scale = self_scale, weylvec = self_v)
+
+    __radd__ = __add__
+
+    def __sub__(self, other):
+        r"""
+        Subtract modular forms, rescaling if necessary.
+        """
+        if not other:
+            return self
+        if not self.gram_matrix() == other.gram_matrix():
+            raise ValueError('Incompatible Gram matrices')
+        if not self.weight() == other.weight():
+            raise ValueError('Incompatible weights')
+        self_v = self.weyl_vector()
+        other_v = other.weyl_vector()
+        if self_v or other_v:
+            if not denominator(self_v - other_v) == 1:
+                raise ValueError('Incompatible characters')
+        self_scale = self.scale()
+        other_scale = other.scale()
+        if not self_scale == other_scale:
+            new_scale = lcm(self_scale, other_scale)
+            X1 = self.rescale(new_scale // self_scale)
+            X2 = other.rescale(new_scale // other_scale)
+            return OrthogonalModularForm(self.__weight, self.__gram_matrix, X1.true_fourier_expansion() - X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v)
+        return OrthogonalModularForm(self.__weight, self.__gram_matrix, self.true_fourier_expansion() - other.true_fourier_expansion(), scale = self_scale, weylvec = self_v)
+
+    def __neg__(self):
+        return OrthogonalModularForm(self.__weight, self.__gram_matrix, -self.true_fourier_expansion(), scale = self.scale(), weylvec = self.weyl_vector())
+
+    def __mul__(self, other):
+        r"""
+        Multiply modular forms, rescaling if necessary.
+        """
+        if isinstance(other, OrthogonalModularForm):
+            if not self.gram_matrix() == other.gram_matrix():
+                raise ValueError('Incompatible Gram matrices')
+            self_scale = self.scale()
+            other_scale = other.scale()
+            if self_scale != 1 or other_scale != 1:
+                new_scale = lcm(self.scale(), other.scale())
+                X1 = self.rescale(new_scale // self_scale)
+                X2 = other.rescale(new_scale // other_scale)
+                return OrthogonalModularForm(self.__weight, self.__gram_matrix, X1.true_fourier_expansion() * X2.true_fourier_expansion(), scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector())
+            return OrthogonalModularForm(self.weight() + other.weight(), self.__gram_matrix, self.true_fourier_expansion() * other.true_fourier_expansion(), scale = 1, weylvec = self.weyl_vector() + other.weyl_vector())
+        elif other in QQ:
+            return OrthogonalModularForm(self.weight(), self.__gram_matrix, self.true_fourier_expansion() * other, scale = self.scale(), weylvec = self.weyl_vector())
+
+    __rmul__ = __mul__
+
+    def __div__(self, other):
+        r"""
+        Divide modular forms, rescaling if necessary.
+        """
+        if isinstance(other, OrthogonalModularForm):
+            if not self.gram_matrix() == other.gram_matrix():
+                raise ValueError('Incompatible Gram matrices')
+            self_scale = self.scale()
+            other_scale = other.scale()
+            if self_scale != 1 or other_scale != 1:
+                new_scale = lcm(self.scale(), other.scale())
+                X1 = self.rescale(new_scale // self_scale)
+                X2 = other.rescale(new_scale // other_scale)
+                return OrthogonalModularForm(self.__weight, self.__gram_matrix, X1.true_fourier_expansion() / X2.true_fourier_expansion(), scale = new_scale, weylvec = self.weyl_vector() - other.weyl_vector())
+            return OrthogonalModularForm(self.weight() - other.weight(), self.__gram_matrix, self.true_fourier_expansion() / other.true_fourier_expansion(), scale = 1, weylvec = self.weyl_vector() - other.weyl_vector())
+        elif other in QQ:
+            return OrthogonalModularForm(self.weight(), self.__gram_matrix, self.true_fourier_expansion() / other, scale = self.scale(), weylvec = self.weyl_vector())
+
+    __truediv__ = __div__
+
+    def __eq__(self, other):
+        self_scale = self.scale()
+        other_scale = other.scale()
+        if self_scale == other_scale:
+            return self.true_fourier_expansion() == other.true_fourier_expansion()
+        else:
+            new_scale = lcm(self_scale, other_scale)
+            X1 = self.rescale(new_scale // self_scale)
+            X2 = other.rescale(new_scale // other_scale)
+            return X1.true_fourier_expansion() == X2.true_fourier_expansion()
+
+    def __pow__(self, other):
+        if not other in ZZ:
+            raise ValueError('Not a valid exponent')
+        return OrthogonalModularForm(other * self.weight(), self.__gram_matrix, self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector())
+
+    ## other methods
+
+    def is_maass_lift(self):
+        r"""
+        Return True if self's Fourier coefficients satisfy the Maass relations, otherwise False
+
+        ALGORITHM: check whether this equals the Gritsenko lift of its first Fourier--Jacobi coefficient
+
+        OUTPUT: True/False
+
+        EXAMPLES::
+
+            sage: f = ParamodularForms(N = 1).borcherds_input_by_weight(10, 10)[0].borcherds_lift()
+            sage: f.is_maass_lift()
+            True
+
+            sage: f = ParamodularForms(N = 1).borcherds_input_by_weight(24, 10)[0].borcherds_lift()
+            sage: f.is_maass_lift()
+            False
+        """
+        try:
+            X = self.fourier_jacobi()
+            f = X[1]
+            return all(f.hecke_V(N) == x for N, x in enumerate(X) if N)
+        except NotImplementedError:
+            return False
+
+def orthogonal_eisenstein_series(k, S, prec, w = None):
+    r"""
+    Computes the "orthogonal Eisenstein series" as the theta-lift of the vector-valued Eisenstein series E_{k, 0} (if it exists). We renormalize such that the constant term is 1.
+
+    NOTE: this is called by OrthogonalModularForms(S).eisenstein_series()
+
+    INPUT:
+    - ``k`` -- weight
+    - ``S`` -- (positive-definite) Gram matrix
+    - ``prec`` -- precision
+    - ``w`` -- a WeilRep instance (to check if the Eisenstein series has been cached)
+
+    OUTPUT: OrthogonalModularForm
+
+    EXAMPLES::
+
+        sage: orthogonal_eisenstein_series(4, matrix([[4]]), 5)
+        1 + 240*q + 240*s + 2160*q^2 + (3360*r^-2 + 15360*r^-1 + 20160 + 15360*r + 3360*r^2)*q*s + 2160*s^2 + 6720*q^3 + (240*r^-4 + 15360*r^-3 + 67200*r^-2 + 107520*r^-1 + 137760 + 107520*r + 67200*r^2 + 15360*r^3 + 240*r^4)*q^2*s + (240*r^-4 + 15360*r^-3 + 67200*r^-2 + 107520*r^-1 + 137760 + 107520*r + 67200*r^2 + 15360*r^3 + 240*r^4)*q*s^2 + 6720*s^3 + 17520*q^4 + (20160*r^-4 + 107520*r^-3 + 201600*r^-2 + 322560*r^-1 + 309120 + 322560*r + 201600*r^2 + 107520*r^3 + 20160*r^4)*q^3*s + (15360*r^-5 + 164640*r^-4 + 322560*r^-3 + 691200*r^-2 + 645120*r^-1 + 987840 + 645120*r + 691200*r^2 + 322560*r^3 + 164640*r^4 + 15360*r^5)*q^2*s^2 + (20160*r^-4 + 107520*r^-3 + 201600*r^-2 + 322560*r^-1 + 309120 + 322560*r + 201600*r^2 + 107520*r^3 + 20160*r^4)*q*s^3 + 17520*s^4 + O(q, s)^5
+
+    """
+    if w is None:
+        try:
+            w = WeilRep(S)
+        except AttributeError:
+            w, S = S, S.gram_matrix()
+    nrows = S.nrows()
+    try:
+        return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k - nrows/2, ceil(prec * prec / 4) + 1)).theta_lift(prec)
+    except ValueError:
+        raise ValueError('Invalid weight')
+
+class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
+    r"""
+    subclass of WeilRepModularForms for positive definite lattices. This adds methods for constructing Jacobi forms and theta lifts.
+    """
+    def __init__(self, k, f, w):
+        self._WeilRepModularForm__weight = k
+        self._WeilRepModularForm__fourier_expansions = f
+        self._WeilRepModularForm__weilrep = w
+        self._WeilRepModularForm__gram_matrix = w.gram_matrix()
+
+    ## special methods
+
+    def jacobi_form(self):
+        r"""
+        Return the Jacobi form associated to self.
+
+        If the Gram matrix is positive-definite (this is not checked!!) then this returns the Jacobi form whose theta-decomposition is the vector valued modular form that we started with.
+
+        OUTPUT: a JacobiForm
+
+        EXAMPLES::
+
+            sage: WeilRep(matrix([[2,1],[1,2]])).eisenstein_series(3, 3).jacobi_form()
+            1 + (w_0^2*w_1 + w_0*w_1^2 + 27*w_0*w_1 + 27*w_0 + 27*w_1 + w_0*w_1^-1 + 72 + w_0^-1*w_1 + 27*w_1^-1 + 27*w_0^-1 + 27*w_0^-1*w_1^-1 + w_0^-1*w_1^-2 + w_0^-2*w_1^-1)*q + (27*w_0^2*w_1^2 + 72*w_0^2*w_1 + 72*w_0*w_1^2 + 27*w_0^2 + 216*w_0*w_1 + 27*w_1^2 + 216*w_0 + 216*w_1 + 72*w_0*w_1^-1 + 270 + 72*w_0^-1*w_1 + 216*w_1^-1 + 216*w_0^-1 + 27*w_1^-2 + 216*w_0^-1*w_1^-1 + 27*w_0^-2 + 72*w_0^-1*w_1^-2 + 72*w_0^-2*w_1^-1 + 27*w_0^-2*w_1^-2)*q^2 + O(q^3)
+        """
+        X = self.fourier_expansion()
+        S = self.gram_matrix()
+        prec = self.precision()
+        val = self.valuation()
+        e = S.nrows()
+        Rb = LaurentPolynomialRing(QQ,list(var('w_%d' % i) for i in range(e) ))
+        R.<q> = PowerSeriesRing(Rb,prec)
+        if e > 1:
+            _ds_dict = self.weilrep().ds_dict()
+            jf = [Rb(0)]*(prec-val)
+            precval = prec - val
+            S_inv = S.inverse()
+            try:
+                _, _, vs_matrix = pari(S_inv).qfminim(precval + precval + 1, flag = 2)
+                vs_list = vs_matrix.sage().columns()
+                symm = self.is_symmetric()
+                symm = 1 if symm else -1
+                for v in vs_list:
+                    wv = Rb.monomial(*v)
+                    r = S_inv * v
+                    r_norm = v*r / 2
+                    i_start = ceil(r_norm)
+                    j = _ds_dict[tuple(frac(x) for x in r)]
+                    f = X[j][2]
+                    m = ceil(i_start + val - r_norm)
+                    for i in range(i_start, precval):
+                        jf[i] += (wv + symm * (wv ** (-1))) * f[m]
+                        m += 1
+                f = X[0][2]#deal with v=0 separately
+                for i in range(precval):
+                    jf[i] += f[ceil(val) + i]
+                return JacobiForm(self.weight() + e/2, S, q^val * R(jf) + O(q ** prec), weilrep = self.weilrep())
+            except PariError: #oops!
+                pass
+            lvl = Q.level()
+            Q = QuadraticForm(S)
+            S_adj = lvl*S_inv
+            vs = QuadraticForm(S_adj).short_vector_list_up_to_length(lvl*(prec - val))
+            for n in range(len(vs)):
+                r_norm = n/lvl
+                i_start = ceil(r_norm)
+                for v in vs[n]:
+                    r = S_inv*v
+                    rfrac = tuple(frac(r[i]) for i in range(e))
+                    wv = Rb.monomial(*v)
+                    j = _ds_dict[rfrac]
+                    f = X[j][2]
+                    m = ceil(i_start + val - r_norm)
+                    for i in range(i_start,prec):
+                        jf[i] += wv*f[m]
+                        m += 1
+            return JacobiForm(self.weight()+e/2, S, q^val*R(jf)+O(q^prec), weilrep = self.weilrep())
+        else:
+            w = Rb.0
+            m = S[0,0] #twice the index
+            eps = 2*self.is_symmetric()-1
+            jf = [X[0][2][i] + sum(X[r%m][2][ceil(i - r^2 / (2*m))]*(w^r + eps/w^r) for r in range(1,isqrt(2*(i-val)*m)+1)) for i in range(val, prec)]
+            return JacobiForm(self.weight()+1/2, S, q^val * R(jf) + O(q^prec), weilrep = self.weilrep(), modform = self)
+
+    def theta_lift(self, prec = None):
+        r"""
+        Compute the additive theta lift.
+
+        This computes the additive theta lift (Gritsenko lift, Maass lift) of the given vector-valued modular form.
+
+        INPUT:
+        - ``prec`` -- precision of the output (default None). The precision is limited by the precision of the input form. If ``prec`` is given then the output precision will not *exceed* ``prec``.
+
+        OUTPUT: an OrthogonalModularForm of weight = input form's weight + (lattice rank) / 2
+
+        EXAMPLES::
+
+            sage: w = WeilRep(matrix([[2, 1], [1, 2]]))
+            sage: w.cusp_forms_basis(9, 5)[0].theta_lift()
+            (r_0*r_1 + r_0 + r_1 - 6 + r_1^-1 + r_0^-1 + r_0^-1*r_1^-1)*q*s + (r_0^2*r_1^2 - 6*r_0^2*r_1 - 6*r_0*r_1^2 + r_0^2 - 10*r_0*r_1 + r_1^2 - 10*r_0 - 10*r_1 - 6*r_0*r_1^-1 + 90 - 6*r_0^-1*r_1 - 10*r_1^-1 - 10*r_0^-1 + r_1^-2 - 10*r_0^-1*r_1^-1 + r_0^-2 - 6*r_0^-1*r_1^-2 - 6*r_0^-2*r_1^-1 + r_0^-2*r_1^-2)*q^2*s + (r_0^2*r_1^2 - 6*r_0^2*r_1 - 6*r_0*r_1^2 + r_0^2 - 10*r_0*r_1 + r_1^2 - 10*r_0 - 10*r_1 - 6*r_0*r_1^-1 + 90 - 6*r_0^-1*r_1 - 10*r_1^-1 - 10*r_0^-1 + r_1^-2 - 10*r_0^-1*r_1^-1 + r_0^-2 - 6*r_0^-1*r_1^-2 - 6*r_0^-2*r_1^-1 + r_0^-2*r_1^-2)*q*s^2 + (r_0^3*r_1^2 + r_0^2*r_1^3 + r_0^3*r_1 - 10*r_0^2*r_1^2 + r_0*r_1^3 + 90*r_0^2*r_1 + 90*r_0*r_1^2 - 10*r_0^2 + 8*r_0*r_1 - 10*r_1^2 + r_0^2*r_1^-1 + 8*r_0 + 8*r_1 + r_0^-1*r_1^2 + 90*r_0*r_1^-1 - 540 + 90*r_0^-1*r_1 + r_0*r_1^-2 + 8*r_1^-1 + 8*r_0^-1 + r_0^-2*r_1 - 10*r_1^-2 + 8*r_0^-1*r_1^-1 - 10*r_0^-2 + 90*r_0^-1*r_1^-2 + 90*r_0^-2*r_1^-1 + r_0^-1*r_1^-3 - 10*r_0^-2*r_1^-2 + r_0^-3*r_1^-1 + r_0^-2*r_1^-3 + r_0^-3*r_1^-2)*q^3*s + (-6*r_0^3*r_1^3 - 10*r_0^3*r_1^2 - 10*r_0^2*r_1^3 - 10*r_0^3*r_1 + 520*r_0^2*r_1^2 - 10*r_0*r_1^3 - 6*r_0^3 - 540*r_0^2*r_1 - 540*r_0*r_1^2 - 6*r_1^3 + 520*r_0^2 + 310*r_0*r_1 + 520*r_1^2 - 10*r_0^2*r_1^-1 + 310*r_0 + 310*r_1 - 10*r_0^-1*r_1^2 - 540*r_0*r_1^-1 - 1584 - 540*r_0^-1*r_1 - 10*r_0*r_1^-2 + 310*r_1^-1 + 310*r_0^-1 - 10*r_0^-2*r_1 + 520*r_1^-2 + 310*r_0^-1*r_1^-1 + 520*r_0^-2 - 6*r_1^-3 - 540*r_0^-1*r_1^-2 - 540*r_0^-2*r_1^-1 - 6*r_0^-3 - 10*r_0^-1*r_1^-3 + 520*r_0^-2*r_1^-2 - 10*r_0^-3*r_1^-1 - 10*r_0^-2*r_1^-3 - 10*r_0^-3*r_1^-2 - 6*r_0^-3*r_1^-3)*q^2*s^2 + (r_0^3*r_1^2 + r_0^2*r_1^3 + r_0^3*r_1 - 10*r_0^2*r_1^2 + r_0*r_1^3 + 90*r_0^2*r_1 + 90*r_0*r_1^2 - 10*r_0^2 + 8*r_0*r_1 - 10*r_1^2 + r_0^2*r_1^-1 + 8*r_0 + 8*r_1 + r_0^-1*r_1^2 + 90*r_0*r_1^-1 - 540 + 90*r_0^-1*r_1 + r_0*r_1^-2 + 8*r_1^-1 + 8*r_0^-1 + r_0^-2*r_1 - 10*r_1^-2 + 8*r_0^-1*r_1^-1 - 10*r_0^-2 + 90*r_0^-1*r_1^-2 + 90*r_0^-2*r_1^-1 + r_0^-1*r_1^-3 - 10*r_0^-2*r_1^-2 + r_0^-3*r_1^-1 + r_0^-2*r_1^-3 + r_0^-3*r_1^-2)*q*s^3 + O(q, s)^5
+        """
+        if self.valuation() < 0:
+            raise ValueError('The input function must be holomorphic')
+        prec0 = self.precision() + 1
+        newprec = isqrt(4 * prec0 + 4)
+        if prec is None:
+            prec = newprec
+            #prec = isqrt(4 * prec0)
+        else:
+            prec = min(prec, newprec)
+            #prec = min(prec, isqrt(4 * prec0))
+        S = self.gram_matrix()
+        coeffs = self.coefficients()
+        S_inv = self.inverse_gram_matrix()
+        rb = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(S.nrows()) ))
+        rb_x.<x> = LaurentPolynomialRing(rb)
+        r.<t> = PowerSeriesRing(rb_x)
+        k = self.weight()
+        nrows = S.nrows()
+        wt = k + nrows / 2
+        if nrows > 1:
+            _, _, vs_matrix = pari(S_inv).qfminim(prec0 + prec0 + 1, flag = 2)
+            vs_list = vs_matrix.sage().columns()
+        else:
+            vs_list = [vector([n]) for n in range(1, isqrt(2*prec0*S[0, 0]) + 1)]
+        f = O(t ** prec)
+        if wt % 2 == 0:
+            try:
+                f_0 = coeffs[tuple([0]*(S.nrows() + 1))]
+                if f_0:
+                    e = eisenstein_series_qexp(wt, prec + 1)
+                    f = f + f_0 * (e(t*x) + e(~x * t) - e[0])
+            except KeyError:
+                pass
+        for v in vs_list:
+            j = next(j for j, w in enumerate(v) if w)
+            if v[j] > 0:
+                g = S_inv * v
+                v_norm = v * g / 2
+                sqrt_v_norm = ceil(sqrt(v_norm))
+                if nrows > 1:
+                    v_monomial = rb.monomial(*v)
+                    v_monomial = v_monomial + (-1)^wt * v_monomial^(-1)
+                else:
+                    w = rb.0
+                    v_monomial = w^v[0] + (-1)^wt * w^(-v[0])
+                a = max(1, sqrt_v_norm)
+                while a < prec:
+                    c = max(1, ceil(v_norm / a))
+                    while c < min(a + 1, prec- a):
+                        a_plus_c = a + c
+                        n = a * c - v_norm
+                        if n >= 0:
+                            sum_coeff = 0
+                            for d in divisors(gcd([a, c] + list(v))):
+                                d_wt = d ** (wt - 1)
+                                g_n = tuple([frac(y) for y in g / d] + [n / (d * d)])
+                                try:
+                                    sum_coeff += coeffs[g_n] * d_wt
+                                except KeyError:
+                                    if n >= prec0:
+                                        prec = min(a_plus_c, prec)
+                                        f += O(t ** prec)
+                                    pass
+                            if a != c:
+                                f += sum_coeff * t^(a_plus_c) * (x^(a-c) + x^(c-a)) * v_monomial
+                            else:
+                                f += sum_coeff * t^(a_plus_c) * v_monomial
+                        c += 1
+                    a += 1
+        for a in range(prec):
+            for c in range(min(a + 1, prec - a)):
+                n = a * c
+                a_plus_c = a + c
+                if n:
+                    sum_coeff = 0
+                    for d in divisors(gcd(a,c)):
+                        d_wt = d ** (wt - 1)
+                        g_n = tuple([0]*nrows + [n / (d * d)])
+                        try:
+                            sum_coeff = sum_coeff + coeffs[g_n] * d_wt
+                        except KeyError:
+                            if n >= prec0:
+                                prec = min(a_plus_c, prec)
+                                f += O(t ** prec)
+                            pass
+                    if a != c:
+                        f += sum_coeff * t^(a_plus_c) * (x^(a - c) + x^(c - a))
+                    else:
+                        f += sum_coeff * t^(a_plus_c)
+        return OrthogonalModularForm(wt, S, f, scale = 1, weylvec = vector([0] * (nrows + 2)))
+    additive_lift = theta_lift
+    gritsenko_lift = theta_lift
+    maass_lift = theta_lift
+
+    def weyl_vector(self):
+        r"""
+        Compute the Weyl vector in the Borcherds lift.
+        """
+        r0.<q> = PowerSeriesRing(QQ)
+        ds_dict = self.weilrep().ds_dict()
+        ds = self.ds()
+        coeffs = self.coefficients()
+        prec = -self.valuation()
+        S = self.gram_matrix()
+        S_inv = self.inverse_gram_matrix()
+        F = self.fourier_expansion()
+        nrows = S.nrows()
+        weight = coeffs[tuple([0] * (nrows + 1))]
+        theta = [O(q ** (prec + 1)) for _ in ds]
+        theta[0] += 1
+        if nrows > 1:
+            _, _, weyl_vs_matrix = pari(S_inv).qfminim(prec + 1, flag = 2)
+            weyl_vs_list = weyl_vs_matrix.sage().columns()
+        else:
+            weyl_vs_list = [vector([n]) for n in range(1, isqrt(2*prec*S[0, 0]) + 1)]
+        coeff_sum = 0
+        vec_sum = vector([0] * nrows)
+        for v in weyl_vs_list:
+            g = S_inv * v
+            v_norm = g * v / 2
+            g_frac = [frac(x) for x in g]
+            i = ds_dict[tuple(g_frac)]
+            big_tuple = tuple(g_frac + [-v_norm])
+            j = next(j for j, w in enumerate(v) if w)
+            theta[i] += 2 * q ** floor(v_norm)
+            try:
+                coeff = coeffs[big_tuple]
+                coeff_sum += coeff
+                if v[j] > 0:
+                    vec_sum += g * coeff
+                else:
+                    vec_sum -= g * coeff
+            except KeyError:
+                pass
+        e2 = eisenstein_series_qexp(2, prec + 1)
+        return vector([coeff_sum/12 + weight/24] + list(vec_sum / 2) + [-(e2 * sum([theta[i] * F[i][2] for i in range(len(F))]))[0]])
+
+    def borcherds_lift(self, prec = None):
+        r"""
+        Compute the Borcherds lift.
+
+        If ``self`` is a nearly-holomorphic modular form of weight -rank(L) / 2 (where L is the underlying positive-definite lattice) then one can associate to it a Borcherds product, which is a modular object on the Type IV domain attached to L + II_{2, 2}. The result is a true modular form if all Fourier coefficients in self's principal part are integers and if sufficiently many of them are positive. (For the precise statement see Theorem 13.3 of [B].)
+
+        NOTE: we do not check whether the input actually yields a holomorphic product. This method should still work without errors when the result has poles (but some other functions might not work correctly given non-holomorphic modular forms as input). We do check that the input is of the correct weight, and you can expect a ValueError if the input has nonintegral coefficients.
+
+        INPUT:
+        - ``prec`` -- precision (optional). The precision of the output is limited by the precision of the input. However if ``prec`` is given then the output precision will not exceed ``prec``.
+
+        OUTPUT: OrthogonalModularForm of weight equal to (1/2) of self's constant term.
+
+        EXAMPLES::
+
+            sage: ParamodularForms(5).borcherds_input_basis(1/4, 5)[0].borcherds_lift()
+            (r^(-3/2) - r^(-1/2) - r^(1/2) + r^(3/2))*q^(1/2)*s^(1/2) + (-r^(-7/2) - 6*r^(-3/2) + 7*r^(-1/2) + 7*r^(1/2) - 6*r^(3/2) - r^(7/2))*q^(3/2)*s^(1/2) + (-r^(-7/2) - 6*r^(-3/2) + 7*r^(-1/2) + 7*r^(1/2) - 6*r^(3/2) - r^(7/2))*q^(1/2)*s^(3/2) + (r^(-9/2) + 6*r^(-7/2) + 8*r^(-3/2) - 15*r^(-1/2) - 15*r^(1/2) + 8*r^(3/2) + 6*r^(7/2) + r^(9/2))*q^(5/2)*s^(1/2) + (-r^(-13/2) - 7*r^(-11/2) + 42*r^(-9/2) - 15*r^(-7/2) - 60*r^(-3/2) + 41*r^(-1/2) + 41*r^(1/2) - 60*r^(3/2) - 15*r^(7/2) + 42*r^(9/2) - 7*r^(11/2) - r^(13/2))*q^(3/2)*s^(3/2) + (r^(-9/2) + 6*r^(-7/2) + 8*r^(-3/2) - 15*r^(-1/2) - 15*r^(1/2) + 8*r^(3/2) + 6*r^(7/2) + r^(9/2))*q^(1/2)*s^(5/2) + (r^(-11/2) - 7*r^(-9/2) - 8*r^(-7/2) + 15*r^(-3/2) - r^(-1/2) - r^(1/2) + 15*r^(3/2) - 8*r^(7/2) - 7*r^(9/2) + r^(11/2))*q^(7/2)*s^(1/2) + (r^(-17/2) - 15*r^(-13/2) - 41*r^(-11/2) + 36*r^(-9/2) - 31*r^(-7/2) + 72*r^(-3/2) - 22*r^(-1/2) - 22*r^(1/2) + 72*r^(3/2) - 31*r^(7/2) + 36*r^(9/2) - 41*r^(11/2) - 15*r^(13/2) + r^(17/2))*q^(5/2)*s^(3/2) + (r^(-17/2) - 15*r^(-13/2) - 41*r^(-11/2) + 36*r^(-9/2) - 31*r^(-7/2) + 72*r^(-3/2) - 22*r^(-1/2) - 22*r^(1/2) + 72*r^(3/2) - 31*r^(7/2) + 36*r^(9/2) - 41*r^(11/2) - 15*r^(13/2) + r^(17/2))*q^(3/2)*s^(5/2) + (r^(-11/2) - 7*r^(-9/2) - 8*r^(-7/2) + 15*r^(-3/2) - r^(-1/2) - r^(1/2) + 15*r^(3/2) - 8*r^(7/2) - 7*r^(9/2) + r^(11/2))*q^(1/2)*s^(7/2) + O(q, s)^5
+        """
+        prec0 = self.precision()
+        val = self.valuation()
+        prec0val = prec0 - val
+        if prec is None:
+            prec = isqrt(4 * (prec0+val))
+        else:
+            prec = min(prec, isqrt(4 * (prec0+val)))
+        S_inv = self.inverse_gram_matrix()
+        S = self.gram_matrix()
+        det_S = S.determinant()
+        nrows = S.nrows()
+        if not self.weight() == -nrows/2:
+            raise ValueError('Incorrect input weight')
+        w = self.weyl_vector()
+        w = vector([w[0]] + list(S * w[1:-1]) + [w[-1]])
+        d = denominator(w)
+        weyl_v = d * w
+        prec = prec * d
+        coeffs = self.coefficients()
+        weight = coeffs[tuple([0]*(nrows + 1))] / 2
+        rb = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(nrows)) )
+        rb_x.<x> = LaurentPolynomialRing(rb)
+        r.<t> = PowerSeriesRing(rb_x, prec)
+        rpoly.<t0> = PolynomialRing(QQ)
+        ds_dict = self.weilrep().ds_dict()
+        if nrows > 1:
+            _, _, vs_matrix = pari(S_inv).qfminim(prec0val + prec0val + 1, flag = 2)
+            vs_list = vs_matrix.sage().columns()
+        else:
+            vs_list = [vector([n]) for n in range(1, isqrt(2*prec0*S[0, 0]) + 1)]
+        vs_list.append(vector([0]*nrows))
+        F = self.fourier_expansion()
+        h = O(t ** prec)
+        log_f = h
+        a_plus_c = -1
+        excluded_vectors = set()
+        corrector = 1
+        if nrows == 1:
+            rb_zero = rb.0
+        for v in vs_list:
+            g = S_inv * v
+            v_norm = g * v / 2
+            g_frac = [frac(y) for y in g]
+            a_plus_c = -1
+            while a_plus_c <= prec / d:
+                a_plus_c += 1
+                for c in range(val, a_plus_c + 1):
+                    a = a_plus_c - c
+                    a_times_c = a * c
+                    if val <= a_times_c - v_norm < prec0:
+                        big_v = vector([a] + list(v) + [c])
+                        if tuple(big_v) not in excluded_vectors:
+                            if v and not (a or c):
+                                j = next(j for j, v_j in enumerate(v) if v_j)
+                                if v[j] > 0:
+                                    v = -v
+                            n = a_times_c - v_norm
+                            big_tuple = tuple(g_frac + [n])
+                            try:
+                                exponent = coeffs[big_tuple]
+                                if exponent:
+                                    if nrows > 1:
+                                        m = rb.monomial(*d*v)
+                                    else:
+                                        m = rb_zero ** (d * v[0])
+                                    if (a or c) and c >= 0:
+                                        u = t ** (d * a_plus_c) * x **( d * (c - a))
+                                        if v:
+                                            log_f += exponent * log(1 - u * (m + ~m - u) + h)
+                                        else:
+                                            log_f += exponent * log(1 - u + h)
+                                    elif n:
+                                        p = rpoly(1)
+                                        bound = isqrt(val / n) + 1
+                                        for k in range(1, bound):
+                                            try:
+                                                exponent_k = coeffs[tuple([frac(y) for y in k * g] + [n * (k * k)])]
+                                                p *= (1 - t0 ** k) ** exponent_k
+                                                excluded_vectors.add(tuple(k * big_v))
+                                            except KeyError:
+                                                break
+                                        if c >= 0:
+                                            corrector *= p.subs({t0 : m})
+                                        else:
+                                            deg_p = p.degree()
+                                            if v:
+                                                s1, s2 = 0, 0
+                                                for j, p_j in enumerate(list(p)):
+                                                    f = p_j * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (a * j + c * (deg_p - j)))
+                                                    s1 += f * m ** (d * j)
+                                                    s2 += f * m ** (-d * j)
+                                                corrector *= (h + s1 * s2)
+                                                weyl_v[0] += 2 * c * d * deg_p
+                                            else:
+                                                corrector *= (h + sum([p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (a * j + c * (deg_p - j))) for j, p in enumerate(list(p))]))
+                                                weyl_v[0] += c * d * deg_p
+                            except KeyError:
+                                if n > prec:
+                                    prec = d * a_plus_c
+                                    h = O(t ** prec)
+                                    log_f += h
+                                pass
+        if nrows > 1:
+            weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb.monomial(*weyl_v[1:-1])
+        else:
+            weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb_zero ** weyl_v[1]
+        return OrthogonalModularForm(weight, S, exp(log_f) * corrector * weyl_vector_term, scale = d, weylvec = weyl_v / d)
+
+def jacobian(X):
+    r"""
+    Compute the Jacobian (Rankin--Cohen--Ibukiyama) operator.
+
+    INPUT:
+    - ``X`` -- a list [F_1, ..., F_N] of N orthogonal modular forms for the same Gram matrix, where N = 3 + (number of self's gram matrix rows)
+
+    OUTPUT: OrthogonalModularForm. (If F_1, ..., F_N have weights k_1, ..., k_N then the result has weight k_1 + ... + k_N + N - 1.)
+
+    EXAMPLES::
+
+        sage: jacobian([ParamodularForms(1).eisenstein_series(k, 7) for k in [4, 6, 10, 12]]) / (-589927441461779261030400000/2354734631251) #funny multiple
+        (r^-1 - r)*q^3*s^2 + (-r^-1 + r)*q^2*s^3 + (-r^-3 - 69*r^-1 + 69*r + r^3)*q^4*s^2 + (r^-3 + 69*r^-1 - 69*r - r^3)*q^2*s^4 + O(q, s)^7
+    """
+    N = len(X)
+    Xref = X[0]
+    f = Xref.true_fourier_expansion()
+    t = f.parent().gens()[0]
+    rb_x = f.base_ring()
+    x = rb_x.0
+    r_list = rb_x.base_ring().gens()
+    if not N == len(r_list) + 3:
+        raise ValueError('The Jacobian requires %d modular forms.'%(len(r_list) + 3))
+    k = N - 1
+    v = vector([0] * (N - 1))
+    r_deriv = [[] for _ in r_list]
+    t_deriv = []
+    x_deriv = []
+    u = []
+    for y in X:
+        f = y.true_fourier_expansion()
+        t_deriv.append(t * f.derivative())
+        x_deriv.append(f.map_coefficients(lambda a: x * a.derivative()))
+        for i, r in enumerate(r_list):
+            r_deriv[i].append(f.map_coefficients(lambda a: rb_x([r * y.derivative(r) for y in list(a)]) * (x ** (a.polynomial_construction()[1]) )))
+        y_k = y.weight()
+        k += y_k
+        v += y.weyl_vector()
+        u.append(y_k * f)
+    S = Xref.gram_matrix()
+    L = [u, t_deriv, x_deriv]
+    L.extend(r_deriv)
+    return OrthogonalModularForm(k, S, matrix(L).determinant(), scale = 1, weylvec = v)

@@ -48,6 +48,8 @@ class WeilRepModularForm(object):
         self.__fourier_expansions = fourier_expansions
         if weilrep:
             self.__weilrep = weilrep
+            if weilrep.is_positive_definite():
+                self.__class__ = WeilRepModularFormPositiveDefinite #in the 'lifts.sage' file.
 
     def __repr__(self):
         try:
@@ -85,19 +87,26 @@ class WeilRepModularForm(object):
 
     ## basic attributes
 
-    def weight(self):
-        return self.__weight
+    def fourier_expansion(self):
+        return self.__fourier_expansions
 
     def gram_matrix(self):
         return self.__gram_matrix
 
-    def fourier_expansion(self):
-        return self.__fourier_expansions
+    def inverse_gram_matrix(self):
+        try:
+            return self.__inverse_gram_matrix
+        except AttributeError:
+            self.__inverse_gram_matrix = self.__gram_matrix.inverse()
+            return self.__inverse_gram_matrix
 
     def __nonzero__(self):
-        return any(x[2] for x in self.__fourier_expansions)
+        return any(x[2] for x in self.fourier_expansion())
 
     __bool__ = __nonzero__
+
+    def weight(self):
+        return self.__weight
 
     def weilrep(self):
         r"""
@@ -133,24 +142,22 @@ class WeilRepModularForm(object):
         else:
             return WeilRepModularForm(self.__weight, self.__gram_matrix, X, weilrep = self.weilrep())
 
-    def valuation(self, round_down = True):
+    def valuation(self):
         r"""
         Returns the lowest exponent in our Fourier expansion with a nonzero coefficient (rounded down).
         """
         try:
-            if round_down:
-                return self.__valuation
-            return self.__true_valuation
+            return self.__valuation
         except AttributeError:
             X = self.fourier_expansion()
             try:
-                self.__true_valuation = min([x[2].valuation() + x[1] for x in X if x[2]])
-                self.__valuation = floor(self.__true_valuation)
+                self.__valuation = min([floor(x[2].valuation() + x[1]) for x in X if x[2]])
             except ValueError: #probably trying to take valuation of 0
                 self.__valuation = 0 #for want of a better value
-            if round_down:
-                return self.__valuation
-            return self.__true_valuation
+            return self.__valuation
+
+    def is_positive_definite(self):
+        return self.weilrep().is_positive_definite()
 
     def is_symmetric(self):
         r"""
@@ -486,80 +493,6 @@ class WeilRepModularForm(object):
                 Y[j] = g, -frac(g*S_conj*g/2), O(q ** prec_g)
         return WeilRepModularForm(self.weight(), S_conj, Y, weilrep = w_conj)
 
-    def jacobi_form(self):
-        r"""
-        Return the Jacobi form associated to self.
-
-        If the Gram matrix is positive-definite (this is not checked!!) then this returns the Jacobi form whose theta-decomposition is the vector valued modular form that we started with.
-
-        OUTPUT: a JacobiForm
-
-        EXAMPLES::
-
-            sage: WeilRep(matrix([[2,1],[1,2]])).eisenstein_series(3, 3).jacobi_form()
-            1 + (w_0^2*w_1 + w_0*w_1^2 + 27*w_0*w_1 + 27*w_0 + 27*w_1 + w_0*w_1^-1 + 72 + w_0^-1*w_1 + 27*w_1^-1 + 27*w_0^-1 + 27*w_0^-1*w_1^-1 + w_0^-1*w_1^-2 + w_0^-2*w_1^-1)*q + (27*w_0^2*w_1^2 + 72*w_0^2*w_1 + 72*w_0*w_1^2 + 27*w_0^2 + 216*w_0*w_1 + 27*w_1^2 + 216*w_0 + 216*w_1 + 72*w_0*w_1^-1 + 270 + 72*w_0^-1*w_1 + 216*w_1^-1 + 216*w_0^-1 + 27*w_1^-2 + 216*w_0^-1*w_1^-1 + 27*w_0^-2 + 72*w_0^-1*w_1^-2 + 72*w_0^-2*w_1^-1 + 27*w_0^-2*w_1^-2)*q^2 + O(q^3)
-        """
-        X = self.fourier_expansion()
-        S = self.gram_matrix()
-        prec = self.precision()
-        val = self.valuation()
-        e = S.nrows()
-        Rb = LaurentPolynomialRing(QQ,list(var('w_%d' % i) for i in range(e) ))
-        R.<q> = PowerSeriesRing(Rb,prec)
-        if e > 1:
-            _ds_dict = self.weilrep().ds_dict()
-            jf = [Rb(0)]*(prec-val)
-            Q = QuadraticForm(S)
-            if not Q.is_positive_definite():
-                raise ValueError('Index is not positive definite')
-            S_inv = S.inverse()
-            precval = prec - val
-            try:
-                _, _, vs_matrix = pari(S_inv).qfminim(precval + precval + 1, flag = 2)
-                vs_list = vs_matrix.sage().columns()
-                symm = self.is_symmetric()
-                symm = 1 if symm else -1
-                for v in vs_list:
-                    wv = Rb.monomial(*v)
-                    r = S_inv * v
-                    r_norm = v*r / 2
-                    i_start = ceil(r_norm)
-                    j = _ds_dict[tuple(frac(x) for x in r)]
-                    f = X[j][2]
-                    m = ceil(i_start + val - r_norm)
-                    for i in range(i_start, precval):
-                        jf[i] += (wv + symm * (wv ** (-1))) * f[m]
-                        m += 1
-                f = X[0][2]#deal with v=0 separately
-                for i in range(precval):
-                    jf[i] += f[ceil(val) + i]
-                return JacobiForm(self.weight() + e/2, S, q^val * R(jf) + O(q ** prec), weilrep = self.weilrep())
-            except PariError: #oops!
-                pass
-            lvl = Q.level()
-            S_adj = lvl*S_inv
-            vs = QuadraticForm(S_adj).short_vector_list_up_to_length(lvl*(prec - val))
-            for n in range(len(vs)):
-                r_norm = n/lvl
-                i_start = ceil(r_norm)
-                for v in vs[n]:
-                    r = S_inv*v
-                    rfrac = tuple(frac(r[i]) for i in range(e))
-                    wv = Rb.monomial(*v)
-                    j = _ds_dict[rfrac]
-                    f = X[j][2]
-                    m = ceil(i_start + val - r_norm)
-                    for i in range(i_start,prec):
-                        jf[i] += wv*f[m]
-                        m += 1
-            return JacobiForm(self.weight()+e/2, S, q^val*R(jf)+O(q^prec), weilrep = self.weilrep())
-        else:
-            w = Rb.0
-            m = S[0,0] #twice the index
-            eps = 2*self.is_symmetric()-1
-            jf = [X[0][2][i] + sum(X[r%m][2][ceil(i - r^2 / (2*m))]*(w^r + eps/w^r) for r in range(1,isqrt(2*(i-val)*m)+1)) for i in range(val, prec)]
-            return JacobiForm(self.weight()+1/2, S, q^val * R(jf) + O(q^prec), weilrep = self.weilrep(), modform = self)
-
     def serre_derivative(self, normalize_constant_term = False):
         r"""
         Compute the Serre derivative.
@@ -762,7 +695,7 @@ class WeilRepModularFormsBasis:
         """
         self.__basis.append(other)
 
-    def echelonize(self, save_pivots = False, starting_from = None, ending_with = None):
+    def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None):
         r"""
         Reduce self to echelon form in place.
 
@@ -773,8 +706,6 @@ class WeilRepModularFormsBasis:
         """
         if ending_with is None:
             ending_with = self.__weight / 12
-        if starting_from is None:
-            starting_from = self.valuation()
         m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis]).extended_echelon_form(subdivide = True)
         b = m.subdivision(0, 1)
         self.__basis = [self * v for v in b.rows()]
@@ -860,7 +791,7 @@ class WeilRepModularFormsBasis:
                 for i in range(precval):
                     for ell, h in enumerate(f):
                         jf[ell][i] += h[ceil(val) + i]
-                return [JacobiForm(k, S, q^val * R(x) + O(q ** prec), weilrep = self.__weilrep, modform = x) for x in jf]
+                return [JacobiForm(k, S, q^val * R(x) + O(q ** prec), weilrep = self.__weilrep, modform = self[i]) for i, x in enumerate(jf)]
             except PariError:
                 pass
             lvl = Q.level()
@@ -882,7 +813,7 @@ class WeilRepModularFormsBasis:
                         for ell, h in enumerate(f):
                             jf[ell][i] += wv*h[m]
                         m += 1
-            return [JacobiForm(k, S, q^val*R(x)+O(q^prec), weilrep = self.__weilrep, modform = x) for x in jf]
+            return [JacobiForm(k, S, q^val*R(x)+O(q^prec), weilrep = self.__weilrep, modform = self[i]) for i, x in enumerate(jf)]
         else:
             w = Rb.0
             m = S[0,0] #twice the index
@@ -898,7 +829,7 @@ class WeilRepModularFormsBasis:
                         wr = (w ** r + eps * (w ** (-r)))
                         jf[j][i] += x[r%m][2][ceil(i + val - r^2 / (2*m))]*wr
             k = self.weight() + 1/2
-            return [JacobiForm(k, S, q^val * R(x) + O(q^prec), weilrep = self.__weilrep, modform = x) for x in jf]
+            return [JacobiForm(k, S, q^val * R(x) + O(q^prec), weilrep = self.__weilrep, modform = self[i]) for i, x in enumerate(jf)]
 
     def __len__(self):
         return len(self.__basis)

@@ -113,7 +113,7 @@ class JacobiForms:
         EXAMPLES::
 
             sage: JacobiForms(1).eisenstein_series(4, 5)
-            1 + (w_0^-2 + 56*w_0^-1 + 126 + 56*w_0 + w_0^2)*q + (126*w_0^-2 + 576*w_0^-1 + 756 + 576*w_0 + 126*w_0^2)*q^2 + (56*w_0^-3 + 756*w_0^-2 + 1512*w_0^-1 + 2072 + 1512*w_0 + 756*w_0^2 + 56*w_0^3)*q^3 + (w_0^-4 + 576*w_0^-3 + 2072*w_0^-2 + 4032*w_0^-1 + 4158 + 4032*w_0 + 2072*w_0^2 + 576*w_0^3 + w_0^4)*q^4 + O(q^5)
+            1 + (w^-2 + 56*w^-1 + 126 + 56*w + w^2)*q + (126*w^-2 + 576*w^-1 + 756 + 576*w + 126*w^2)*q^2 + (56*w^-3 + 756*w^-2 + 1512*w^-1 + 2072 + 1512*w + 756*w^2 + 56*w^3)*q^3 + (w^-4 + 576*w^-3 + 2072*w^-2 + 4032*w^-1 + 4158 + 4032*w + 2072*w^2 + 576*w^3 + w^4)*q^4 + O(q^5)
 
         """
 
@@ -129,6 +129,11 @@ class JacobiForms:
         - ``k`` -- the weight
         - ``b`` -- a vector, or possibly (if self's index is an integer) an integer
         - ``prec`` -- the precision of the Fourier expansion
+
+        EXAMPLES::
+
+            sage: JacobiForms(9).eisenstein_newform(3, 1, 5)
+            (-2*w^-6 + 12*w^-5 - 24*w^-4 + 4*w^-3 + 54*w^-2 - 72*w^-1 + 72*w - 54*w^2 - 4*w^3 + 24*w^4 - 12*w^5 + 2*w^6)*q + (6*w^-8 - 24*w^-7 + 12*w^-6 + 72*w^-5 - 108*w^-4 - 24*w^-3 + 156*w^-2 - 120*w^-1 + 120*w - 156*w^2 + 24*w^3 + 108*w^4 - 72*w^5 - 12*w^6 + 24*w^7 - 6*w^8)*q^2 + (-6*w^-10 + 84*w^-8 - 156*w^-7 - 18*w^-6 + 276*w^-5 - 264*w^-4 + 36*w^-3 + 276*w^-2 - 396*w^-1 + 396*w - 276*w^2 - 36*w^3 + 264*w^4 - 276*w^5 + 18*w^6 + 156*w^7 - 84*w^8 + 6*w^10)*q^3 + (2*w^-12 + 24*w^-11 - 84*w^-10 + 216*w^-8 - 192*w^-7 - 28*w^-6 + 264*w^-5 - 438*w^-4 + 48*w^-3 + 504*w^-2 - 384*w^-1 + 384*w - 504*w^2 - 48*w^3 + 438*w^4 - 264*w^5 + 28*w^6 + 192*w^7 - 216*w^8 + 84*w^10 - 24*w^11 - 2*w^12)*q^4 + O(q^5)
 
         """
         if b in ZZ:
@@ -146,6 +151,11 @@ class JacobiForms:
         - ``k`` -- the weight
         - ``b`` -- a vector, or possibly (if self's index is an integer) an integer
         - ``prec`` -- the precision of the Fourier expansion
+
+        EXAMPLES::
+
+            sage: JacobiForms(4).eisenstein_oldform(4, 1, 5)
+            1 + (w^-4 + 56*w^-2 + 126 + 56*w^2 + w^4)*q + (126*w^-4 + 576*w^-2 + 756 + 576*w^2 + 126*w^4)*q^2 + (56*w^-6 + 756*w^-4 + 1512*w^-2 + 2072 + 1512*w^2 + 756*w^4 + 56*w^6)*q^3 + (w^-8 + 576*w^-6 + 2072*w^-4 + 4032*w^-2 + 4158 + 4032*w^2 + 2072*w^4 + 576*w^6 + w^8)*q^4 + O(q^5)
 
         """
         if b in ZZ:
@@ -235,10 +245,10 @@ class JacobiForms:
         EXAMPLES::
 
             sage: JacobiForms(1).cusp_forms_basis(10, 5)
-            [(w_0^-1 - 2 + w_0)*q + (-2*w_0^-2 - 16*w_0^-1 + 36 - 16*w_0 - 2*w_0^2)*q^2 + (w_0^-3 + 36*w_0^-2 + 99*w_0^-1 - 272 + 99*w_0 + 36*w_0^2 + w_0^3)*q^3 + (-16*w_0^-3 - 272*w_0^-2 - 240*w_0^-1 + 1056 - 240*w_0 - 272*w_0^2 - 16*w_0^3)*q^4 + O(q^5)]
+            [(w^-1 - 2 + w)*q + (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q^2 + (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q^3 + (-16*w^-3 - 272*w^-2 - 240*w^-1 + 1056 - 240*w - 272*w^2 - 16*w^3)*q^4 + O(q^5)]
 
             sage: JacobiForms(2).cusp_forms_basis(11, 5)
-            [(-w_0^-1 + w_0)*q + (w_0^-3 + 21*w_0^-1 - 21*w_0 - w_0^3)*q^2 + (-21*w_0^-3 - 189*w_0^-1 + 189*w_0 + 21*w_0^3)*q^3 + (-w_0^-5 + 189*w_0^-3 + 910*w_0^-1 - 910*w_0 - 189*w_0^3 + w_0^5)*q^4 + O(q^5)]
+            [(-w^-1 + w)*q + (w^-3 + 21*w^-1 - 21*w - w^3)*q^2 + (-21*w^-3 - 189*w^-1 + 189*w + 21*w^3)*q^3 + (-w^-5 + 189*w^-3 + 910*w^-1 - 910*w - 189*w^3 + w^5)*q^4 + O(q^5)]
 
         """
         if self.nvars() == 1 and weight <= 3:
@@ -290,7 +300,7 @@ class JacobiForms:
         EXAMPLES::
 
             sage: JacobiForms(1).jacobi_forms_basis(10, 5)
-            [1 + (w_0^-2 - 266 + w_0^2)*q + (-266*w_0^-2 - 26752*w_0^-1 - 81396 - 26752*w_0 - 266*w_0^2)*q^2 + (-81396*w_0^-2 - 1225728*w_0^-1 - 2582328 - 1225728*w_0 - 81396*w_0^2)*q^3 + (w_0^-4 - 26752*w_0^-3 - 2582328*w_0^-2 - 17211264*w_0^-1 - 29700762 - 17211264*w_0 - 2582328*w_0^2 - 26752*w_0^3 + w_0^4)*q^4 + O(q^5), (w_0^-1 - 2 + w_0)*q + (-2*w_0^-2 - 16*w_0^-1 + 36 - 16*w_0 - 2*w_0^2)*q^2 + (w_0^-3 + 36*w_0^-2 + 99*w_0^-1 - 272 + 99*w_0 + 36*w_0^2 + w_0^3)*q^3 + (-16*w_0^-3 - 272*w_0^-2 - 240*w_0^-1 + 1056 - 240*w_0 - 272*w_0^2 - 16*w_0^3)*q^4 + O(q^5)]
+            [1 + (w^-2 - 266 + w^2)*q + (-266*w^-2 - 26752*w^-1 - 81396 - 26752*w - 266*w^2)*q^2 + (-81396*w^-2 - 1225728*w^-1 - 2582328 - 1225728*w - 81396*w^2)*q^3 + (w^-4 - 26752*w^-3 - 2582328*w^-2 - 17211264*w^-1 - 29700762 - 17211264*w - 2582328*w^2 - 26752*w^3 + w^4)*q^4 + O(q^5), (w^-1 - 2 + w)*q + (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q^2 + (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q^3 + (-16*w^-3 - 272*w^-2 - 240*w^-1 + 1056 - 240*w - 272*w^2 - 16*w^3)*q^4 + O(q^5)]
 
         """
         if self.nvars() == 1 and weight <= 3:
@@ -347,7 +357,7 @@ class JacobiForms:
         EXAMPLES::
 
             sage: JacobiForms(3).weak_forms_basis(0, 5)
-            [(w_0^-1 + 2 + w_0) + (-2*w_0^-3 - 2*w_0^-2 + 2*w_0^-1 + 4 + 2*w_0 - 2*w_0^2 - 2*w_0^3)*q + (w_0^-5 - 2*w_0^-4 - 6*w_0^-3 - 4*w_0^-2 + 5*w_0^-1 + 12 + 5*w_0 - 4*w_0^2 - 6*w_0^3 - 2*w_0^4 + w_0^5)*q^2 + (2*w_0^-6 + 2*w_0^-5 - 4*w_0^-4 - 14*w_0^-3 - 10*w_0^-2 + 12*w_0^-1 + 24 + 12*w_0 - 10*w_0^2 - 14*w_0^3 - 4*w_0^4 + 2*w_0^5 + 2*w_0^6)*q^3 + (w_0^-7 + 4*w_0^-6 + 5*w_0^-5 - 10*w_0^-4 - 30*w_0^-3 - 20*w_0^-2 + 24*w_0^-1 + 52 + 24*w_0 - 20*w_0^2 - 30*w_0^3 - 10*w_0^4 + 5*w_0^5 + 4*w_0^6 + w_0^7)*q^4 + O(q^5), (w_0^-2 + 14 + w_0^2) + (w_0^-4 + 40*w_0^-3 - 76*w_0^-2 - 168*w_0^-1 + 406 - 168*w_0 - 76*w_0^2 + 40*w_0^3 + w_0^4)*q + (-76*w_0^-4 + 768*w_0^-3 - 1048*w_0^-2 - 1792*w_0^-1 + 4296 - 1792*w_0 - 1048*w_0^2 + 768*w_0^3 - 76*w_0^4)*q^2 + (14*w_0^-6 - 168*w_0^-5 - 1048*w_0^-4 + 7192*w_0^-3 - 7998*w_0^-2 - 12656*w_0^-1 + 29328 - 12656*w_0 - 7998*w_0^2 + 7192*w_0^3 - 1048*w_0^4 - 168*w_0^5 + 14*w_0^6)*q^3 + (406*w_0^-6 - 1792*w_0^-5 - 7998*w_0^-4 + 45312*w_0^-3 - 45558*w_0^-2 - 68096*w_0^-1 + 155452 - 68096*w_0 - 45558*w_0^2 + 45312*w_0^3 - 7998*w_0^4 - 1792*w_0^5 + 406*w_0^6)*q^4 + O(q^5), (w_0^-3 + 34 + w_0^3) + (-186*w_0^-3 + 2430*w_0^-2 - 8262*w_0^-1 + 12036 - 8262*w_0 + 2430*w_0^2 - 186*w_0^3)*q + (2430*w_0^-4 - 35307*w_0^-3 + 175932*w_0^-2 - 425493*w_0^-1 + 564876 - 425493*w_0 + 175932*w_0^2 - 35307*w_0^3 + 2430*w_0^4)*q^2 + (34*w_0^-6 - 8262*w_0^-5 + 175932*w_0^-4 - 1281814*w_0^-3 + 4623318*w_0^-2 - 9567396*w_0^-1 + 12116376 - 9567396*w_0 + 4623318*w_0^2 - 1281814*w_0^3 + 175932*w_0^4 - 8262*w_0^5 + 34*w_0^6)*q^3 + (12036*w_0^-6 - 425493*w_0^-5 + 4623318*w_0^-4 - 24202674*w_0^-3 + 72869868*w_0^-2 - 137425977*w_0^-1 + 169097844 - 137425977*w_0 + 72869868*w_0^2 - 24202674*w_0^3 + 4623318*w_0^4 - 425493*w_0^5 + 12036*w_0^6)*q^4 + O(q^5)]
+            [(w^-1 + 2 + w) + (-2*w^-3 - 2*w^-2 + 2*w^-1 + 4 + 2*w - 2*w^2 - 2*w^3)*q + (w^-5 - 2*w^-4 - 6*w^-3 - 4*w^-2 + 5*w^-1 + 12 + 5*w - 4*w^2 - 6*w^3 - 2*w^4 + w^5)*q^2 + (2*w^-6 + 2*w^-5 - 4*w^-4 - 14*w^-3 - 10*w^-2 + 12*w^-1 + 24 + 12*w - 10*w^2 - 14*w^3 - 4*w^4 + 2*w^5 + 2*w^6)*q^3 + (w^-7 + 4*w^-6 + 5*w^-5 - 10*w^-4 - 30*w^-3 - 20*w^-2 + 24*w^-1 + 52 + 24*w - 20*w^2 - 30*w^3 - 10*w^4 + 5*w^5 + 4*w^6 + w^7)*q^4 + O(q^5), (w^-2 + 14 + w^2) + (w^-4 + 40*w^-3 - 76*w^-2 - 168*w^-1 + 406 - 168*w - 76*w^2 + 40*w^3 + w^4)*q + (-76*w^-4 + 768*w^-3 - 1048*w^-2 - 1792*w^-1 + 4296 - 1792*w - 1048*w^2 + 768*w^3 - 76*w^4)*q^2 + (14*w^-6 - 168*w^-5 - 1048*w^-4 + 7192*w^-3 - 7998*w^-2 - 12656*w^-1 + 29328 - 12656*w - 7998*w^2 + 7192*w^3 - 1048*w^4 - 168*w^5 + 14*w^6)*q^3 + (406*w^-6 - 1792*w^-5 - 7998*w^-4 + 45312*w^-3 - 45558*w^-2 - 68096*w^-1 + 155452 - 68096*w - 45558*w^2 + 45312*w^3 - 7998*w^4 - 1792*w^5 + 406*w^6)*q^4 + O(q^5), (w^-3 + 34 + w^3) + (-186*w^-3 + 2430*w^-2 - 8262*w^-1 + 12036 - 8262*w + 2430*w^2 - 186*w^3)*q + (2430*w^-4 - 35307*w^-3 + 175932*w^-2 - 425493*w^-1 + 564876 - 425493*w + 175932*w^2 - 35307*w^3 + 2430*w^4)*q^2 + (34*w^-6 - 8262*w^-5 + 175932*w^-4 - 1281814*w^-3 + 4623318*w^-2 - 9567396*w^-1 + 12116376 - 9567396*w + 4623318*w^2 - 1281814*w^3 + 175932*w^4 - 8262*w^5 + 34*w^6)*q^3 + (12036*w^-6 - 425493*w^-5 + 4623318*w^-4 - 24202674*w^-3 + 72869868*w^-2 - 137425977*w^-1 + 169097844 - 137425977*w + 72869868*w^2 - 24202674*w^3 + 4623318*w^4 - 425493*w^5 + 12036*w^6)*q^4 + O(q^5)]
 
             sage: JacobiForms(matrix([[2,1],[1,2]])).weak_forms_basis(-3, 5)
             [(-w_0*w_1 + w_0 + w_1 - w_1^-1 - w_0^-1 + w_0^-1*w_1^-1) + (w_0^2*w_1^2 - w_0^2 - 8*w_0*w_1 - w_1^2 + 8*w_0 + 8*w_1 - 8*w_1^-1 - 8*w_0^-1 + w_1^-2 + 8*w_0^-1*w_1^-1 + w_0^-2 - w_0^-2*w_1^-2)*q + (-w_0^3*w_1^2 - w_0^2*w_1^3 + w_0^3*w_1 + 8*w_0^2*w_1^2 + w_0*w_1^3 - 8*w_0^2 - 44*w_0*w_1 - 8*w_1^2 + w_0^2*w_1^-1 + 44*w_0 + 44*w_1 + w_0^-1*w_1^2 - w_0*w_1^-2 - 44*w_1^-1 - 44*w_0^-1 - w_0^-2*w_1 + 8*w_1^-2 + 44*w_0^-1*w_1^-1 + 8*w_0^-2 - w_0^-1*w_1^-3 - 8*w_0^-2*w_1^-2 - w_0^-3*w_1^-1 + w_0^-2*w_1^-3 + w_0^-3*w_1^-2)*q^2 + (-8*w_0^3*w_1^2 - 8*w_0^2*w_1^3 + 8*w_0^3*w_1 + 44*w_0^2*w_1^2 + 8*w_0*w_1^3 - 44*w_0^2 - 192*w_0*w_1 - 44*w_1^2 + 8*w_0^2*w_1^-1 + 192*w_0 + 192*w_1 + 8*w_0^-1*w_1^2 - 8*w_0*w_1^-2 - 192*w_1^-1 - 192*w_0^-1 - 8*w_0^-2*w_1 + 44*w_1^-2 + 192*w_0^-1*w_1^-1 + 44*w_0^-2 - 8*w_0^-1*w_1^-3 - 44*w_0^-2*w_1^-2 - 8*w_0^-3*w_1^-1 + 8*w_0^-2*w_1^-3 + 8*w_0^-3*w_1^-2)*q^3 + (w_0^4*w_1^3 + w_0^3*w_1^4 - w_0^4*w_1 - 44*w_0^3*w_1^2 - 44*w_0^2*w_1^3 - w_0*w_1^4 + 44*w_0^3*w_1 + 192*w_0^2*w_1^2 + 44*w_0*w_1^3 - w_0^3*w_1^-1 - 192*w_0^2 - 726*w_0*w_1 - 192*w_1^2 - w_0^-1*w_1^3 + 44*w_0^2*w_1^-1 + 726*w_0 + 726*w_1 + 44*w_0^-1*w_1^2 - 44*w_0*w_1^-2 - 726*w_1^-1 - 726*w_0^-1 - 44*w_0^-2*w_1 + w_0*w_1^-3 + 192*w_1^-2 + 726*w_0^-1*w_1^-1 + 192*w_0^-2 + w_0^-3*w_1 - 44*w_0^-1*w_1^-3 - 192*w_0^-2*w_1^-2 - 44*w_0^-3*w_1^-1 + w_0^-1*w_1^-4 + 44*w_0^-2*w_1^-3 + 44*w_0^-3*w_1^-2 + w_0^-4*w_1^-1 - w_0^-3*w_1^-4 - w_0^-4*w_1^-3)*q^4 + O(q^5)]
@@ -358,7 +368,6 @@ class JacobiForms:
         indices = w.rds(indices = True)
         if verbose:
             print('I am looking for weak Jacobi forms of weight %d.' %weight)
-        #N = self.longest_short_vector_norm()
         svn = self.short_vector_norms_by_component()
         N = max(svn)
         if verbose:
@@ -380,22 +389,23 @@ class JacobiForms:
             print('I found %d nearly-holomorphic modular forms.'%len(jf))
             print('I will now check whether any of these modular forms occur as theta decompositions of weak Jacobi forms.')
         return jf
-        #return [jf for jf in jacobi_forms if not any(jf.fourier_expansion()[-1-i] for i in range(ceil(N)))]
 
     ## other:
 
     def short_vector_norms_by_component(self):
         r"""
-        Computes the expression max( min( Q(x): x in ZZ^N + g): g in self.ds())
+        Computes the expression min( Q(x): x in ZZ^N + g) for g in self.ds()
 
         NOTE: used in weak_forms_basis() to determine which nearly-holomorphic modular forms might product weak Jacobi forms
+
+        NOTE: indices g for which -g appears earlier in self.ds() are given the value (-1)
 
         TODO: is there a better way to do this?? for now we use PARI qfminim() to find some short vectors
 
         EXAMPLES::
 
-            sage: JacobiForms(matrix([[2,1],[1,2]])).longest_short_vector_norm()
-            1/3
+            sage: JacobiForms(matrix([[2,1],[1,2]])).short_vector_norms_by_component()
+            [0, 1/3, -1]
 
         """
         try:
@@ -423,7 +433,6 @@ class JacobiForms:
                     found_vectors[j] = v * r / 2
                 else:
                     found_vectors[j] = min(v * r/2, found_vectors[j])
-            #return max(found_vectors)
             self.__short_vector_norms = found_vectors
             return found_vectors
         except PariError:
@@ -440,7 +449,6 @@ class JacobiForms:
                 if found_vectors[j] is None:
                     found_vectors[j] = v * r / 2
                 if all(x is not None for x in found_vectors):
-                    #return max(found_vectors)
                     self.__short_vectors_norms = found_vectors
                     return found_vectors
 
@@ -473,7 +481,14 @@ class JacobiForm:
             self.__theta = modform
 
     def __repr__(self):
-        return str(self.fourier_expansion())
+        try:
+            return self.__string
+        except AttributeError:
+            s = str(self.fourier_expansion())
+            if self.nvars() == 1:
+                s = s.replace('w_0', 'w')
+            self.__string = s
+            return s
 
     ## basic attributes
 
@@ -535,7 +550,7 @@ class JacobiForm:
             1
         """
         S = self.index_matrix()
-        e = S.nrows()
+        e = self.nvars()
         if e == 1:
             return ZZ(S[0][0]/2)
         else:
@@ -554,9 +569,19 @@ class JacobiForm:
 
     def modform(self):
         r"""
-        Try to return self's theta decomposition without computing.
+        Try to return self's theta decomposition. If this is not stored then raises an AttributeError.
         """
         return self.__theta
+
+    def nvars(self):
+        r"""
+        Self's number of elliptic variables.
+        """
+        try:
+            return self.__nvars
+        except AttributeError:
+            self.__nvars = self.index_matrix().nrows()
+            return self.__nvars
 
     def precision(self):
         r"""
@@ -738,7 +763,7 @@ class JacobiForm:
             modform = -self.modform()
         except AttributeError:
             modform = None
-        return JacobiForm(self.weight, self.index_matrix, -self.fourier_expansion, modform = modform, weilrep = self.weilrep())
+        return JacobiForm(self.weight, self.index_matrix, -self.fourier_expansion(), modform = modform, weilrep = self.weilrep())
 
     def __mul__(self, other):
         r"""
@@ -832,6 +857,12 @@ class JacobiForm:
 
     ## other operations
 
+    def borcherds_lift(self):
+        return self.theta_decomposition().borcherds_lift()
+
+    def gritsenko_lift(self):
+        return self.theta_decomposition().gritsenko_lift()
+
     def hecke_U(self, N):
         r"""
         Apply the Nth Hecke U-operator.
@@ -846,7 +877,7 @@ class JacobiForm:
         EXAMPLES::
 
             sage: jacobi_eisenstein_series(4, 1, 5).hecke_U(3)
-            1 + (w_0^-6 + 56*w_0^-3 + 126 + 56*w_0^3 + w_0^6)*q + (126*w_0^-6 + 576*w_0^-3 + 756 + 576*w_0^3 + 126*w_0^6)*q^2 + (56*w_0^-9 + 756*w_0^-6 + 1512*w_0^-3 + 2072 + 1512*w_0^3 + 756*w_0^6 + 56*w_0^9)*q^3 + (w_0^-12 + 576*w_0^-9 + 2072*w_0^-6 + 4032*w_0^-3 + 4158 + 4032*w_0^3 + 2072*w_0^6 + 576*w_0^9 + w_0^12)*q^4 + O(q^5)
+            1 + (w^-6 + 56*w^-3 + 126 + 56*w^3 + w^6)*q + (126*w^-6 + 576*w^-3 + 756 + 576*w^3 + 126*w^6)*q^2 + (56*w^-9 + 756*w^-6 + 1512*w^-3 + 2072 + 1512*w^3 + 756*w^6 + 56*w^9)*q^3 + (w^-12 + 576*w^-9 + 2072*w^-6 + 4032*w^-3 + 4158 + 4032*w^3 + 2072*w^6 + 576*w^9 + w^12)*q^4 + O(q^5)
 
         """
         S = self.index_matrix()
@@ -873,7 +904,7 @@ class JacobiForm:
         EXAMPLES::
 
             sage: jacobi_eisenstein_series(4, 1, 5).hecke_V(3)
-            28 + (56*w_0^-3 + 756*w_0^-2 + 1512*w_0^-1 + 2072 + 1512*w_0 + 756*w_0^2 + 56*w_0^3)*q + O(q^2)
+            28 + (56*w^-3 + 756*w^-2 + 1512*w^-1 + 2072 + 1512*w + 756*w^2 + 56*w^3)*q + O(q^2)
 
         """
         if N == 1:
@@ -894,7 +925,7 @@ class JacobiForm:
             sub_a = {Rb('w_%d'%j):Rb('w_%d'%j)^a for j in range(e)}
             f += sum([a^(k_1) * q^(a * (i + val)) * F[d*(i + val) - val].subs(sub_a) for i in range(max(0, ceil(val * (1/d - 1))), min(-((len(F) + (1-d) * val) // -d), max_prec))])
         return JacobiForm(k_1+1, N * S, f)
-    
+
     def pullback(self, A):#return self evaluated at tau, A*z
         r"""
         Apply a linear map to self's elliptic variables.
@@ -908,7 +939,7 @@ class JacobiForm:
 
             sage: j = jacobi_eisenstein_series(4, matrix([[2,1],[1,4]]), 5)
             sage: j.pullback(matrix([[1, 2]]))
-            1 + (7*w_0^-5 + 8*w_0^-4 + 21*w_0^-3 + 35*w_0^-2 + 28*w_0^-1 + 42 + 28*w_0 + 35*w_0^2 + 21*w_0^3 + 8*w_0^4 + 7*w_0^5)*q + (w_0^-9 + 7*w_0^-8 + 35*w_0^-7 + 56*w_0^-6 + 106*w_0^-5 + 147*w_0^-4 + 182*w_0^-3 + 182*w_0^-2 + 252*w_0^-1 + 224 + 252*w_0 + 182*w_0^2 + 182*w_0^3 + 147*w_0^4 + 106*w_0^5 + 56*w_0^6 + 35*w_0^7 + 7*w_0^8 + w_0^9)*q^2 + (21*w_0^-10 + 49*w_0^-9 + 126*w_0^-8 + 168*w_0^-7 + 294*w_0^-6 + 315*w_0^-5 + 462*w_0^-4 + 469*w_0^-3 + 609*w_0^-2 + 567*w_0^-1 + 560 + 567*w_0 + 609*w_0^2 + 469*w_0^3 + 462*w_0^4 + 315*w_0^5 + 294*w_0^6 + 168*w_0^7 + 126*w_0^8 + 49*w_0^9 + 21*w_0^10)*q^3 + (w_0^-13 + 21*w_0^-12 + 70*w_0^-11 + 154*w_0^-10 + 315*w_0^-9 + 400*w_0^-8 + 623*w_0^-7 + 756*w_0^-6 + 952*w_0^-5 + 966*w_0^-4 + 1281*w_0^-3 + 1162*w_0^-2 + 1366*w_0^-1 + 1386 + 1366*w_0 + 1162*w_0^2 + 1281*w_0^3 + 966*w_0^4 + 952*w_0^5 + 756*w_0^6 + 623*w_0^7 + 400*w_0^8 + 315*w_0^9 + 154*w_0^10 + 70*w_0^11 + 21*w_0^12 + w_0^13)*q^4 + O(q^5)
+            1 + (7*w^-5 + 8*w^-4 + 21*w^-3 + 35*w^-2 + 28*w^-1 + 42 + 28*w + 35*w^2 + 21*w^3 + 8*w^4 + 7*w^5)*q + (w^-9 + 7*w^-8 + 35*w^-7 + 56*w^-6 + 106*w^-5 + 147*w^-4 + 182*w^-3 + 182*w^-2 + 252*w^-1 + 224 + 252*w + 182*w^2 + 182*w^3 + 147*w^4 + 106*w^5 + 56*w^6 + 35*w^7 + 7*w^8 + w^9)*q^2 + (21*w^-10 + 49*w^-9 + 126*w^-8 + 168*w^-7 + 294*w^-6 + 315*w^-5 + 462*w^-4 + 469*w^-3 + 609*w^-2 + 567*w^-1 + 560 + 567*w + 609*w^2 + 469*w^3 + 462*w^4 + 315*w^5 + 294*w^6 + 168*w^7 + 126*w^8 + 49*w^9 + 21*w^10)*q^3 + (w^-13 + 21*w^-12 + 70*w^-11 + 154*w^-10 + 315*w^-9 + 400*w^-8 + 623*w^-7 + 756*w^-6 + 952*w^-5 + 966*w^-4 + 1281*w^-3 + 1162*w^-2 + 1366*w^-1 + 1386 + 1366*w + 1162*w^2 + 1281*w^3 + 966*w^4 + 952*w^5 + 756*w^6 + 623*w^7 + 400*w^8 + 315*w^9 + 154*w^10 + 70*w^11 + 21*w^12 + w^13)*q^4 + O(q^5)
 
         """
         f = self.fourier_expansion()
@@ -944,7 +975,7 @@ class JacobiForm:
 
             sage: j = jacobi_eisenstein_series(4, matrix([[2, 1],[1, 4]]), 5)
             sage: j.substitute_zero([0])
-            1 + (14*w_0^2 + 64*w_0 + 84 + 64*w_0^-1 + 14*w_0^-2)*q + (w_0^4 + 64*w_0^3 + 280*w_0^2 + 448*w_0 + 574 + 448*w_0^-1 + 280*w_0^-2 + 64*w_0^-3 + w_0^-4)*q^2 + (84*w_0^4 + 448*w_0^3 + 840*w_0^2 + 1344*w_0 + 1288 + 1344*w_0^-1 + 840*w_0^-2 + 448*w_0^-3 + 84*w_0^-4)*q^3 + (64*w_0^5 + 574*w_0^4 + 1344*w_0^3 + 2368*w_0^2 + 2688*w_0 + 3444 + 2688*w_0^-1 + 2368*w_0^-2 + 1344*w_0^-3 + 574*w_0^-4 + 64*w_0^-5)*q^4 + O(q^5)
+            1 + (14*w^2 + 64*w + 84 + 64*w^-1 + 14*w^-2)*q + (w^4 + 64*w^3 + 280*w^2 + 448*w + 574 + 448*w^-1 + 280*w^-2 + 64*w^-3 + w^-4)*q^2 + (84*w^4 + 448*w^3 + 840*w^2 + 1344*w + 1288 + 1344*w^-1 + 840*w^-2 + 448*w^-3 + 84*w^-4)*q^3 + (64*w^5 + 574*w^4 + 1344*w^3 + 2368*w^2 + 2688*w + 3444 + 2688*w^-1 + 2368*w^-2 + 1344*w^-3 + 574*w^-4 + 64*w^-5)*q^4 + O(q^5)
 
         """
         f = self.fourier_expansion()
@@ -963,6 +994,8 @@ class JacobiForm:
 def jacobi_eisenstein_series(k, m, prec, allow_small_weight = False):
     r"""
     Compute the Jacobi Eisenstein series.
+
+    See JacobiForms method eisenstein_series()
     """
     return JacobiForms(m).eisenstein_series(k, prec, allow_small_weight = allow_small_weight)
 
@@ -982,6 +1015,11 @@ def theta_block(a, n, prec):#theta block corresponding to a=[a1,...,ar] and eta^
     - ``prec`` -- precision
 
     OUTPUT: JacobiForm
+
+    EXAMPLES::
+
+        sage: theta_block([1]*8, 0, 5)
+        (w^-4 - 8*w^-3 + 28*w^-2 - 56*w^-1 + 70 - 56*w + 28*w^2 - 8*w^3 + w^4)*q + (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q^2 + (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q^3 + (-56*w^-7 + 288*w^-6 - 616*w^-5 + 896*w^-4 - 1400*w^-3 + 2016*w^-2 - 2024*w^-1 + 1792 - 2024*w + 2016*w^2 - 1400*w^3 + 896*w^4 - 616*w^5 + 288*w^6 - 56*w^7)*q^4 + O(q^5)
     """
     from collections import Counter
     try:
