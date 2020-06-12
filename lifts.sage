@@ -249,16 +249,9 @@ class OrthogonalModularForms(object):
                 if N in ZZ:
                     v1 = v_list[i]
                     v2 = v_list[j]
-                    if denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1:
-                        ieq[j+1] = 1
+                    ieq[j + 1] = denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1
             positive.append(ieq)
-        r = vector(QQ, [k + k] + [0] * (len(exp_list) + 1))
-        for i, g in enumerate(v_list):
-            g_tup = tuple(list(g) + [-exp_list[i]])
-            if 2 % denominator(g):
-                r[i + 1] = 2 * e_coeffs[g_tup]
-            else:
-                r[i + 1] = e_coeffs[g_tup]
+        r = vector(QQ, [k + k] + [(1 + bool(2 % denominator(g))) * e_coeffs[tuple(list(g) + [-exp_list[i]])] for i, g in enumerate(v_list)] + [0])
         p = Polyhedron(ieqs = positive, eqns = [r] + [vector([0] + list(v)) for v in vs])
         try:
             u = M.solve_left(matrix(p.integral_points()))
@@ -618,7 +611,7 @@ class OrthogonalModularForm:
 
     ## other methods
 
-    def is_maass_lift(self):
+    def is_lift(self):
         r"""
         Return True if self's Fourier coefficients satisfy the Maass relations, otherwise False
 
@@ -629,11 +622,11 @@ class OrthogonalModularForm:
         EXAMPLES::
 
             sage: f = ParamodularForms(N = 1).borcherds_input_by_weight(10, 10)[0].borcherds_lift()
-            sage: f.is_maass_lift()
+            sage: f.is_lift()
             True
 
             sage: f = ParamodularForms(N = 1).borcherds_input_by_weight(24, 10)[0].borcherds_lift()
-            sage: f.is_maass_lift()
+            sage: f.is_lift()
             False
         """
         try:
@@ -781,10 +774,8 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         newprec = isqrt(4 * prec0 + 4)
         if prec is None:
             prec = newprec
-            #prec = isqrt(4 * prec0)
         else:
             prec = min(prec, newprec)
-            #prec = min(prec, isqrt(4 * prec0))
         S = self.gram_matrix()
         coeffs = self.coefficients()
         S_inv = self.inverse_gram_matrix()
@@ -795,10 +786,10 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         nrows = S.nrows()
         wt = k + nrows / 2
         if nrows > 1:
-            _, _, vs_matrix = pari(S_inv).qfminim(prec0 + prec0 + 1, flag = 2)
+            _, _, vs_matrix = pari(S_inv).qfminim(prec0 + 1, flag = 2)
             vs_list = vs_matrix.sage().columns()
         else:
-            vs_list = [vector([n]) for n in range(1, isqrt(2*prec0*S[0, 0]) + 1)]
+            vs_list = [vector([n]) for n in range(1, isqrt(2 * prec0*S[0, 0]) + 1)]
         f = O(t ** prec)
         if wt % 2 == 0:
             try:
