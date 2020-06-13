@@ -96,6 +96,12 @@ class OrthogonalModularForms(object):
         Recover an orthogonal modular form from its Fourier--Jacobi coefficients.
 
         WARNING: we do not check whether the Fourier--Jacobi coefficients actually correspond to a modular form!
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``fj`` -- a list of Jacobi forms
+
+        OUTPUT: OrthogonalModularForm
         """
         if len(fj) < 2:
             raise ValueError('Too few coefficients')
@@ -180,8 +186,10 @@ class OrthogonalModularForms(object):
         S = self.gram_matrix()
         wt = -S.nrows()/2
         w = self.weilrep()
+        rds = w.rds()
+        norm_dict = w.norm_dict()
         X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec)
-        N = len([i for i in w.norm_list() if not i])
+        N = len([g for g in rds if not norm_dict[tuple(g)]])
         v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
         exp_list = [v[1] for v in v_list]
         v_list = [vector(v[0]) for v in v_list]
@@ -248,9 +256,11 @@ class OrthogonalModularForms(object):
                     eisenstein_bound *= (1 - p^(-1))
             pole_order = (2 * k / eisenstein_bound) ** (1 / (1 - wt))
         w = self.weilrep()
+        rds = w.rds()
+        norm_dict = w.norm_dict()
         e = w.dual().eisenstein_series(l, ceil(pole_order))
         e_coeffs = e.coefficients()
-        N = len([i for i in w.norm_list() if not i]) - 1
+        N = len([g for g in rds if not norm_dict[tuple(g)]]) - 1
         pole_order = max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0])
         X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec)
         v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
