@@ -1737,7 +1737,7 @@ class WeilRep(object):
         _norm_dict = self.norm_dict()
         symm = self.is_symmetric_weight(k)
         if symm is None:
-            return [] #should this raise an error instead?
+            return WeilRepModularFormsBasis(k, [], self) #should this raise an error instead?
         def return_pivots():
             if save_pivots:
                 return X, pivots
@@ -1976,6 +1976,7 @@ class WeilRep(object):
                         print('I have found %d out of %d cusp forms.'%(rank, dim))
             if verbose:
                 print('Done!')
+            pivots = X.echelonize(save_pivots = save_pivots)
             self.__cusp_forms_basis[k] = prec, X
             return return_pivots()
         else:
