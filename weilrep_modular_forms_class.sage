@@ -87,6 +87,11 @@ class WeilRepModularForm(object):
 
     ## basic attributes
 
+    def denominator(self):
+        sturm_bound = self.weight() / 12
+        val = self.valuation()
+        return denominator(self.coefficient_vector(starting_from = val, ending_with = sturm_bound))
+
     def fourier_expansion(self):
         return self.__fourier_expansions
 
@@ -142,9 +147,47 @@ class WeilRepModularForm(object):
         else:
             return WeilRepModularForm(self.__weight, self.__gram_matrix, X, weilrep = self.weilrep())
 
+    def principal_part(self):
+        r"""
+        Return the principal part of self's Fourier expansion as a string.
+
+        EXAMPLES::
+
+            sage: X = WeilRep(matrix([[2, 1],[1, 4]])).nearly_holomorphic_modular_forms_basis(-1, 1, 3)
+            sage: X[1].principal_part()
+            '28*e_(0, 0) + -5*q^(-1/7)e_(1/7, 5/7) + -5*q^(-1/7)e_(6/7, 2/7) + q^(-4/7)e_(5/7, 4/7) + q^(-4/7)e_(2/7, 3/7)'
+        """
+        coeffs = self.coefficients()
+        w = self.weilrep()
+        ds_dict = w.ds_dict()
+        norm_dict = w.norm_dict()
+        ds = w.ds()
+        sorted_ds = sorted(ds, key = lambda x: -norm_dict[tuple(x)])
+        val = self.valuation()
+        len_ds = len(ds)
+        L = [None]*(len_ds * val)
+        try:
+            C0 = coeffs[tuple([0] * (len(ds[0]) + 1))]
+        except KeyError:
+            C0 = 0
+        s = str(C0)+'*e_%s'%ds[0]
+        for i, g in enumerate(sorted_ds):
+            j = norm_dict[tuple(g)]
+            for n in range(1 - val):
+                if j or n:
+                    try:
+                        C = coeffs[tuple(list(g) + [j - n])]
+                        if C != 1:
+                            s += ' + %s*q^(%s)e_%s'%(C, (j - n), g)
+                        else:
+                            s += ' + q^(%s)e_%s'%((j - n), g)
+                    except KeyError:
+                        pass
+        return s
+
     def valuation(self):
         r"""
-        Returns the lowest exponent in our Fourier expansion with a nonzero coefficient (rounded down).
+        Return the lowest exponent in our Fourier expansion with a nonzero coefficient (rounded down).
         """
         try:
             return self.__valuation
@@ -693,9 +736,12 @@ class WeilRepModularFormsBasis:
         r"""
         Append a WeilRepModularForm to self.
         """
-        self.__basis.append(other)
+        if other._WeilRepModularForm__weight == self.weight():
+            self.__basis.append(other)
+        else:
+            raise ValueError('I have weight %s and you are trying to append a modular form of weight %s.' %(self.weight(), other._WeilRepModularForm__weight))
 
-    def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None):
+    def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None, integer = False):
         r"""
         Reduce self to echelon form in place.
 
@@ -703,15 +749,24 @@ class WeilRepModularFormsBasis:
         - ``save_pivots`` -- if True then return the pivot columns. (Otherwise we return None)
         - ``starting_from`` -- (default 0) the index at which we start looking at Fourier coefficients
         - ``ending_with`` -- (default None) if given then it should be the index at which we stop looking at Fourier coefficients.
+        - ``integer`` -- (default False) if True then we assume all Fourier coefficients are integers. This is faster.
         """
         if ending_with is None:
             ending_with = self.__weight / 12
-        m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis]).extended_echelon_form(subdivide = True)
-        b = m.subdivision(0, 1)
-        self.__basis = [self * v for v in b.rows()]
+        if integer:
+            m = matrix(ZZ, [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis])
+            a, b = m.echelon_form(transformation = True)
+            a_rows = a.rows()
+            self.__basis = [self * v for i, v in enumerate(b.rows()) if a_rows[i]]
+        else:
+            m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis]).extended_echelon_form(subdivide = True, proof = False)
+            b = m.subdivision(0, 1)
+            self.__basis = [self * v for v in b.rows()]
         if save_pivots:
-            a = m.subdivision(0, 0)
-            return [next(j for j, w in enumerate(v) if w) for v in a.rows()]
+            if not integer:
+                a = m.subdivision(0, 0)
+            pivots = [next(j for j, w in enumerate(v) if w) for v in a.rows()]
+            return pivots
 
     def extend(self, other):
         r"""
@@ -842,6 +897,11 @@ class WeilRepModularFormsBasis:
 
     def precision(self):
         return min(x.precision() for x in self.__basis)
+
+    def rank(self, starting_from = 0):
+        ending_with = self.__weight / 12
+        m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
+        return m.rank()
 
     def __repr__(self):
         X = self.__basis

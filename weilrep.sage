@@ -1143,7 +1143,6 @@ class WeilRep(object):
                 offset = theta[i][1]
                 theta_f = list(theta[i][2])
                 Z[i] = Y[i][0], Y[i][1], Y[i][2] - epsilon * sum((n + offset) * theta_f[n] * (q ** n) for n in range(1, len(theta_f)) if theta_f[n])
-                #Y[i][2] -= epsilon * sum((n + offset)*theta_f[n]*q^n for n in range(1, len(theta_f)) if theta_f[n])#fix it by adding derivative of theta-contraction of the weight 2 Eisenstein series' shadow, multiplied by epsilon
             return WeilRepModularForm(weight, S, Z, weilrep = self)
 
 
@@ -1637,21 +1636,24 @@ class WeilRep(object):
                             u = u * s6
                         u = repeated_serre_deriv(u, a)
                         if include_E:
+                            u *= u.denominator()
                             X.append(u)
                         else:
-                            X.append(E[0] - u)
+                            u = E[0] - u
+                            u *= u.denominator()
+                            X.append(u)
         b = WeilRepModularFormsBasis(k, X, self)
         if include_E:
             return b
         return E[0], b
 
-    def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False):#basis of cusp forms
+    def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False, echelonize = True):#basis of cusp forms
         r"""
         Compute a basis of the space of cusp forms.
 
         ALGORITHM: If k is a symmetric weight, k >= 5/2, then we compute a basis from linear combinations of self's eisenstein_series() and pss(). If k is an antisymmetric weight, k >= 7/2, then we compute a basis from self's pssd(). Otherwise, we compute S_k as the intersection
         S_k(\rho^*) = E_4^(-1) * S_{k+4}(\rho^*) intersect E_6^(-1) * S_{k+6}(\rho^*). (This is slow!!)
-        The basis is always converted to echelon form (i.e. a ``Victor Miller basis``)
+        The basis is converted to echelon form (i.e. a ``Victor Miller basis``)
 
         INPUT:
         - ``k`` -- the weight (half-integer)
@@ -1660,6 +1662,7 @@ class WeilRep(object):
         - ``E`` -- WeilRepModularForm (default None). If this is given then the computation assumes that E is the Eisenstein series of weight k.
         - ``dim`` -- (default None) If given then we stop computing after having found 'dim' vectors. (this is automatically minimized to the true dimension)
         - ``save_pivots`` -- boolean (default False) If True then we also output the pivots of each element of the basis' coefficient-vectors
+        - ``echelonize`` -- boolean (default True) If False then we skip some echelonization steps.
 
         OUTPUT: a list of WeilRepModularForms
 
@@ -1717,20 +1720,17 @@ class WeilRep(object):
             [(1/12), q^(1/24) - q^(25/24) - q^(49/24) + q^(121/24) + q^(169/24) - q^(289/24) - q^(361/24) + O(q^20)]
          """
         if k <= 0:
-            return []
-        try:
-            old_prec, pivots, X = self.__cusp_forms_basis[k]
-            if old_prec >= prec or not X:
-                if old_prec == prec or not X:
-                    if save_pivots:
-                        return X, pivots
+            return WeilRepModularFormsBasis(k, [], self)
+        if not save_pivots:
+            try:
+                old_prec, X = self.__cusp_forms_basis[k]
+                if old_prec >= prec or not X:
+                    if old_prec == prec or not X:
+                        return X
+                    X = WeilRepModularFormsBasis(k, [x.reduce_precision(prec, in_place = False) for x in X], self)
                     return X
-                X = WeilRepModularFormsBasis(k, [x.reduce_precision(prec, in_place = False) for x in X], self)
-                if save_pivots:
-                    return X, pivots
-                return X
-        except KeyError:
-            pass
+            except KeyError:
+                pass
         S = self.gram_matrix()
         if verbose:
             print('I am now looking for cusp forms for the Weil representation for the Gram matrix\n%s'%S)
@@ -1738,6 +1738,10 @@ class WeilRep(object):
         symm = self.is_symmetric_weight(k)
         if symm is None:
             return [] #should this raise an error instead?
+        def return_pivots():
+            if save_pivots:
+                return X, pivots
+            return X
         if k > 2:
             true_dim = self.cusp_forms_dimension(k)
             if dim is None:
@@ -1746,10 +1750,8 @@ class WeilRep(object):
                 dim = min(dim, true_dim)
             if not dim:
                 X = WeilRepModularFormsBasis(k, [], self)
-                self.__cusp_forms_basis[k] = prec, [], X
-                if save_pivots:
-                    return X, []
-                return X
+                self.__cusp_forms_basis[k] = prec, X
+                return return_pivots()
             elif verbose:
                 print('I need to find %d cusp forms of weight %s.' %(dim, k))
         sturm_bound = k / 12
@@ -1758,6 +1760,8 @@ class WeilRep(object):
         else:
             prec = ceil(max(prec, sturm_bound))
         if k >= 7/2 or (k >= 5/2 and symm):
+            if k >= 31/2 or (k >= 29/2 and symm):
+                deltasmf = [smf(12, delta_qexp(prec))]
             if symm:
                 if not E:
                     E = self.eisenstein_series(k, prec)
@@ -1776,50 +1780,23 @@ class WeilRep(object):
             else:
                 X = WeilRepModularFormsBasis(k, [], self)
             if X:
-                if len(X) >= dim:
-                    Y = WeilRepModularFormsBasis(k, [], self)
-                    i = 0
-                    while len(Y) < dim + rank//10 and i < len(X):
-                        Y.append(X[i])
-                        i += 1
-                        if len(Y) == dim + rank//10:
-                            pivots = Y.echelonize(ending_with = sturm_bound, save_pivots = True)
-                            rank = len(Y)
-                            if rank >= dim:
-                                if verbose:
-                                    print('Done!')
-                                self.__cusp_forms_basis[k] = prec, pivots, Y
-                                if save_pivots:
-                                    return Y, pivots
-                                return Y
-                    X = Y
-                else:
-                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = True)
-                    rank = len(X)
-                    if rank >= dim:
-                        if verbose:
-                            print('Done!')
-                        self.__cusp_forms_basis[k] = prec, pivots, X
-                        if save_pivots:
-                            return X, pivots
-                        return X
+                rank = X.rank()
+                if rank >= dim:
+                    pivots = X.echelonize(save_pivots = save_pivots)
+                    return return_pivots()
             if rank and verbose:
-                print('I found %d linearly independent cusp forms in this packet.'%len(X))
-            rank = len(X)
+                print('I found %d linearly independent cusp forms in this packet.'%rank)
             try:
-                oldprec, _, Y = self.__cusp_forms_basis[k - 2]
+                oldprec, Y = self.__cusp_forms_basis[k - 2]
                 if oldprec >= prec:
                     Z = WeilRepModularFormsBasis(k, [y.reduce_precision(prec, in_place = False).serre_derivative() for y in Y], self)
                     X.extend(Z)
-                    pivots = X.echelonize(save_pivots)
-                    if verbose and len(X) > rank:
-                        print('I found %d cusp forms using the cached cusp forms basis of weight %s.' %(len(X) - rank, k - 2))
-                    rank = len(X)
+                    rank = X.rank()
                     if rank >= dim:
-                        self.__cusp_forms_basis[k] = prec, pivots, X
-                        if save_pivots:
-                            return X, pivots
-                        return X
+                        if verbose:
+                            print('I found enough cusp forms using the cached cusp forms basis of weight %s.'%(k-2))
+                        pivots = X.echelonize(save_pivots = save_pivots)
+                        return return_pivots()
             except KeyError:
                 pass
             m0 = 1
@@ -1843,7 +1820,6 @@ class WeilRep(object):
                                 if symm:
                                     if k in ZZ:
                                         w_new = self.embiggen(b, m)
-                                        #if k > 3 and dim_rank > 4:
                                         if k > 3 and dim + dim > 3 * rank:
                                             if verbose:
                                                 print('-'*40)
@@ -1858,10 +1834,29 @@ class WeilRep(object):
                                                             print('I am returning to the Gram matrix\n%s'%S)
                                                 else:
                                                     failed_exponent = m
-                                        if len(X) < dim + (rank // 5):
-                                            X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
+                                        rank = X.rank()
+                                        if rank < dim:
+                                            Y = copy(X)
+                                            Y.append(E - self.pss(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
+                                            j = 1
+                                            k_j = k - 12
+                                            while k_j > 5/2:
+                                                try:
+                                                    delta_j = deltasmf[j - 1]
+                                                except IndexError:
+                                                    deltasmf.append(deltasmf[-1] * deltasmf[0])
+                                                    delta_j = deltasmf[-1]
+                                                Y.append(delta_j * (self.eisenstein_series(k_j, prec-j) - self.pss(k_j, b, m, prec - j, weilrep = w_new)))
+                                                if verbose:
+                                                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
+                                                j += 1
+                                                k_j -= 12
+                                            new_rank = Y.rank()
+                                            if new_rank > rank:
+                                                rank = new_rank
+                                                X = Y
                                     else:
                                         w_new = self.embiggen(b, m)
                                         if dim_rank > 1 and k > 9/2:
@@ -1869,10 +1864,29 @@ class WeilRep(object):
                                             X.extend(x.theta())
                                             if x and verbose:
                                                 print('I computed a packet of %d cusp forms using the index %s.'%(len(x), (b, m)))
-                                        if len(X) < dim + (rank // 5):
-                                            X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
+                                        rank = X.rank()
+                                        if rank < dim:
+                                            Y = copy(X)
+                                            Y.append(E - self.pss(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
+                                            j = 1
+                                            k_j = k - 12
+                                            while k_j > 5/2:
+                                                try:
+                                                    delta_j = deltasmf[j - 1]
+                                                except IndexError:
+                                                    deltasmf.append(deltasmf[-1] * deltasmf[0])
+                                                    delta_j = deltasmf[-1]
+                                                Y.append(delta_j * (self.eisenstein_series(k_j, prec-j) - self.pss(k_j, b, m, prec - j, weilrep = w_new)))
+                                                if verbose:
+                                                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
+                                                j += 1
+                                                k_j -= 12
+                                            new_rank = Y.rank()
+                                            if new_rank > rank:
+                                                rank = new_rank
+                                                X = Y
                                 else:
                                     if k in ZZ:
                                         w_new = self.embiggen(b, m)
@@ -1889,48 +1903,53 @@ class WeilRep(object):
                                                         print('I am returning to the Gram matrix\n%s'%S)
                                                 else:
                                                     failed_exponent = m
-                                        if len(X) < dim + (rank // 10):
-                                            X.append(self.pssd(k, b, m, prec, weilrep = w_new))
+                                        rank = X.rank()
+                                        if rank < dim:
+                                            Y = copy(X)
+                                            Y.append(self.pssd(k, b, m, prec, weilrep = w_new))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
+                                            new_rank = Y.rank()
+                                            if new_rank > rank:
+                                                rank = new_rank
+                                                X = Y
                                     else:
-                                        dim_rank = dim-len(X)
+                                        dim_rank = dim - rank
                                         if dim_rank > 1 and k > 6:
                                             w_new = self.embiggen(b, m)
                                             y = w_new._eisenstein_packet(k - 3/2, prec, dim = dim_rank, include_E = true).theta(odd = True)
                                             X.extend(y)
                                             if verbose:
                                                 print('I computed a packet of %d cusp forms using the index %s.'%(len(y), (b, m)))
-                                        else:
-                                            X.append(self.pssd(k, b, m, prec))
+                                        elif dim_rank:
+                                            Y = copy(X)
+                                            Y.append(self.pssd(k, b, m, prec))
                                             if verbose:
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
-                                if len(X) >= dim + rank // 5:
-                                    if verbose:
-                                        print('I have found %d cusp forms and am putting them in echelon form...'%len(X))
-                                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
-                                    rank = len(X)
+                                            j = 1
+                                            k_j = k - 12
+                                            while k_j > 7/2:
+                                                try:
+                                                    delta_j = deltasmf[j - 1]
+                                                except IndexError:
+                                                    deltasmf.append(deltasmf[-1] * deltasmf[0])
+                                                    delta_j = deltasmf[-1]
+                                                Y.append(delta_j * self.pssd(k_j, b, m, prec - j, weilrep = w_new))
+                                                if verbose:
+                                                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
+                                                j += 1
+                                                k_j -= 12
+                                            new_rank = Y.rank()
+                                            if new_rank > rank:
+                                                rank = new_rank
+                                                X = Y
                                     if rank >= dim:
-                                        break
-                                    if rank == old_rank:
-                                        failed_exponent = m
-                                    elif verbose:
-                                        print('I have found %d out of %d cusp forms.'%(rank, dim))
-                                    old_rank = rank
-                                #symmetrization?? should we do this??
-                                #for x in X:
-                                #    L = [x.symmetrized(b) for b in b_list]
-                                #    y = [y for y in L if y and y != x]
-                                #    y = WeilRepModularFormsBasis(k, y, self)
-                                #    y.echelonize()
-                                #    if y:
-                                #        X.extend(y)
-                                #rank = len(X)
-                                #if rank >= dim:
-                                #    break
-                                #if verbose and rank > old_rank:
-                                #    print('I found %d cusp forms by symmetrizing over isotropic subgroups.'%(rank-old_rank))
-                                #    print('I have found %d out of %d cusp forms.'%(rank, dim))
+                                        if verbose:
+                                            print('I found enough cusp forms and will put them in echelon form.')
+                                        pivots = X.echelonize(save_pivots = save_pivots)
+                                        if verbose:
+                                            print('Done!')
+                                        return return_pivots()
                             else:
                                 if verbose:
                                     print('I will skip the index %s.'%([b,m]))
@@ -1942,7 +1961,7 @@ class WeilRep(object):
                                 X.append(E - self.pss(k, b, m, prec))
                             else:
                                 X.append(self.pssd(k, b, m, prec))
-                            pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
+                            pivots = X.echelonize(save_pivots = save_pivots)
                             rank = len(X)
                             if rank >= dim:
                                 break
@@ -1951,16 +1970,14 @@ class WeilRep(object):
                 if rank < dim:
                     if verbose:
                         print('I am computing an echelon form...')
-                    pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
+                    pivots = X.echelonize(save_pivots = save_pivots)
                     rank = len(X)
                     if verbose:
                         print('I have found %d out of %d cusp forms.'%(rank, dim))
             if verbose:
                 print('Done!')
-            self.__cusp_forms_basis[k] = prec, pivots, X
-            if save_pivots:
-                return X, pivots
-            return X
+            self.__cusp_forms_basis[k] = prec, X
+            return return_pivots()
         else:
             p = self.discriminant()
             if symm and p.is_prime() and p != 2:
@@ -1977,11 +1994,9 @@ class WeilRep(object):
                 L = [sum([mf * v[i] for i, mf in enumerate(cusp_forms)]) for v in v_basis]
                 L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
                 X = WeilRepModularFormsBasis(k, L, self)
-                pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
-                self.__cusp_forms_basis[k] = prec, pivots, X
-                if save_pivots:
-                    return X, pivots
-                return X
+                pivots = X.echelonize(save_pivots = save_pivots)
+                self.__cusp_forms_basis[k] = prec, X
+                return return_pivots()
             if verbose:
                 print('I am going to compute the spaces of cusp forms of weights %s and %s.' %(k+4, k+6))
             prec = max(prec, ceil(sturm_bound + 1/2))
@@ -1995,11 +2010,9 @@ class WeilRep(object):
                 V1 = span((x * e4).coefficient_vector() for x in X1)
                 V2 = span((x * e6).coefficient_vector() for x in X2)
                 X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self)
-                pivots = X.echelonize(ending_with = sturm_bound, save_pivots = save_pivots)
-                self.__cusp_forms_basis[k] = prec, pivots, X
-                if save_pivots:
-                    return X, pivots
-                return X
+                pivots = X.echelonize(save_pivots = save_pivots)
+                self.__cusp_forms_basis[k] = prec, X
+                return return_pivots()
             except AttributeError: #we SHOULD only get ``AttributeError: 'Objects_with_category' object has no attribute 'base_ring'`` when X1 or X2 is empty...
                 return []
 
@@ -2010,7 +2023,7 @@ class WeilRep(object):
         ALGORITHM: If k is a symmetric weight, k >= 5/2, then we compute a basis from linear combinations of self's eisenstein_series() and pss(). If k is an antisymmetric weight, k >= 7/2, then we compute a basis from self's pssd(). Otherwise, we compute M_k as the intersection
         M_k(\rho^*) = E_4^(-1) * M_{k+4}(\rho^*) intersect E_6^(-1) * M_{k+6}(\rho^*). (This is slow!!)
         Note: Eisenstein series at nonzero cusps are not implemented yet so when the Eisenstein space has dim > 1 we instead compute the image in S_{k+12} of Delta * M_k. (This is even slower!!)
-        The basis is always converted to echelon form (i.e. a ``Victor Miller basis``)
+        The basis is always converted to echelon form (in particular the Fourier coefficients are integers).
 
         INPUT:
         - ``k`` -- the weight (half-integer)
@@ -2216,9 +2229,10 @@ class WeilRep(object):
                 j = next(i for i in range(len(cusp_forms)) if Y[pivots[i]] >= N)
         except:
             return []
-        Z = cusp_forms[j:]
+        Z = WeilRepModularFormsBasis(k, cusp_forms[j:], self)
         if type(Z) is list:
-            return WeilRepModularFormsBasis(k, Z, self)
+            Z = WeilRepModularFormsBasis(k, Z, self)
+        Z.echelonize()
         return Z
 
     def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, verbose = False):
