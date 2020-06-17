@@ -1,6 +1,6 @@
 def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound):
     r"""
-    Updates a basis in echelon form with a new object.
+    Updates a basis in echelon form with a new object. Usually used for JacobiForm's
 
     INPUT:
     - ``X`` -- a WeilRepModularForm or JacobiForm
@@ -32,7 +32,7 @@ def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound)
             return basis, basis_vectors, pivots, rank
     return basis, basis_vectors, pivots, rank
 
-def serre_derivative_on_q_series(f,offset,weight,prec):
+def serre_derivative_on_q_series(f, offset, weight, prec):
     r"""
     Computes the formal Serre derivative on a power series of the form q^(offset) * f(q).
 
@@ -46,11 +46,45 @@ def serre_derivative_on_q_series(f,offset,weight,prec):
 
     NOTE:  ``prec`` is only used if f=0. should this be fixed?
     """
-    R.<q> = PowerSeriesRing(QQ,f.prec())
+    #R.<q> = PowerSeriesRing(QQ,f.prec())
+    r = f.parent()
+    q = r.0
     if f:
-        E2 = -24*eisenstein_series_qexp(2,f.prec())
-        return q^(f.valuation())*R([f[i]*(i+offset) for i in range(f.valuation(),f.prec())]) - weight/12 * f * E2
+        fval = f.valuation()
+        fprec = f.prec()
+        E2 = eisenstein_series_qexp(2, fprec, normalization = 'constant')
+        return q**(fval) * r([f[i] * (i + offset) for i in range(fval, fprec)]) - weight/12 * f * E2
     return O(q ** (prec - floor(offset)))
+
+def extend_vector(v):#suppose v is a primitive vector and compute a matrix M in SL_n(Z) whose top row is v
+    n = len(v)
+    v0 = list(v[:-2])
+    if not any(v0):
+        u, a, b = xgcd(v[-2], v[-1])
+        L = [v, vector([0]*(n-2) + [-b, a])]
+        for i in range(n-2):
+            e = vector([0]*n)
+            e[i] = 1
+            L.append(e)
+        return matrix(L)
+    gcd_one = 0
+    b = -1
+    g0 = gcd([v[i] for i in range(n-2)])
+    while not gcd_one:
+        b += 1
+        u = v[-2] + b * v[-1]
+        g = gcd(g0, u)
+        gcd_one = g == 1
+    M = extend_vector(v0 + [u])
+    bigM = matrix(n)
+    for i in range(n-1):
+        for j in range(n-1):
+            bigM[i,j] = M[i,j]
+    bigM[0,n-1] = v[n-1]
+    bigM[n-1,n-1] = 1
+    Tb = identity_matrix(n)
+    Tb[n-1, n-2] = -b
+    return bigM * Tb
 
 
 def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose = False):

@@ -214,7 +214,7 @@ class OrthogonalModularForms(object):
         Y.sort(key = lambda x: x.coefficients()[g0])
         return WeilRepModularFormsBasis(wt, Y, w)
 
-    def borcherds_input_by_weight(self, k, prec, pole_order = None):
+    def borcherds_input_by_weight(self, k, prec, pole_order = None, verbose = False):
         r"""
         Compute all input functions that yield a holomorphic Borcherds product of the given weight.
 
@@ -255,6 +255,8 @@ class OrthogonalModularForms(object):
                 for p in (2 * d).prime_factors():
                     eisenstein_bound *= (1 - p^(-1))
             pole_order = (2 * k / eisenstein_bound) ** (1 / (1 - wt))
+        if verbose:
+            print('I will compute an obstruction Eisenstein series to precision %d.'%ceil(pole_order))
         w = self.weilrep()
         rds = w.rds()
         norm_dict = w.norm_dict()
@@ -262,7 +264,9 @@ class OrthogonalModularForms(object):
         e_coeffs = e.coefficients()
         N = len([g for g in rds if not norm_dict[tuple(g)]]) - 1
         pole_order = max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0])
-        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec)
+        if verbose:
+            print('I need to consider modular forms with a pole order at most %s.'%pole_order)
+        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec, verbose = verbose)
         v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
         exp_list = [v[1] for v in v_list]
         v_list = [vector(v[0]) for v in v_list]
@@ -284,6 +288,8 @@ class OrthogonalModularForms(object):
                     ieq[j + 1] = denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1
             positive.append(ieq)
         r = vector(QQ, [k + k] + [(1 + bool(2 % denominator(g))) * e_coeffs[tuple(list(g) + [-exp_list[i]])] for i, g in enumerate(v_list)] + [0])
+        if verbose:
+            print('I will now find integral points in a polyhedron.')
         p = Polyhedron(ieqs = positive, eqns = [r] + [vector([0] + list(v)) for v in vs])
         try:
             u = M.solve_left(matrix(p.integral_points()))
@@ -292,6 +298,98 @@ class OrthogonalModularForms(object):
             Y = []
             pass
         return WeilRepModularFormsBasis(wt, Y, self.weilrep())
+
+    def borcherds_input_by_obstruction(self, k, pole_order = None, verbose = False):
+        r"""
+        Compute principal parts of Borcherds products using the method of obstructions.
+
+        This command produces *only the principal parts* of nearly-holomorphic modular forms that lift to holomorphic Borcherds products of weight ``k``. It is generally much faster than borcherds_input_by_weight(), but it does not yield any Fourier coefficients of the product and is only suited to proving existence.
+        """
+        S = self.gram_matrix()
+        d = S.determinant()
+        e = S.nrows()
+        wt = -e / 2
+        l = 2 - wt
+        if pole_order is None:
+            if e % 2:
+                eisenstein_bound = (2*math.pi)**l / (5 * (1 - 2**(-3-e)) * math.gamma(l) * (l - 0.5).zeta() * math.sqrt(d))
+                for p in d.prime_factors():
+                    eisenstein_bound *= (1 - p^(-1)) / (1 - p^(-3 - e))
+            else:
+                D = (-1)^(e/2) * d
+                l = ZZ(l)
+                eisenstein_bound = (2*math.pi)**l * (2 - (1 - 2^(1-l))*(l - 1.0).zeta()) / (math.sqrt(d) * math.gamma(l) * quadratic_L_function__correct(l, D).n())
+                for p in (2 * d).prime_factors():
+                    eisenstein_bound *= (1 - p^(-1))
+            pole_order = (2 * k / eisenstein_bound) ** (1 / (1 - wt))
+        if verbose:
+            print('I will compute the obstruction Eisenstein series to precision %d.'%ceil(pole_order))
+        w = self.weilrep()
+        w_dual = w.dual()
+        e = w_dual.eisenstein_series(l, ceil(pole_order))
+        e_coeffs = e.coefficients()
+        pole_order = max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0])
+        if verbose:
+            print('I need to compute the obstruction space to precision %s.'%pole_order)
+        X = w_dual.cusp_forms_basis(l, pole_order, verbose = verbose)
+        v_list = w_dual.coefficient_vector_exponents(ceil(pole_order), 1, include_vectors = True)
+        rds = w_dual.rds()
+        norm_dict = w_dual.norm_dict()
+        N = len([g for g in rds if not norm_dict[tuple(g)]])
+        exp_list = [v[1] for v in v_list if v[1] and v[1] <= pole_order]
+        v_list = [vector(v[0]) for v in v_list][N:len(exp_list)+N]
+        positive = []
+        zero = vector([0] * (len(exp_list) + 1))
+        L = [x.coefficient_vector()[N - 1 : len(v_list) + N] for x in X]
+        for i, n in enumerate(exp_list):
+            ieq = copy(zero)
+            ieq[i + 1] = 1
+            for j, m in enumerate(exp_list[i+1:]):
+                sqrtm_n = sqrt(m / n)
+                if sqrtm_n in ZZ:
+                    v1 = v_list[i]
+                    v2 = v_list[i + j + 1]
+                    ieq[i + j + 2] = bool(denominator(v1 * sqrtm_n - v2) == 1 or denominator(v1 * sqrtm_n + v2) == 1)
+            positive.append(ieq)
+        r = [k + k]
+        for i, g in enumerate(v_list):
+            try:
+                c = e_coeffs[tuple(list(g) + [exp_list[i]])]
+            except KeyError:
+                c = 0
+            mult = 1 + bool(2 % denominator(g))
+            r.append(mult * c)
+            if mult != 1:
+                for v in L:
+                    v[i + 1] += v[i + 1]
+        r = vector(r)
+        if verbose:
+            print('I will now find integral points in a polyhedron.')
+        p = Polyhedron(ieqs = positive, eqns = [r] + L)
+        r.<q> = PowerSeriesRing(QQ)
+        X = []
+        ds = w.ds()
+        ds_dict = w.ds_dict()
+        norm_list = w.norm_list()
+        for v in p.integral_points():
+            Y = [None] * len(ds)
+            for j, g in enumerate(ds):
+                if norm_list[j] or not g:
+                    Y[j] = [g, norm_list[j], O(q ** 1)]
+                else:
+                    Y[j] = [g, 0, O(q ** 0)]
+            for i, v_i in enumerate(v):
+                if v_i:
+                    g = v_list[i]
+                    n = ceil(-exp_list[i])
+                    j = ds_dict[tuple(g)]
+                    j2 = ds_dict[tuple([frac(-x) for x in g])]
+                    Y[j][2] += v_i * q ** n
+                    if j2 != j:
+                        Y[j2][2] += v_i * q ** n
+            Y[0][2] += k + k
+            X.append(WeilRepModularForm(wt, S, Y, w))
+        return WeilRepModularFormsBasis(wt, X, w)
 
 def ParamodularForms(N):
     r"""

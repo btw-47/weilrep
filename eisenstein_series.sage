@@ -76,20 +76,16 @@ def local_normal_form_with_change_vars(S,p):
         n = Q.dim()
         (min_i, min_j) = Q.find_entry_with_minimal_scale_at_prime(p)
         if min_i == min_j:
-            min_val = valuation(2 * Q[min_i, min_j], p)
-        else:
-            min_val = valuation(Q[min_i, min_j], p)
-        if (min_i == min_j):
             Q.swap_variables(0, min_i, in_place = True)
             M.swap_rows(I[0],I[min_i])
         else:
+            min_val = valuation(Q[min_i, min_j], p)
             Q.swap_variables(0, min_i, in_place = True)
             Q.swap_variables(1, min_j, in_place = True)
             M.swap_rows(I[0],I[min_i])
             M.swap_rows(I[1],I[min_j])
             Q.add_symmetric(1, 0, 1, in_place = True)
             M.add_multiple_of_row(I[0],I[1],1)
-        min_scale = p ** min_val
         a = 2 * Q[0,0]
         for j in range(1, n):
             b = Q[0, j]
@@ -229,7 +225,7 @@ def igusa_zetas(Q,L,c,p,t):
     d_old = [1]
     r_old = [0]
     for i, a in enumerate(quads):
-        p_i = a.valuation(p)
+        p_i = a_vals[i]
         try:
             d_old[p_i] *= a / (p ** p_i)
             r_old[p_i] += 1
@@ -365,18 +361,18 @@ def twonf_with_change_vars(Q):
             a2 = Q[0,1]
             b2 = 2*Q[1,1]
             big_det = (a1*b2 - a2*a2)
-            small_det = big_det / (min_scale * min_scale)
+            two_scale= ZZ(min_scale * min_scale)
             for j in range(block_size,n):
                 a = Q[0,j]
                 b = Q[1,j]
                 Q.multiply_variable(big_det,j,in_place = True)
                 Q.add_symmetric(ZZ(-(a*b2 - b*a2)),j,0,in_place = True)
                 Q.add_symmetric(ZZ(-(-a*a2 + b*a1)),j,1,in_place = True)
-                Q.divide_variable(ZZ(min_scale*min_scale),j,in_place = True)
+                Q.divide_variable(two_scale,j,in_place = True)
                 P.rescale_row(I[j],big_det)
                 P.add_multiple_of_row(I[j],I[0],-a*b2+b*a2)
                 P.add_multiple_of_row(I[j],I[1],a*a2-b*a1)
-                P.rescale_row(I[j],~(min_scale*min_scale))
+                P.rescale_row(I[j],~two_scale)
         Q_Jordan = Q_Jordan + Q.extract_variables(range(block_size))
         for j in range(block_size):
             I.remove(I[0])
@@ -485,7 +481,6 @@ def twoadic_classify(Q):
     """
     J = twonf_with_change_vars(Q)
     J = J[0].matrix()
-    #Classifies unimodular quadratic forms over Z2. Every form is equivalent to a direct sum of at most two squares ax^2, and at most one "elliptic plane" 2(x^2 + xy + y^2), and any number of hyperbolic planes 2xy.
     squares = []
     ell = 0
     hyp = 0
@@ -1082,6 +1077,7 @@ def L_values(L,c,S,p,k, t = None): #the Euler factors in the Eisenstein series, 
 def quadratic_L_function__cached(k,D):
     return quadratic_L_function__exact(k,D)
 
+@cached_function
 def quadratic_L_function__corrector(k,D): #quadratic_L_function__exact() includes the Euler factors for primes dividing D.
     d = fundamental_discriminant(D)
     return prod((1 - kronecker_symbol(d,p)*(p**(-k))) for p in ZZ(D).prime_factors() if d%p)
