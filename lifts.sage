@@ -1157,7 +1157,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb.monomial(*weyl_v[1:-1])
         else:
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb_zero ** weyl_v[1]
-        return OrthogonalModularForm(weight, S, exp(log_f) * corrector * weyl_vector_term, scale = d, weylvec = weyl_v / d)
+        return OrthogonalModularForm(weight, S, exp(log_f) * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d)
 
 def jacobian(X):
     r"""
