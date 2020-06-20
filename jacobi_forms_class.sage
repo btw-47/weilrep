@@ -37,6 +37,14 @@ class JacobiForms:
         if weilrep:
             self.__weilrep = weilrep
 
+    def __repr__(self):
+        S = self.index_matrix()
+        N = S.nrows()
+        if N > 1:
+            return 'Jacobi forms of index \n%s'%S
+        else:
+            return 'Jacobi forms of index %d'%self.index()
+
     def index(self):
         r"""
         Return self's index (as a scalar if one elliptic variable).
@@ -902,7 +910,7 @@ class JacobiForm:
         f = []
         val = self.valuation()
         f = [g.subs({Rb('w_%d'%j):Rb('w_%d'%j)^N for j in range(e)}) for g in F]
-        return JacobiForm(self.weight, N^2 * S, q^(val) * R(f) + O(q^self.precision()))
+        return JacobiForm(self.weight(), N^2 * S, q^(val) * R(f) + O(q^self.precision()))
 
     def hecke_V(self, N):
         r"""
