@@ -121,7 +121,50 @@ class OrthogonalModularForms(object):
 
     ## methods for borcherds products
 
-    def borcherds_input_basis(self, pole_order, prec):
+    def borcherds_product_polyhedron(self, pole_order, prec, verbose = False):
+        r"""
+        Construct a polyhedron representing a cone of Heegner divisors. For internal use in the methods borcherds_input_basis() and borcherds_input_Qbasis().
+
+        INPUT:
+        - ``pole_order`` -- pole order
+        - ``prec`` -- precision
+
+        OUTPUT: a tuple consisting of an integral matrix M, a Polyhedron p, and a WeilRepModularFormsBasis X
+
+        EXAMPLES::
+
+            sage: m = ParamodularForms(5)
+            sage: m.borcherds_product_polyhedron(1/4, 5)[1]
+            A 2-dimensional polyhedron in QQ^3 defined as the convex hull of 1 vertex and 2 rays
+        """
+        S = self.gram_matrix()
+        wt = -S.nrows()/2
+        w = self.weilrep()
+        rds = w.rds()
+        norm_dict = w.norm_dict()
+        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec, verbose = verbose)
+        N = len([g for g in rds if not norm_dict[tuple(g)]])
+        v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
+        exp_list = [v[1] for v in v_list]
+        v_list = [vector(v[0]) for v in v_list]
+        positive = [None]*len(exp_list)
+        zero = vector([0] * (len(exp_list) + 1))
+        M = matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
+        vs = M.transpose().kernel().basis()
+        for i, n in enumerate(exp_list):
+            ieq = copy(zero)
+            ieq[i+1] = 1
+            for j, m in enumerate(exp_list[:i]):
+                N = sqrt(m / n)
+                if N in ZZ:
+                    v1 = v_list[i]
+                    v2 = v_list[j]
+                    ieq[j + 1] = denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1
+            positive[i] = ieq
+        p = Polyhedron(ieqs = positive, eqns = [vector([0] + list(v)) for v in vs])
+        return M, p, X
+
+    def borcherds_input_basis(self, pole_order, prec, verbose = False):
         r"""
         Compute a basis of input functions into the Borcherds lift with pole up to pole_order.
 
@@ -137,7 +180,7 @@ class OrthogonalModularForms(object):
 
         EXAMPLES::
 
-            sage: m = OrthogonalModularForms(matrix([[10]]))
+            sage: m = ParamodularForms(5)
             sage: m.borcherds_input_basis(1/4, 5)
             [(0), 8 + 98*q + 604*q^2 + 2822*q^3 + 10836*q^4 + O(q^5)]
             [(1/10), q^(-1/20) - 34*q^(19/20) - 253*q^(39/20) - 1381*q^(59/20) - 5879*q^(79/20) - 21615*q^(99/20) + O(q^5)]
@@ -184,34 +227,71 @@ class OrthogonalModularForms(object):
             [(9/10), -5*q^(-1/20) - 270*q^(19/20) - 1935*q^(39/20) - 10275*q^(59/20) - 43245*q^(79/20) - 157545*q^(99/20) + O(q^5)]
         """
         S = self.gram_matrix()
-        wt = -S.nrows()/2
         w = self.weilrep()
-        rds = w.rds()
-        norm_dict = w.norm_dict()
-        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec)
-        N = len([g for g in rds if not norm_dict[tuple(g)]])
-        v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
-        exp_list = [v[1] for v in v_list]
-        v_list = [vector(v[0]) for v in v_list]
-        positive = [None]*len(exp_list)
-        zero = vector([0] * (len(exp_list) + 1))
-        M = matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
-        vs = M.transpose().kernel().basis()
-        for i, n in enumerate(exp_list):
-            ieq = copy(zero)
-            ieq[i+1] = 1
-            for j, m in enumerate(exp_list[:i]):
-                N = sqrt(m / n)
-                if N in ZZ:
-                    v1 = v_list[i]
-                    v2 = v_list[j]
-                    ieq[j + 1] = denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1
-            positive[i] = ieq
-        p = Polyhedron(ieqs = positive, eqns = [vector([0] + list(v)) for v in vs])
-        u = M.solve_left(matrix(Cone(p).Hilbert_basis()))
+        wt = -S.nrows()/2
+        M, p, X = self.borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
+        if verbose:
+            print('I will now try to find a Hilbert basis.')
+        b = matrix(Cone(p).Hilbert_basis())
+        try:
+            u = M.solve_left(b)
+        except ValueError:
+            return WeilRepModularFormsBasis(wt, [], w)
         Y = [v * X for v in u.rows()]
-        g0 = tuple([0] * (S.nrows() + 1))
-        Y.sort(key = lambda x: x.coefficients()[g0])
+        Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
+        return WeilRepModularFormsBasis(wt, Y, w)
+
+    def borcherds_input_Qbasis(self, pole_order, prec, verbose = False):
+        r"""
+        Compute a Q-basis of input functions into the Borcherds lift with pole order in infinity up to pole_order.
+
+        This method computes a list of Borcherds lift inputs F_0, ..., F_d which is a Q-basis in the following sense: it is minimal with the property that every modular form with pole order at most pole_order whose Borcherds lift is holomorphic can be expressed in the form (k_0 F_0 + ... + k_d F_d) where k_i are nonnegative rational numbers.
+
+        INPUT:
+        - ``pole_order`` -- positive number (does not need to be an integer)
+        - ``prec`` -- precision of the output
+
+        OUTPUT: WeilRepModularFormsBasis
+
+        EXAMPLES::
+
+            sage: m = ParamodularForms(5)
+            sage: m.borcherds_input_Qbasis(1/4, 5)
+            [(0), 10 + 50*q + 260*q^2 + 1030*q^3 + 3500*q^4 + O(q^5)]
+            [(1/10), 6*q^(-1/20) + 16*q^(19/20) + 82*q^(39/20) + 304*q^(59/20) + 1046*q^(79/20) + 3120*q^(99/20) + O(q^5)]
+            [(1/5), q^(-1/5) - 24*q^(4/5) - 143*q^(9/5) - 622*q^(14/5) - 2204*q^(19/5) - 6876*q^(24/5) + O(q^5)]
+            [(3/10), -16*q^(11/20) - 102*q^(31/20) - 448*q^(51/20) - 1650*q^(71/20) - 5248*q^(91/20) + O(q^5)]
+            [(2/5), -q^(1/5) + 14*q^(6/5) + 92*q^(11/5) + 386*q^(16/5) + 1318*q^(21/5) + O(q^5)]
+            [(1/2), 20*q^(3/4) + 160*q^(7/4) + 700*q^(11/4) + 2560*q^(15/4) + 8000*q^(19/4) + O(q^5)]
+            [(3/5), -q^(1/5) + 14*q^(6/5) + 92*q^(11/5) + 386*q^(16/5) + 1318*q^(21/5) + O(q^5)]
+            [(7/10), -16*q^(11/20) - 102*q^(31/20) - 448*q^(51/20) - 1650*q^(71/20) - 5248*q^(91/20) + O(q^5)]
+            [(4/5), q^(-1/5) - 24*q^(4/5) - 143*q^(9/5) - 622*q^(14/5) - 2204*q^(19/5) - 6876*q^(24/5) + O(q^5)]
+            [(9/10), 6*q^(-1/20) + 16*q^(19/20) + 82*q^(39/20) + 304*q^(59/20) + 1046*q^(79/20) + 3120*q^(99/20) + O(q^5)]
+            ------------------------------------------------------------
+            [(0), 36 + 586*q + 3708*q^2 + 17694*q^3 + 68852*q^4 + O(q^5)]
+            [(1/10), -5*q^(-1/20) - 270*q^(19/20) - 1935*q^(39/20) - 10275*q^(59/20) - 43245*q^(79/20) - 157545*q^(99/20) + O(q^5)]
+            [(1/5), 5*q^(-1/5) + 90*q^(4/5) + 1035*q^(9/5) + 6130*q^(14/5) + 28460*q^(19/5) + 109260*q^(24/5) + O(q^5)]
+            [(3/10), -185*q^(11/20) - 1595*q^(31/20) - 8505*q^(51/20) - 36145*q^(71/20) - 131485*q^(91/20) + O(q^5)]
+            [(2/5), 65*q^(1/5) + 630*q^(6/5) + 4100*q^(11/5) + 18940*q^(16/5) + 74070*q^(21/5) + O(q^5)]
+            [(1/2), 7*q^(-1/4) - 54*q^(3/4) - 747*q^(7/4) - 5026*q^(11/4) - 23859*q^(15/4) - 94960*q^(19/4) + O(q^5)]
+            [(3/5), 65*q^(1/5) + 630*q^(6/5) + 4100*q^(11/5) + 18940*q^(16/5) + 74070*q^(21/5) + O(q^5)]
+            [(7/10), -185*q^(11/20) - 1595*q^(31/20) - 8505*q^(51/20) - 36145*q^(71/20) - 131485*q^(91/20) + O(q^5)]
+            [(4/5), 5*q^(-1/5) + 90*q^(4/5) + 1035*q^(9/5) + 6130*q^(14/5) + 28460*q^(19/5) + 109260*q^(24/5) + O(q^5)]
+            [(9/10), -5*q^(-1/20) - 270*q^(19/20) - 1935*q^(39/20) - 10275*q^(59/20) - 43245*q^(79/20) - 157545*q^(99/20) + O(q^5)]
+        """
+        S = self.gram_matrix()
+        w = self.weilrep()
+        wt = -S.nrows()/2
+        M, p, X = self.borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
+        b = matrix(Cone(p).rays())
+        if verbose:
+            print('I will now try to find Borcherds product inputs.')
+        try:
+            u = M.solve_left(b)
+        except ValueError:
+            return WeilRepModularFormsBasis(wt, [], w)
+        Y = [v * X for v in u.rows()]
+        Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
         return WeilRepModularFormsBasis(wt, Y, w)
 
     def borcherds_input_by_weight(self, k, prec, pole_order = None, verbose = False):
@@ -395,7 +475,7 @@ def ParamodularForms(N):
     r"""
     Orthogonal modular forms for the lattice A_1(N) + II_{2,2}.
     """
-    return OrthogonalModularForms(matrix([[2 * N]]))
+    return OrthogonalModularForms(matrix([[N + N]]))
 
 class OrthogonalModularForm:
     r"""
@@ -430,7 +510,7 @@ class OrthogonalModularForm:
             d = self.__scale
             if d == 1:
                 self.__string = s
-            else:
+            else: #divide by scale
                 def m(obj):
                     m1, m2 = obj.span()
                     obj_s = obj.string[m1 : m2]
@@ -556,11 +636,7 @@ class OrthogonalModularForm:
         except AttributeError:
             h = self.__fourier_expansion
             r.<q, s> = PowerSeriesRing(self.base_ring())
-            u = O(q ** h.prec())
-            for i, p in enumerate(h.list()):
-                coeffs = p.coefficients()
-                u += sum([(q ** ((i - n)//2)) * (s ** ((i + n)//2)) * coeffs[j] for j, n in enumerate(p.exponents())])
-            self.__qexp = u
+            self.__qexp = O(q ** h.prec()) + sum([(q ** ((i - n) // 2)) * (s ** ((i + n) // 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ])
             return self.__qexp
 
     def fourier_jacobi(self):
@@ -747,6 +823,8 @@ class OrthogonalModularForm:
 
         ALGORITHM: check whether this equals the Gritsenko lift of its first Fourier--Jacobi coefficient
 
+        WARNING: this always outputs True if the precision is too low!
+
         OUTPUT: True/False
 
         EXAMPLES::
@@ -796,6 +874,33 @@ def orthogonal_eisenstein_series(k, S, prec, w = None):
         return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k - nrows/2, ceil(prec * prec / 4) + 1)).theta_lift(prec)
     except ValueError:
         raise ValueError('Invalid weight')
+
+class WeilRepPositiveDefinite(WeilRep):
+    def __init__(self):
+        self._WeilRep__gram_matrix = S
+        self._WeilRep__quadratic_form = QuadraticForm(S)
+        self._WeilRep__eisenstein = {}
+        self._WeilRep__cusp_forms_basis = {}
+        self._WeilRep__modular_forms_basis = {}
+
+    def is_positive_definite(self):
+        return True
+
+    def jacobi_forms(self):
+        return JacobiForms(self.gram_matrix(), weilrep = self)
+
+    def __add__(self, other):
+        if isinstance(other, RescaledHyperbolicPlane):
+            S = self.gram_matrix()
+            zerom = matrix([[0]])
+            zerov = matrix([[0]*S.nrows()])
+            zerovt = zerov.transpose()
+            N = other.N()
+            return WeilRepLorentzian(block_matrix([[zerom, zerov, N], [zerovt, S, zerovt], [N, zerov, -(N + N)]], subdivide = False), lift_qexp_representation = 'PD+II')
+        else:
+            raise NotImplementedError
+
+    __radd__ = __add__
 
 class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
     r"""
@@ -1039,7 +1144,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
 
         If ``self`` is a nearly-holomorphic modular form of weight -rank(L) / 2 (where L is the underlying positive-definite lattice) then one can associate to it a Borcherds product, which is a modular object on the Type IV domain attached to L + II_{2, 2}. The result is a true modular form if all Fourier coefficients in self's principal part are integers and if sufficiently many of them are positive. (For the precise statement see Theorem 13.3 of [B].)
 
-        NOTE: we do not check whether the input actually yields a holomorphic product. This method should still work without errors when the result has poles (but some other functions might not work correctly given non-holomorphic modular forms as input). We do check that the input is of the correct weight, and you can expect a ValueError if the input has nonintegral coefficients.
+        NOTE: we do not check whether the input actually yields a holomorphic product. We do check that the input is of the correct weight, and you can expect a ValueError if the input has nonintegral coefficients.
 
         INPUT:
         - ``prec`` -- precision (optional). The precision of the output is limited by the precision of the input. However if ``prec`` is given then the output precision will not exceed ``prec``.
@@ -1141,7 +1246,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                                                 for j, p_j in enumerate(list(p)):
                                                     f = p_j * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (a * j + c * (deg_p - j)))
                                                     s1 += f * m ** (d * j)
-                                                    s2 += f * m ** (-d * j)
+                                                    s2 += f * (~m) ** (d * j)
                                                 corrector *= (h + s1 * s2)
                                                 weyl_v[0] += 2 * c * d * deg_p
                                             else:
@@ -1157,7 +1262,10 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb.monomial(*weyl_v[1:-1])
         else:
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb_zero ** weyl_v[1]
-        return OrthogonalModularForm(weight, S, exp(log_f) * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d)
+        try:
+            return OrthogonalModularForm(weight, S, exp(log_f) * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d)
+        except TypeError:
+            raise RuntimeError('I caught a TypeError. This probably means you are trying to compute a Borcherds product that is not holomorphic.')
 
 def jacobian(X):
     r"""

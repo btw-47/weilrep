@@ -100,7 +100,7 @@ def local_normal_form_with_change_vars(S,p):
     return Q_Jordan, M
 
 
-def isospectral_normal_form(Q,L,p):
+def isospectral_normal_form(Q, L, p):
     r"""
     Computes an isospectral normal form of the quadratic polynomial Q + L modulo the odd prime p, where Q is a quadratic form and L is a linear form.
 
@@ -148,7 +148,8 @@ def isospectral_normal_form(Q,L,p):
             const = const - b * b / (4 * a)
     return quads, linear_gcd, const
 
-def iard(a,r,d,p,t):
+@cached_function
+def iard(a, r, d, p, t, m):
     r"""
     Compute the helper function I_a(r,d).
 
@@ -160,6 +161,7 @@ def iard(a,r,d,p,t):
     - ``d`` -- an integer
     - ``p`` -- an odd prime
     - ``t`` -- a rational number
+    - ``m`` -- an integer
 
     OUTPUT: a rational number
 
@@ -169,12 +171,13 @@ def iard(a,r,d,p,t):
         136/243
     """
     if r % 2 == 0:
-        multiplier = (p ** (-r/2)) * kronecker_symbol((-1)**(r/2) * d,p)
-        iard = 1 - multiplier
+        #multiplier = (p ** (-r/2)) * kronecker_symbol((-1)**(r/2) * d,p)
+        #iard = 1 - multiplier
+        iard = 1 - m
         if a % p == 0:
-            iard *= (1 + multiplier * t) * (1 - 1/p)
+            iard *= (1 + m * t) * (1 - 1/p)
         else:
-            iard *= (1 - 1/p + multiplier * (1 - t/p))
+            iard *= (1 - 1/p + m * (1 - t/p))
     else:
         if a % p == 0:
             iard = (1 - t * p**(-r)) * (1 - 1/p)
@@ -210,7 +213,7 @@ def igusa_zetas(Q,L,c,p,t):
         sage: igusa_zetas(Q,L,c,p,1/9)
         (26/27, 494/729, 10/27, 26/27, 13130/19683)
     """
-    [wrong_quads, lins_gcd, const] = isospectral_normal_form(Q,L,p)
+    quads, lins_gcd, const = isospectral_normal_form(Q, L, p)
     c = vector((const + cj/2) for cj in c)
     try:
         c_max_val = max([cj.valuation(p) for cj in c if cj])
@@ -219,13 +222,12 @@ def igusa_zetas(Q,L,c,p,t):
     u = denominator(c/2)
     c *= u
     lins_gcd *= u
-    quads = [a * u for a in wrong_quads]
-    a_vals = [a.valuation(p) for a in quads]
     Z = vector([0]*len(c))
     d_old = [1]
     r_old = [0]
     for i, a in enumerate(quads):
-        p_i = a_vals[i]
+        a *= u
+        p_i = a.valuation(p)
         try:
             d_old[p_i] *= a / (p ** p_i)
             r_old[p_i] += 1
@@ -238,9 +240,9 @@ def igusa_zetas(Q,L,c,p,t):
     r = []
     p_power = []
     if lins_gcd:
-        max_range = max([len(d_old),lins_gcd.valuation(p)]+[cj.valuation(p)+1 for cj in c if cj])
+        max_range = max([len(d_old), lins_gcd.valuation(p), c_max_val + 1])
     else:
-        max_range = max([len(d_old)] + [cj.valuation(p)+1 for cj in c if cj])
+        max_range = max(len(d_old), c_max_val + 1)
     for k in range(max_range+1):
         if k >= len(d_old):
             d_old.append(1)
@@ -256,38 +258,43 @@ def igusa_zetas(Q,L,c,p,t):
             if ell != k:
                 p_power[ell] /= (p ** r[k])
     Z_vec = []
+    m = [1 if x % 2 else (p ** (-x/2)) * kronecker_symbol((-1)**(x/2) * d[i],p) for i, x in enumerate(r)]
     if lins_gcd:
         lamda = lins_gcd.valuation(p)
-        f0 = sum((t ** i) * iard(0, r[i], d[i], p, t) * p_power[i] for i in range(lamda)) + ((t ** lamda) * p_power[lamda]) * (1 - 1 / p)
+        f0 = sum((t ** i) * iard(0, r[i], d[i], p, t, m[i]) * p_power[i] for i in range(lamda)) + ((t ** lamda) * p_power[lamda]) * (1 - 1 / p)
         for cj in c:
             kappa = cj.valuation(p)
             if lamda <= kappa:
                 Z_vec.append(f0)
             else:
                 f1 = 0
+                t_j = 1/t
                 for j in range(kappa+1):
-                    f1 += (t ** j) * iard(cj, r[j], d[j], p, t) * p_power[j]
+                    t_j *= t
+                    f1 += t_j * iard(cj, r[j], d[j], p, t, m[j]) * p_power[j]
                     cj /= p
-                Z_vec.append((t ** kappa) * (1 - t/p) * p_power[kappa + 1] + f1)
+                Z_vec.append(t_j * (1 - t/p) * p_power[kappa + 1] + f1)
         return vector(Z_vec)
     else:
         w = len(d_old) - 1
         r_old_sum = sum(r_old)
-        f0 = sum((t ** i) * iard(0, r[i], d[i], p, t) * p_power[i] for i in range(w-1))
+        f0 = sum((t ** i) * iard(0, r[i], d[i], p, t, m[i]) * p_power[i] for i in range(w-1))
         try:
-            f0 = f0 + ~(1 - (t * t) / (p ** r_old_sum)) * ((t ** (w-1)) * iard(0, r[w-1], d[w-1], p, t) * p_power[w-1] + (t ** w) * iard(0, r[w], d[w], p, t) * p_power[w] )
+            f0 = f0 + ~(1 - (t * t) / (p ** r_old_sum)) * (t ** (w-1)) * ( iard(0, r[w-1], d[w-1], p, t, m[w-1]) * p_power[w-1] + t * iard(0, r[w], d[w], p, t, m[w]) * p_power[w] )
         except ZeroDivisionError:
             R.<t0> = PolynomialRing(QQ)
-            f1 = ~(1 - (t0 ** 2) / (p ** r_old_sum)) * ((t0 ** (w-1)) * iard(0, r[w-1], d[w-1], p, t0) * p_power[w-1] + (t0 ** w) * iard(0, r[w], d[w], p, t0) * p_power[w] )
+            f1 = ~(1 - (t0 ** 2) / (p ** r_old_sum)) * (t0 ** (w-1)) * ( iard(0, r[w-1], d[w-1], p, t0, m[w-1]) * p_power[w-1] + t0 * iard(0, r[w], d[w], p, t0, m[w]) * p_power[w] )
             f0 = f0 + f1(t)
         for cj in c:
             if cj:
                 kappa = cj.valuation(p)
                 f1 = 0
+                t_j = 1/t
                 for j in range(kappa + 1):
-                    f1 += (t ** j) * iard(cj, r[j], d[j], p, t) * p_power[j]
+                    t_j *= t
+                    f1 += t_j * iard(cj, r[j], d[j], p, t, m[j]) * p_power[j]
                     cj /= p
-                Z_vec.append(f1 + (t ** kappa) * (1 - t/p) * p_power[kappa+1])
+                Z_vec.append(f1 + t_j * (1 - t/p) * p_power[kappa+1])
             else:
                 Z_vec.append(f0)
         return vector(Z_vec)

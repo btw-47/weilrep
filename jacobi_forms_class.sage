@@ -933,10 +933,7 @@ class JacobiForm:
             return self
         elif N == 0:
             c = self.q_coefficients()[0]
-            try:
-                c = c[0]
-            except:
-                pass
+            c = QQ(c.constant_coefficient())
             k = self.weight()
             return JacobiForm(k, matrix([]), c * eisenstein_series_qexp(k, self.precision()))
         S = self.index_matrix()

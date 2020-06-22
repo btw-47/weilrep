@@ -24,13 +24,12 @@ from re import sub
 load('eisenstein_series.sage')
 load('weilrep_modular_forms_class.sage')
 load('jacobi_forms_class.sage')
-load('lifts.sage')
 load('weilrep_misc.sage')
 
 
 class WeilRep(object):
     r"""
-    The WeilRep class represents the module of vector-valued modular forms which transform with the dual Weil representation.
+    The WeilRep class represents the module of vector-valued modular forms whi ch transform with the dual Weil representation.
 
     INPUT:
 
@@ -53,6 +52,8 @@ class WeilRep(object):
         self.__eisenstein = {}
         self.__cusp_forms_basis = {}
         self.__modular_forms_basis = {}
+        if self.is_positive_definite():
+            self.__class__ = WeilRepPositiveDefinite
 
     def __repr__(self):
         #when printed:
@@ -91,6 +92,14 @@ class WeilRep(object):
             except AttributeError:
                 self.__discriminant = abs(self.gram_matrix().determinant())
                 return self.__discriminant
+
+    def is_lorentzian(self):
+        try:
+            return self.__is_lorentzian
+        except AttributeError:
+            signature = self.signature()
+            self.__is_lorentzian = self.__true_signature + 2 == self.__gram_matrix.nrows()
+            return self.__is_lorentzian
 
     def is_positive_definite(self):
         try:
@@ -379,7 +388,7 @@ class WeilRep(object):
 
 
     ## constructors of modular forms for this representation. See also weilrep_modular_forms_class.sage
-    
+
     def bb_lift(self, mf):
         r"""
         Construct vector-valued modular forms of prime level via the Bruinier--Bundschuh lift.
@@ -491,8 +500,8 @@ class WeilRep(object):
         if not k_is_list:
             if prec <= 0:
                 raise ValueError('Precision must be at least 0')
-            if k <= 2 and not allow_small_weight and (k < 2 or self.discriminant().is_squarefree()):
-                raise ValueError('Weight must be at least 5/2')
+            if k <= 2 and not allow_small_weight and (k < 2 or not self.discriminant().is_squarefree()):
+                raise ValueError('Weight must be at least 5/2. To disable this error set "allow_small_weight = True".')
             if not self.is_symmetric_weight(k):
                 raise ValueError('Invalid weight')
             try:#did we do this already?
@@ -769,7 +778,7 @@ class WeilRep(object):
                 return [WeilRepModularForm(k[i], S, X[i], weilrep = self) for i in range(len_k)]
             else:
                 e = WeilRepModularForm(k, S, X, weilrep = self)
-                self.__eisenstein = prec, e
+                self.__eisenstein[k] = prec, e
                 return e
 
     def eisenstein_newform(self, k, b, prec, allow_small_weight = False, print_exact = False):
@@ -1371,7 +1380,9 @@ class WeilRep(object):
         """
         Q = self.__quadratic_form
         if not Q.is_negative_definite():
-            raise ValueError('Not a negative-definite lattice')
+            if self.is_positive_definite():
+                raise ValueError('Theta series define modular forms for the *dual* Weil representation only for negative-definite lattices. Please replace your WeilRep w by w.dual() and try again.')
+            raise ValueError('Not a negative-definite lattice.')
         R.<q> = PowerSeriesRing(QQ)
         _ds = self.ds()
         _ds_dict = self.ds_dict()
@@ -1394,7 +1405,7 @@ class WeilRep(object):
         try:
             _, _, vs_matrix = pari(S_inv).qfminim(prec + prec + 1, flag=2)
             vs_list = vs_matrix.sage().columns()
-            X = [[g, n_dict[tuple(g)], O(q^(prec - floor(n_dict[tuple(g)])))] for g in _ds]
+            X = [[g, n_dict[tuple(g)], O(q^(prec - floor(n_dict[tuple(g)])))] for g in _ds] #preallocate?
             for v in vs_list:
                 g = S_inv * v
                 P_val = P(list(g))
@@ -1408,7 +1419,7 @@ class WeilRep(object):
                     j2 = _ds_dict[minus_g]
                     X[j2][2] += (-1)^deg_P * P_val * q^(v_norm_with_offset)
             X[0][2] += P([0]*S_inv.nrows())
-        except PariError: #when we are not allowed to use pari's qfminim with flag=2 for some reason. the code below is a little slower
+        except PariError: #when we are not allowed to use pari's qfminim with flag=2 for some reason. Then multiply S inverse to get something integral. The code below is a little slower
             level = Q.level()
             Q_adj = QuadraticForm(level * S_inv)
             vs_list = Q_adj.short_vector_list_up_to_length(level*prec)
@@ -1487,6 +1498,8 @@ class WeilRep(object):
         OUTPUT: the dimension of the space of cusp forms of the given weight and eta twist as an integer (unless specified otherwise)
 
         NOTE: the first time we compute any dimension we have to compute some Gauss sums. After this it should be faster.
+
+        NOTE: we actually compute all of the dimensions dim(rho * chi^N) where chi is the eta character and where N in Z/24Z. This is not much extra work but the eta-twisted dimensions are never used (yet...)!
 
         EXAMPLES::
 
@@ -1761,7 +1774,8 @@ class WeilRep(object):
             prec = ceil(sturm_bound)
         else:
             prec = ceil(max(prec, sturm_bound))
-        #if S is a block diagonal matrix then let's try multiplying forms for each block together
+        #if S is a block diagonal matrix then let's try multiplying forms for different blocks together. TODO: the documentation should mention that WeilRep behaves differently when S is given as a block-diagonal matrix...
+        #note: this is not always efficient! it is only worthwhile if the weight is fairly large... otherwise it just slows us down.
         u = S.get_subdivisions()[0]
         if u:
             i = u[0]
@@ -2370,6 +2384,8 @@ class WeilRep(object):
         X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N, not inclusive, keep_N = True, verbose = verbose)
         delta_power = smf(-12 * N, ~(delta_qexp(max(ceil(prec) + N + 1, 1)) ** N))
         Y = WeilRepModularFormsBasis(k, [x * delta_power for x in X], self)
+        if verbose:
+            print('I am computing an echelon form.')
         Y.echelonize(starting_from = -N, ending_with = sturm_bound)
         if reverse:
             Y.reverse()
@@ -2423,3 +2439,4 @@ class WeilRep(object):
                 return []
 
 weilrep = WeilRep
+load('lifts.sage')

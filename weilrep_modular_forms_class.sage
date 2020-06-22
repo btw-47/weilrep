@@ -441,7 +441,7 @@ class WeilRepModularForm(object):
         if isinstance(other,WeilRepModularForm):
             return self.fourier_expansion() == other.fourier_expansion()
         return False
-    
+
     def __pow__(self, other):
         if other in ZZ and other >= 1:
             if other == 1:
@@ -535,6 +535,51 @@ class WeilRepModularForm(object):
                 prec_g = prec - floor(offset)
                 Y[j] = g, -frac(g*S_conj*g/2), O(q ** prec_g)
         return WeilRepModularForm(self.weight(), S_conj, Y, weilrep = w_conj)
+
+    def hecke_V(self, N):
+        if N == 0:
+            if self.is_symmetric:
+                return self.fourier_expansion()[0][2][0] * smf(self.weight, eisenstein_series_qexp(self.weight, self.precision()))
+            q = self.fourier_expansion()[0][2].base_ring().0
+            return smf(self.weight, 0 + O(q ** self.precision()))
+        r.<q> = PowerSeriesRing(QQ)
+        prec = self.precision()
+        k_1 = self.weight() - 1
+        S = self.gram_matrix()
+        w = self.weilrep()
+        ds = w.ds()
+        X = self.fourier_expansion()
+        big_w = w(N)
+        big_ds = big_w.ds()
+        Y = []
+        #bigRDS = ReducedDiscriminantGroup(N*S)
+        for j in range(len(bigDS)):
+            g = bigDS[j]
+            r_val = g*N*S*g/2
+            big_offset = -frac(r_val)
+            if g in bigRDS:
+                Y.append([g,big_offset,O(q^(floor(prec/N) + ceil(-big_offset)))])
+                for a in divisors(N):
+                    d = N/a
+                    try:
+                        i = DS.index(vector(frac(d*x) for x in g))
+                        offset = X[i][1]
+                        n = -1
+                        prec = X[i][2].prec()
+                        while (d/a)*(n+big_offset) - offset < prec:
+                            try:
+                                n += 1
+                                if (n + big_offset + r_val) % a == 0:
+                                    Y[j][2] += X[i][2][ZZ(d/a * (n + big_offset) - offset)] * q^(n) * a^k_1
+                            except:
+                                pass
+                    except:
+                        pass
+            else:
+                i = bigDS.index(vector(frac(-x) for x in g))
+                Y.append([g,big_offset,Y[i][2]])
+                #Y[j][2] = Y[i][2]
+        return JacobiForm(self.weight, N*S, Y )
 
     def serre_derivative(self, normalize_constant_term = False):
         r"""
@@ -658,9 +703,8 @@ class WeilRepModularForm(object):
         else:
             if not weilrep:
                 weilrep = WeilRep(S)
-            _ds = weilrep.ds()
             _indices = weilrep.rds(indices = True)
-            #[_ds,_reduced_indices] = reduced_discriminant_group(S, reduced_list = True)
+            _ds = weilrep.ds()
         big_ds_dict = {tuple(X[i][0]) : i for i in range(len(X))}
         b_denom = b.denominator()
         bm2 = ZZ(2*m*b_denom)
@@ -728,9 +772,22 @@ def smf(weight, f):
 class WeilRepModularFormsBasis:
     r"""
     The WeilRepModularFormsBasis class represents bases of vector-valued modular forms.
-
-    The main purpose of this class is to print lists of modular forms with a line of hyphens as delimiter.
     """
+
+    def __init__(self, weight, basis, weilrep):
+        self.__weight = weight
+        self.__basis = basis
+        self.__weilrep = weilrep
+
+    def __repr__(self):
+        r"""
+        Print the output with a line of hyphens as delimiter.
+        """
+        X = self.__basis
+        if X:
+            s = '\n' + '-'*60 + '\n'
+            return s.join([x.__repr__() for x in self.__basis])
+        return '[]'
 
     def append(self, other):
         r"""
@@ -768,6 +825,11 @@ class WeilRepModularFormsBasis:
             pivots = [next(j for j, w in enumerate(v) if w) for v in a.rows()]
             return pivots
 
+    def __eq__(self, other):
+        if not len(self) == len(other):
+            return False
+        return all(x == other[i] for i, x in enumerate(self))
+
     def extend(self, other):
         r"""
         Extend self by another WeilRepModularFormsBasis
@@ -785,11 +847,6 @@ class WeilRepModularFormsBasis:
 
     def gram_matrix(self):
         return self.__weilrep.gram_matrix()
-
-    def __init__(self, weight, basis, weilrep):
-        self.__weight = weight
-        self.__basis = basis
-        self.__weilrep = weilrep
 
     def is_symmetric(self):
         return self.__weilrep.is_symmetric_weight(self.__weight)
@@ -903,17 +960,16 @@ class WeilRepModularFormsBasis:
         m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
         return m.rank()
 
-    def __repr__(self):
-        X = self.__basis
-        if X:
-            s = '\n' + '-'*60 + '\n'
-            return s.join([x.__repr__() for x in self.__basis])
-        return '[]'
-
     def reverse(self):
         self.__basis.reverse()
 
     __rmul__ = __mul__
+
+    def shrink(self, starting_from = 0, ending_with = None):
+        if ending_with is None:
+            ending_with = self.__weight / 12
+        m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
+        self.__basis = [self[j] for j in m.pivot_rows()]
 
     def theta(self, odd = False, weilrep = None):
         r"""
