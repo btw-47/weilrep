@@ -1734,7 +1734,7 @@ class WeilRep(object):
             [(1/6), O(q^20)]
             [(1/12), q^(1/24) - q^(25/24) - q^(49/24) + q^(121/24) + q^(169/24) - q^(289/24) - q^(361/24) + O(q^20)]
          """
-        if k <= 0:
+        if k <= 0 or (dim <= 0 and dim is not None):
             return WeilRepModularFormsBasis(k, [], self)
         if not save_pivots:
             try:
