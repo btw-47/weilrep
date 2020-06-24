@@ -202,9 +202,10 @@ class WeilRep(object):
             if not self.gram_matrix():
                 self.__ds = [vector([])]
             else:
-                D, U, V = self.gram_matrix().smith_form()
-                L = [vector(range(D[k, k])) / D[k, k] for k in range(D.nrows())]
-                self.__ds = [vector(frac(x) for x in V * vector(r)) for r in product(*L)]
+                D, V = self.gram_matrix().hermite_form(transformation = True)
+                L = [vector(range(n)) / n for k, n in enumerate(D.diagonal())]
+                L = (matrix(product(*L)) * V).rows()
+                self.__ds = [vector(map(frac, x)) for x in L]
             return self.__ds
 
     def ds_dict(self):
@@ -1221,7 +1222,7 @@ class WeilRep(object):
             except TypeError:
                 return X#result was ok
             R.<q> = PowerSeriesRing(QQ)
-            theta = w.eisenstein_shadow(prec+1).theta_contraction(odd = True).fourier_expansion()#this is a weight 3/2 theta
+            theta = w.eisenstein_series_shadow(prec+1).theta_contraction(odd = True).fourier_expansion()#this is a weight 3/2 theta
             Y = X.fourier_expansion()
             Z = [None] * len(theta)
             for i in range(len(theta)):
