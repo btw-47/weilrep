@@ -202,9 +202,9 @@ class WeilRep(object):
             if not self.gram_matrix():
                 self.__ds = [vector([])]
             else:
-                D, V = self.gram_matrix().hermite_form(transformation = True)
+                D, _, V = self.gram_matrix().smith_form()
                 L = [vector(range(n)) / n for k, n in enumerate(D.diagonal())]
-                L = (matrix(product(*L)) * V).rows()
+                L = (matrix(product(*L)) * V.transpose()).rows()
                 self.__ds = [vector(map(frac, x)) for x in L]
             return self.__ds
 
