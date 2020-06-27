@@ -1748,6 +1748,7 @@ class WeilRep(object):
             except KeyError:
                 pass
         S = self.gram_matrix()
+        pivots = []
         if verbose:
             print('I am now looking for cusp forms for the Weil representation for the Gram matrix\n%s'%S)
         _norm_dict = self.norm_dict()
