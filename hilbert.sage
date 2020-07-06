@@ -346,7 +346,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         h = self.fourier_expansion()
         r.<t> = PowerSeriesRing(QQ)
         d = K.discriminant()
-        prec = ceil(self.precision() / nn)
+        prec = ceil(h.prec() / nn)
         if d % 4:
             f = sum([p[n] * t^((i*tt + n * a)/2) for i, p in enumerate(h.list()) for n in p.exponents()]) + O(t**prec)
         else:
