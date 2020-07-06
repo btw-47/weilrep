@@ -852,6 +852,10 @@ class WeilRepModularForm(object):
         if z is None:
             z = pari(s).qfsolve().sage()
         try:
+            try:
+                z = z.columns()[0]
+            except AttributeError:
+                pass
             _ = len(z)
             z = vector(z)
         except TypeError:

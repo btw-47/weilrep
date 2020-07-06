@@ -1808,39 +1808,6 @@ class WeilRep(object):
             prec = ceil(max(prec, sturm_bound))
         #if S is a block diagonal matrix then let's try multiplying forms for different blocks together. TODO: the documentation should mention that WeilRep behaves differently when S is given as a block-diagonal matrix...
         #note: this is not always efficient! it is only worthwhile if the weight is fairly large... otherwise it just slows us down.
-        u = S.get_subdivisions()[0]
-        if u:
-            i = u[0]
-            if not any(S[:i,i:]):
-                w1 = WeilRep(S[:i,:i])
-                w2 = WeilRep(S[i:,i:])
-                w1_sig = w1.signature()
-                w1_k = 0
-                if w1_sig:
-                    w1_k = 2 - (w1_sig % 4)/2
-                for j in range(k // 2):
-                    k1 = w1_k + 2 * j
-                    k2 = k - k1
-                    if k1 >= 5/2 and k2 >= 5/2:
-                        if verbose:
-                            print('I will multiply forms of weights %s and %s.'%(k1, k2))
-                            print('-'*40)
-                        E1 = w1.eisenstein_series(k1, prec)
-                        E2 = w2.eisenstein_series(k2, prec)
-                        X1 = w1.cusp_forms_basis(k1, prec, E = E1, verbose = verbose, echelonize = False)
-                        X2 = w2.cusp_forms_basis(k2, prec, E = E2, verbose = verbose, echelonize = False)
-                        if verbose:
-                            print('I am returning to the Gram matrix %s.'%S)
-                        Z = WeilRepModularFormsBasis(k, [x * y for x in X1 for y in X2], w)
-                        X.extend(Z)
-                        rank = X.rank()
-                        if rank >= dim:
-                            if verbose:
-                                print('Done!')
-                            if echelonize:
-                                pivots = X.echelonize()
-                                self.__cusp_forms_basis[k] = prec, X
-                            return return_pivots()
         if k >= 7/2 or (k >= 5/2 and symm):
             if k >= 31/2 or (k >= 29/2 and symm):
                 deltasmf = [smf(12, delta_qexp(prec))]
