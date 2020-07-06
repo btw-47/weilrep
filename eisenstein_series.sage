@@ -167,7 +167,7 @@ def iard(a, r, d, p, t, m):
 
     EXAMPLES::
 
-        sage: iard(2,3,5,3,1/3)
+        sage: iard(2, 3, 5, 3, 1/3, 1)
         136/243
     """
     if r % 2 == 0:

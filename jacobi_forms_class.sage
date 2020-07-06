@@ -498,6 +498,9 @@ class JacobiForm:
             self.__string = s
             return s
 
+    def _latex_(self):
+        return latex(self.fourier_expansion())
+
     ## basic attributes
 
     def base_ring(self):
@@ -632,13 +635,13 @@ class JacobiForm:
 
             sage: jacobi_eisenstein_series(4, 1, 5).theta_decomposition()
             [(0), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + O(q^5)]
-            [(1/2), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^5)]
+            [(1/2), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^(23/4))]
 
             sage: (jacobi_eisenstein_series(4, 1, 5)^2).theta_decomposition() #we lose precision here! it's unavoidable I guess
             [(0), 1 + 252*q + 23662*q^2 + O(q^3)]
-            [(1/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + O(q^3)]
-            [(1/2), 2*q^(1/2) + 3640*q^(3/2) + 99288*q^(5/2) + O(q^3)]
-            [(3/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + O(q^3)]
+            [(1/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + O(q^(31/8))]
+            [(1/2), 2*q^(1/2) + 3640*q^(3/2) + 99288*q^(5/2) + O(q^(7/2))]
+            [(3/4), 112*q^(7/8) + 15376*q^(15/8) + 248112*q^(23/8) + O(q^(31/8))]
         """
         try:
             return self.__theta
@@ -885,6 +888,27 @@ class JacobiForm:
             fj = [self.hecke_V(N) for N in range(self.precision())]
             return OrthogonalModularForms(self.index_matrix()).modular_form_from_fourier_jacobi_expansion(self.weight(), fj)
 
+    def hecke_H(self, N):
+        r"""
+        Apply the Nth Hecke H-operator.
+
+        Note: this applies the H-operator to self's theta-decomposition and then computes the Jacobi form.
+        """
+        return self.theta_decomposition().hecke_H(N).jacobi_form()
+
+    def hecke_T(self, N):
+        r"""
+        Apply the Nth Hecke T-operator.
+
+        NOTE: this applies the T-operator to self's theta-decomposition and computes the Jacobi form from that.
+
+        INPUT:
+        - ``N`` -- a natural number
+
+        OUTPUT: Jacobi form of the same weight and index
+        """
+        return self.theta_decomposition().hecke_T(N).jacobi_form()
+
     def hecke_U(self, N):
         r"""
         Apply the Nth Hecke U-operator.
@@ -983,7 +1007,7 @@ class JacobiForm:
         jf_new = [f[i].subs(sub_R) for i in range(val, prec)]
         return JacobiForm(self.weight(), A*S*A.transpose(), q^val * R(jf_new) + O(q^f.prec()))
 
-    def substitute_zero(self, indices):
+    def substitute_zero(self, indices = None):
         r"""
         Set some of our elliptic variables equal to zero.
 
@@ -1003,6 +1027,8 @@ class JacobiForm:
             1 + (14*w^2 + 64*w + 84 + 64*w^-1 + 14*w^-2)*q + (w^4 + 64*w^3 + 280*w^2 + 448*w + 574 + 448*w^-1 + 280*w^-2 + 64*w^-3 + w^-4)*q^2 + (84*w^4 + 448*w^3 + 840*w^2 + 1344*w + 1288 + 1344*w^-1 + 840*w^-2 + 448*w^-3 + 84*w^-4)*q^3 + (64*w^5 + 574*w^4 + 1344*w^3 + 2368*w^2 + 2688*w + 3444 + 2688*w^-1 + 2368*w^-2 + 1344*w^-3 + 574*w^-4 + 64*w^-5)*q^4 + O(q^5)
 
         """
+        if indices is None:
+            indices = list(range(self.nvars()))
         f = self.fourier_expansion()
         S = self.index_matrix()
         e = S.nrows()

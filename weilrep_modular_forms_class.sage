@@ -50,55 +50,69 @@ class WeilRepModularForm(object):
             self.__weilrep = weilrep
             if weilrep.is_positive_definite():
                 self.__class__ = WeilRepModularFormPositiveDefinite #in the 'lifts.sage' file.
+            elif weilrep.is_lorentzian():
+                self.__class__ = WeilRepModularFormLorentzian #in the 'lorentzian.sage' file.
 
-    def __repr__(self):
+    def __repr__(self): #represent as a list of pairs (g, f) where g is in the discriminant group and f is a q-series with fractional exponents
         try:
             return self.__qexp_string
-        except:
-            def offset_qseries_string(offset,f): #display f with exponents shifted by a rational number.
-                s = ''
-                j = -1
-                start = f.valuation()
-                if start == Infinity:
-                    start = 0
-                for i in range(start,f.prec()):
-                    i_offset = i + offset
-                    if f[i]:
-                        j += 1
-                        sgn = [' + ', ' - '][f[i] < 0]
-                        if j > 0:
-                            s += sgn
-                        elif f[i] < 0:
-                            s += '-'
-                        if abs(f[i]) !=1 or not i_offset:
-                            s += str(abs(f[i]))
-                        if i_offset:
-                            if abs(f[i]) != 1:
-                                s += '*'
-                            s += 'q'
-                            if i_offset != 1:
-                                s += '^' + ['(' + str(i_offset) + ')', str(i_offset)][i_offset.is_integer()]
-                if j >= 0:
-                    s += ' + '
-                return s +  'O(q^' + str(floor(f.prec() + offset)) + ')'
-            X = self.fourier_expansion()
-            self.__qexp_string = '\n'.join(['['+str(x[0])+', ' + offset_qseries_string(x[1],x[2]) + ']' for x in X]) #display all fourier expansions with offset, each on a separate line
+        except AttributeError:
+            X = self.__fourier_expansions
+            def a(x):
+                def b(y):
+                    y = y.string[slice(*y.span())]
+                    if y[0] != 'q':
+                        return '%sq^(%s) '%([y[:-1]+'*',''][y == '1 '], x)
+                    try:
+                        return 'q^(%s)'%(QQ(y[2:]) + x)
+                    except TypeError:
+                        return 'q^(%s)'%(QQ(1 + x))
+                return b
+            self.__qexp_string = '\n'.join(['[%s, %s]'%(x[0], sub(r'(q(\^-?\d+)?)|((?<!\^)\d+\s)', a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
             return self.__qexp_string
+
+    def _latex_(self):
+        X = self.fourier_expansion()
+        def a(obj):
+            y = obj.string[slice(*obj.span())]
+            if y[0] != 'q' and y != '*':
+                if x[1]:
+                    return '%sq^{%s} '%([y[:-1]+'*',''][y == '1 '], x[1])
+                return y
+            try:
+                return 'q^{%s}'%(QQ(y[2:]) + x[1])
+            except TypeError:
+                if y == '*':
+                    return ''
+                return 'q^{%s}'%(1 + x[1])
+        return '&' + ' + &'.join(['\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r'q(\^-?\d+)?|\*|((?<!\^)\d+\s)', a, str(x[2])), x[0]) for x in X])[:-2]
 
     ## basic attributes
 
     def denominator(self):
+        r"""
+        Return the denominator of self's Fourier coefficients.
+        """
         sturm_bound = self.weight() / 12
         val = self.valuation()
-        return denominator(self.coefficient_vector(starting_from = val, ending_with = sturm_bound))
+        return denominator(self.coefficient_vector(starting_from = val, ending_with = max(1 / 24, sturm_bound)))
 
     def fourier_expansion(self):
+        r"""
+        Return the Fourier expansion.
+        """
         return self.__fourier_expansions
 
     def gram_matrix(self):
+        r"""
+        Return the Gram matrix.
+        """
         return self.__gram_matrix
 
     def inverse_gram_matrix(self):
+        r"""
+        Return the inverse Gram matrix.
+        """
         try:
             return self.__inverse_gram_matrix
         except AttributeError:
@@ -111,6 +125,9 @@ class WeilRepModularForm(object):
     __bool__ = __nonzero__
 
     def weight(self):
+        r"""
+        Return the weight
+        """
         return self.__weight
 
     def weilrep(self):
@@ -134,7 +151,7 @@ class WeilRepModularForm(object):
             self.__precision = min([floor(x[2].prec() + x[1]) for x in X])
             return self.__precision
 
-    def reduce_precision(self, prec, in_place = True):
+    def reduce_precision(self, prec, in_place = False):
         r"""
         Reduce self's precision.
         """
@@ -185,22 +202,27 @@ class WeilRepModularForm(object):
                         pass
         return s
 
-    def valuation(self):
+    def valuation(self, exact = False):
         r"""
         Return the lowest exponent in our Fourier expansion with a nonzero coefficient (rounded down).
+
+        INPUT:
+        - ``exact`` -- boolean (default False). If True then we do not round down.
         """
         try:
+            if exact:
+                return self.__exact_valuation
             return self.__valuation
         except AttributeError:
             X = self.fourier_expansion()
             try:
-                self.__valuation = min([floor(x[2].valuation() + x[1]) for x in X if x[2]])
+                self.__exact_valuation = min([x[2].valuation() + x[1] for x in X if x[2]])
             except ValueError: #probably trying to take valuation of 0
-                self.__valuation = 0 #for want of a better value
+                self.__exact_valuation = 0 #for want of a better value
+            self.__valuation = floor(self.__exact_valuation)
+            if exact:
+                return self.__exact_valuation
             return self.__valuation
-
-    def is_positive_definite(self):
-        return self.weilrep().is_positive_definite()
 
     def is_symmetric(self):
         r"""
@@ -210,18 +232,8 @@ class WeilRepModularForm(object):
         try:
             return self.__is_symmetric
         except AttributeError:
-            self.__is_symmetric = [1,None,0,None][(ZZ(2*self.weight()) + self.signature()) % 4]
+            self.__is_symmetric = [1,None,0,None][(ZZ(2*self.weight()) + self.weilrep().signature()) % 4]
             return self.__is_symmetric
-
-
-    def rds(self, indices = False):
-        return self.weilrep().rds(indices = indices)
-
-    def ds(self):
-        return self.weilrep().ds()
-
-    def signature(self):
-        return self.weilrep().signature()
 
     def coefficient_vector(self, starting_from=None, ending_with=None, G = None, set_v = None):
         r"""
@@ -258,7 +270,8 @@ class WeilRepModularForm(object):
             except:
                 pass
         if G is None:
-            G = self.rds()
+            w = self.weilrep()
+            G = w.rds()
         symm = self.is_symmetric()
         prec = self.precision()
         X = [x for x in self.fourier_expansion()]
@@ -363,17 +376,17 @@ class WeilRepModularForm(object):
             sage: theta = w2.theta_series(5)
             sage: e1 * theta
             [(0, 0, 0), 1 + 72*q + 272*q^2 + 864*q^3 + 1476*q^4 + O(q^5)]
-            [(1/3, 1/3, 3/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^5)]
-            [(2/3, 2/3, 1/2), 54*q^(7/6) + 432*q^(13/6) + 918*q^(19/6) + 2160*q^(25/6) + 2754*q^(31/6) + O(q^6)]
-            [(0, 0, 1/4), q^(1/8) + 73*q^(9/8) + 342*q^(17/8) + 991*q^(25/8) + 1728*q^(33/8) + O(q^5)]
-            [(1/3, 1/3, 0), 27*q^(2/3) + 216*q^(5/3) + 513*q^(8/3) + 1512*q^(11/3) + 2268*q^(14/3) + O(q^5)]
-            [(2/3, 2/3, 3/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^5)]
-            [(0, 0, 1/2), 2*q^(1/2) + 144*q^(3/2) + 540*q^(5/2) + 1440*q^(7/2) + 1874*q^(9/2) + O(q^5)]
-            [(1/3, 1/3, 1/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^5)]
-            [(2/3, 2/3, 0), 27*q^(2/3) + 216*q^(5/3) + 513*q^(8/3) + 1512*q^(11/3) + 2268*q^(14/3) + O(q^5)]
-            [(0, 0, 3/4), q^(1/8) + 73*q^(9/8) + 342*q^(17/8) + 991*q^(25/8) + 1728*q^(33/8) + O(q^5)]
-            [(1/3, 1/3, 1/2), 54*q^(7/6) + 432*q^(13/6) + 918*q^(19/6) + 2160*q^(25/6) + 2754*q^(31/6) + O(q^6)]
-            [(2/3, 2/3, 1/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^5)]
+            [(1/3, 1/3, 3/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^(139/24))]
+            [(2/3, 2/3, 1/2), 54*q^(7/6) + 432*q^(13/6) + 918*q^(19/6) + 2160*q^(25/6) + 2754*q^(31/6) + O(q^(37/6))]
+            [(0, 0, 1/4), q^(1/8) + 73*q^(9/8) + 342*q^(17/8) + 991*q^(25/8) + 1728*q^(33/8) + O(q^(41/8))]
+            [(1/3, 1/3, 0), 27*q^(2/3) + 216*q^(5/3) + 513*q^(8/3) + 1512*q^(11/3) + 2268*q^(14/3) + O(q^(17/3))]
+            [(2/3, 2/3, 3/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^(139/24))]
+            [(0, 0, 1/2), 2*q^(1/2) + 144*q^(3/2) + 540*q^(5/2) + 1440*q^(7/2) + 1874*q^(9/2) + O(q^(11/2))]
+            [(1/3, 1/3, 1/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^(139/24))]
+            [(2/3, 2/3, 0), 27*q^(2/3) + 216*q^(5/3) + 513*q^(8/3) + 1512*q^(11/3) + 2268*q^(14/3) + O(q^(17/3))]
+            [(0, 0, 3/4), q^(1/8) + 73*q^(9/8) + 342*q^(17/8) + 991*q^(25/8) + 1728*q^(33/8) + O(q^(41/8))]
+            [(1/3, 1/3, 1/2), 54*q^(7/6) + 432*q^(13/6) + 918*q^(19/6) + 2160*q^(25/6) + 2754*q^(31/6) + O(q^(37/6))]
+            [(2/3, 2/3, 1/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^(139/24))]
 
         """
 
@@ -437,6 +450,38 @@ class WeilRepModularForm(object):
 
     __div__ = __truediv__
 
+    def __and__(self, other):
+        r"""
+        Apply a trace map.
+
+        The & operator takes two modular forms for Weil representations that are duals of one another and traces them to a scalar-valued modular form.
+
+        OUTPUT: a power series in 'q'
+
+        EXAMPLE::
+
+            sage: e1 = WeilRep(matrix([[2, 1], [1, 2]])).eisenstein_series(3, 5)
+            sage: e2 = WeilRep(matrix([[-2, -1], [-1, -2]])).eisenstein_series(5, 5)
+            sage: e1 & e2
+            1 + 480*q + 61920*q^2 + 1050240*q^3 + 7926240*q^4 + O(q^5)
+        """
+        if isinstance(other, WeilRepModularForm):
+            w = self.weilrep()
+            minus_w = other.weilrep()
+            if not w.dual() == minus_w:
+                raise NotImplementedError
+            f1 = self.fourier_expansion()
+            f2 = other.fourier_expansion()
+            dsdict = w.ds_dict()
+            r.<q> = LaurentSeriesRing(QQ)
+            h = 0 + O(q ** self.precision())
+            for g, o, x in f2:
+                j = dsdict[tuple(g)]
+                g1, o1, y = f1[j]
+                h += r(q^(o + o1) * x * y)
+            return h
+        raise NotImplementedError
+
     def __eq__(self,other):
         if isinstance(other,WeilRepModularForm):
             return self.fourier_expansion() == other.fourier_expansion()
@@ -470,8 +515,8 @@ class WeilRepModularForm(object):
             sage: j = w.nearly_holomorphic_modular_forms_basis(-1, 1, 5)[0]
             sage: j.bol()
             [(0, 0), 378*q + 14256*q^2 + 200232*q^3 + 1776384*q^4 + O(q^5)]
-            [(2/3, 2/3), 1/9*q^(-1/3) - 328/9*q^(2/3) - 22300/9*q^(5/3) - 132992/3*q^(8/3) - 1336324/3*q^(11/3) - 28989968/9*q^(14/3) + O(q^5)]
-            [(1/3, 1/3), 1/9*q^(-1/3) - 328/9*q^(2/3) - 22300/9*q^(5/3) - 132992/3*q^(8/3) - 1336324/3*q^(11/3) - 28989968/9*q^(14/3) + O(q^5)]
+            [(2/3, 2/3), 1/9*q^(-1/3) - 328/9*q^(2/3) - 22300/9*q^(5/3) - 132992/3*q^(8/3) - 1336324/3*q^(11/3) - 28989968/9*q^(14/3) + O(q^(17/3))]
+            [(1/3, 1/3), 1/9*q^(-1/3) - 328/9*q^(2/3) - 22300/9*q^(5/3) - 132992/3*q^(8/3) - 1336324/3*q^(11/3) - 28989968/9*q^(14/3) + O(q^(17/3))]
 
         """
         k = self.weight()
@@ -500,20 +545,20 @@ class WeilRepModularForm(object):
             sage: w = WeilRep(matrix([[-2,0],[0,-2]]))
             sage: w.theta_series(5).conjugate(matrix([[1,1],[0,1]]))
             [(0, 0), 1 + 4*q + 4*q^2 + 4*q^4 + O(q^5)]
-            [(0, 1/2), 4*q^(1/2) + 8*q^(5/2) + 4*q^(9/2) + O(q^5)]
-            [(1/2, 1/2), 2*q^(1/4) + 4*q^(5/4) + 2*q^(9/4) + 4*q^(13/4) + 4*q^(17/4) + O(q^5)]
-            [(1/2, 0), 2*q^(1/4) + 4*q^(5/4) + 2*q^(9/4) + 4*q^(13/4) + 4*q^(17/4) + O(q^5)]
+            [(0, 1/2), 4*q^(1/2) + 8*q^(5/2) + 4*q^(9/2) + O(q^(11/2))]
+            [(1/2, 1/2), 2*q^(1/4) + 4*q^(5/4) + 2*q^(9/4) + 4*q^(13/4) + 4*q^(17/4) + O(q^(21/4))]
+            [(1/2, 0), 2*q^(1/4) + 4*q^(5/4) + 2*q^(9/4) + 4*q^(13/4) + 4*q^(17/4) + O(q^(21/4))]
 
             sage: w = WeilRep(matrix([[-2]]))
             sage: w.theta_series(5).conjugate(matrix([[2]]))
             [(0), 1 + 2*q + 2*q^4 + O(q^5)]
-            [(7/8), O(q^5)]
-            [(3/4), 2*q^(1/4) + 2*q^(9/4) + O(q^5)]
-            [(5/8), O(q^5)]
+            [(7/8), O(q^(81/16))]
+            [(3/4), 2*q^(1/4) + 2*q^(9/4) + O(q^(21/4))]
+            [(5/8), O(q^(89/16))]
             [(1/2), 1 + 2*q + 2*q^4 + O(q^5)]
-            [(3/8), O(q^5)]
-            [(1/4), 2*q^(1/4) + 2*q^(9/4) + O(q^5)]
-            [(1/8), O(q^5)]
+            [(3/8), O(q^(89/16))]
+            [(1/4), 2*q^(1/4) + 2*q^(9/4) + O(q^(21/4))]
+            [(1/8), O(q^(81/16))]
         """
         R.<q> = PowerSeriesRing(QQ)
         X = self.fourier_expansion()
@@ -533,53 +578,337 @@ class WeilRepModularForm(object):
             except:
                 offset = -frac(g*S_conj*g/2)
                 prec_g = prec - floor(offset)
-                Y[j] = g, -frac(g*S_conj*g/2), O(q ** prec_g)
+                Y[j] = g, offset, O(q ** prec_g)
         return WeilRepModularForm(self.weight(), S_conj, Y, weilrep = w_conj)
 
+    def hecke_P(self, N):
+        r"""
+        Apply the Nth Hecke projection map.
+
+        This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
+        """
+        S = self.gram_matrix()
+        S_new = matrix(ZZ, S / (N^2))
+        nrows = S.nrows()
+        symm = self.is_symmetric()
+        w = self.weilrep()
+        w_new = WeilRep(S_new)
+        ds_dict = w_new.ds_dict()
+        ds_new = w_new.ds()
+        ds = w.ds()
+        f = self.fourier_expansion()
+        X = [None] * len(ds_new)
+        multiplier = N^(-nrows)
+        for i, g in enumerate(ds):
+            g_new = [frac(N * x) for x in g]
+            try:
+                j = ds_dict[tuple(g_new)]
+                if X[j] is None:
+                    X[j] = [vector(g_new), f[i][1], f[i][2]]
+                else:
+                    X[j][2] += f[i][2]
+            except KeyError:
+                pass
+        return WeilRepModularForm(self.weight(), S_new, X, w_new) * multiplier
+
+    def hecke_T(self, N):
+        r"""
+        Apply the Nth Hecke operator where N is coprime to the level.
+
+        REFERENCE: This uses the formula of section 2.6 of Ajouz's thesis.
+
+        WARNING: if self has a unimodular lattice then hecke_T(N) corresponds to the classical/scalar Hecke operator of index N^2.
+        If self has a rank 0 underlying lattice (with matrix([]) as Gram matrix) then hecke_V(N) corresponds to the classical/scalar Hecke operator of index N.
+
+        INPUT:
+        - ``N`` -- a natural number coprime to the level of our lattice
+
+        OUTPUT: WeilRepModularForm
+
+        EXAMPLES::
+
+            sage: w = WeilRep(matrix([[2, 0], [0, -2]]))
+            sage: f = w.eisenstein_series(4, 50)
+            sage: f.hecke_T(3)
+            [(0, 0), 757 + 96896*q + 763056*q^2 + 2713088*q^3 + 6286128*q^4 + O(q^5)]
+            [(1/2, 0), 42392*q^(3/4) + 520816*q^(7/4) + 2016648*q^(11/4) + 5341392*q^(15/4) + 10386040*q^(19/4) + O(q^(23/4))]
+            [(0, 1/2), 1514*q^(1/4) + 190764*q^(5/4) + 1146098*q^(9/4) + 3327772*q^(13/4) + 7439796*q^(17/4) + O(q^(21/4))]
+            [(1/2, 1/2), 84784*q + 872064*q^2 + 2373952*q^3 + 6976512*q^4 + O(q^5)]
+        """
+        w = self.weilrep()
+        l = w.level()
+        S = self.gram_matrix()
+        if gcd(l, N) != 1:
+            raise ValueError('hecke_T() only takes indices coprime to the level of the discriminant form.')
+        nrows = S.nrows()
+        eps = nrows - w.signature()
+        if eps % 4 == 2:
+            eps = -1
+        else:
+            eps = 1
+        if nrows % 4 == 2 or nrows % 4 == 3:
+            eps = -eps
+        k = self.weight()
+        k1 = floor(k - 1)
+        T = self.fourier_expansion()
+        prec = self.precision() // (N^2)
+        q = T[0][2].parent().0
+        F = [[t[0], t[1], O(q ** (prec - floor(t[1])))] for t in T]
+        val = self.valuation() * N * N
+        ds_dict = w.ds_dict()
+        ds = w.ds()
+        D = len(ds)
+        odd_rank = nrows % 2
+        D *= (eps * (1 + odd_rank))
+        N_sqr_l = N * N * l
+        indices = w.rds(indices = True)
+        symm = self.is_symmetric()
+        if not symm:
+            symm = -1
+        def rho(n, a):
+            if a == 1:
+                return 1
+            if odd_rank:
+                nl = ZZ(n * l)
+                if (nl * N^2) % a:
+                    return 0
+                g1 = gcd(a, nl)
+                f = isqrt(g1)
+                fsqr = f * f
+                if fsqr - g1:
+                    return 0
+                a_f = a / fsqr
+                n_f = n / fsqr
+                return f * kronecker_symbol(ZZ(n_f * D), a_f)
+            else:#?? this shouldn't get called anyway
+                return kronecker_symbol(D, a)
+        for i, g in enumerate(ds):
+            if indices[i] is None:
+                offset = F[i][1]
+                for a in divisors(N * N):
+                    if True:
+                        Na_inv = N * a.inverse_mod(l)
+                        b = (N / a)^2
+                        a_pow = a^k1
+                        a_sqr = a * a
+                        j = ds_dict[tuple(frac(Na_inv * x) for x in g)]
+                        u = F[j][1]
+                        for n0 in range(val, prec - floor(offset)):
+                            n = n0 + offset
+                            if odd_rank:
+                                if (N_sqr_l * n) % a_sqr == 0:
+                                    try:
+                                        F[i][2] += a_pow * rho(-n, a) * T[j][2][ZZ(b * n - u)] * q^(n0)
+                                    except IndexError:
+                                        if n0 > 0:
+                                            F[i][2] += O(q^n0)
+                                            break
+                            else:
+                                nl = ZZ(l * n)
+                                if nl % a == 0:
+                                    try:
+                                        F[i][2] += a_pow * kronecker_symbol(D, a) * T[j][2][ZZ(b * n - u)] * q^(n0)
+                                    except IndexError:
+                                        if n0 > 0:
+                                            F[i][2] += O(q^n0)
+                                            break
+            else:
+                F[i][2] = symm * F[indices[i]][2]
+        return WeilRepModularForm(k, S, F, w)
+
+    def hecke_U(self, N):
+        r"""
+        Apply the index-raising Hecke operator U_N.
+
+        This is the same as conjugating by N times the identity matrix.
+        """
+        return self.conjugate(N * identity_matrix(self.gram_matrix().nrows()))
+
     def hecke_V(self, N):
+        r"""
+        Apply the index-raising Hecke operator V_N.
+
+        This is the Eichler--Zagier V_N operator applied to vector-valued modular forms on lattices of arbitrary signature instead of Jacobi forms.
+
+        INPUT:
+        - ``N`` -- a natural number or 0
+
+        OUTPUT: WeilRepModularForm
+
+        EXAMPLES::
+
+            sage: w = WeilRep(matrix([[2, 0], [0, -2]]))
+            sage: f = w.eisenstein_series(4, 10)
+            sage: f.hecke_V(3)
+            [(0, 0), 82 + 3584*q + 28224*q^2 + O(q^3)]
+            [(1/6, 0), 2664*q^(11/12) + 24336*q^(23/12) + 86688*q^(35/12) + O(q^(47/12))]
+            [(1/3, 0), 1008*q^(2/3) + 16128*q^(5/3) + 66672*q^(8/3) + O(q^(11/3))]
+            [(1/2, 0), 56*q^(1/4) + 7056*q^(5/4) + 45416*q^(9/4) + O(q^(13/4))]
+            [(2/3, 0), 1008*q^(2/3) + 16128*q^(5/3) + 66672*q^(8/3) + O(q^(11/3))]
+            [(5/6, 0), 2664*q^(11/12) + 24336*q^(23/12) + 86688*q^(35/12) + O(q^(47/12))]
+            [(0, 5/6), 2*q^(1/12) + 4396*q^(13/12) + 31502*q^(25/12) + O(q^(37/12))]
+            [(1/6, 5/6), 3136*q + 32256*q^2 + O(q^3)]
+            [(1/3, 5/6), 1514*q^(3/4) + 19264*q^(7/4) + 74592*q^(11/4) + O(q^(15/4))]
+            [(1/2, 5/6), 112*q^(1/3) + 9216*q^(4/3) + 38528*q^(7/3) + O(q^(10/3))]
+            [(2/3, 5/6), 1514*q^(3/4) + 19264*q^(7/4) + 74592*q^(11/4) + O(q^(15/4))]
+            [(5/6, 5/6), 3136*q + 32256*q^2 + O(q^3)]
+            [(0, 2/3), 128*q^(1/3) + 8304*q^(4/3) + 44032*q^(7/3) + O(q^(10/3))]
+            [(1/6, 2/3), 56*q^(1/4) + 7056*q^(5/4) + 40880*q^(9/4) + O(q^(13/4))]
+            [(1/3, 2/3), 1 + 3584*q + 28224*q^2 + O(q^3)]
+            [(1/2, 2/3), 688*q^(7/12) + 13720*q^(19/12) + 59584*q^(31/12) + O(q^(43/12))]
+            [(2/3, 2/3), 1 + 3584*q + 28224*q^2 + O(q^3)]
+            [(5/6, 2/3), 56*q^(1/4) + 7056*q^(5/4) + 40880*q^(9/4) + O(q^(13/4))]
+            [(0, 1/2), 1676*q^(3/4) + 19264*q^(7/4) + 74592*q^(11/4) + O(q^(15/4))]
+            [(1/6, 1/2), 1152*q^(2/3) + 14112*q^(5/3) + 73728*q^(8/3) + O(q^(11/3))]
+            [(1/3, 1/2), 252*q^(5/12) + 9828*q^(17/12) + 48780*q^(29/12) + O(q^(41/12))]
+            [(1/2, 1/2), 3136*q + 32256*q^2 + O(q^3)]
+            [(2/3, 1/2), 252*q^(5/12) + 9828*q^(17/12) + 48780*q^(29/12) + O(q^(41/12))]
+            [(5/6, 1/2), 1152*q^(2/3) + 14112*q^(5/3) + 73728*q^(8/3) + O(q^(11/3))]
+            [(0, 1/3), 128*q^(1/3) + 8304*q^(4/3) + 44032*q^(7/3) + O(q^(10/3))]
+            [(1/6, 1/3), 56*q^(1/4) + 7056*q^(5/4) + 40880*q^(9/4) + O(q^(13/4))]
+            [(1/3, 1/3), 1 + 3584*q + 28224*q^2 + O(q^3)]
+            [(1/2, 1/3), 688*q^(7/12) + 13720*q^(19/12) + 59584*q^(31/12) + O(q^(43/12))]
+            [(2/3, 1/3), 1 + 3584*q + 28224*q^2 + O(q^3)]
+            [(5/6, 1/3), 56*q^(1/4) + 7056*q^(5/4) + 40880*q^(9/4) + O(q^(13/4))]
+            [(0, 1/6), 2*q^(1/12) + 4396*q^(13/12) + 31502*q^(25/12) + O(q^(37/12))]
+            [(1/6, 1/6), 3136*q + 32256*q^2 + O(q^3)]
+            [(1/3, 1/6), 1514*q^(3/4) + 19264*q^(7/4) + 74592*q^(11/4) + O(q^(15/4))]
+            [(1/2, 1/6), 112*q^(1/3) + 9216*q^(4/3) + 38528*q^(7/3) + O(q^(10/3))]
+            [(2/3, 1/6), 1514*q^(3/4) + 19264*q^(7/4) + 74592*q^(11/4) + O(q^(15/4))]
+            [(5/6, 1/6), 3136*q + 32256*q^2 + O(q^3)]
+        """
+        k = self.weight()
+        S = self.gram_matrix()
+        k_1 = k + S.nrows()/2 - 1
+        symm = self.is_symmetric()
+        if symm:
+            eps = 1
+        else:
+            eps = -1
         if N == 0:
-            if self.is_symmetric:
-                return self.fourier_expansion()[0][2][0] * smf(self.weight, eisenstein_series_qexp(self.weight, self.precision()))
+            k_0 = k_1 + 1
+            if symm:
+                return self.fourier_expansion()[0][2][0] * smf(k_1, eisenstein_series_qexp(k_0, self.precision()))
             q = self.fourier_expansion()[0][2].base_ring().0
-            return smf(self.weight, 0 + O(q ** self.precision()))
+            return smf(k_0, 0 + O(q ** self.precision()))
         r.<q> = PowerSeriesRing(QQ)
         prec = self.precision()
-        k_1 = self.weight() - 1
-        S = self.gram_matrix()
         w = self.weilrep()
+        ds_dict = w.ds_dict()
         ds = w.ds()
         X = self.fourier_expansion()
         big_w = w(N)
         big_ds = big_w.ds()
-        Y = []
-        #bigRDS = ReducedDiscriminantGroup(N*S)
-        for j in range(len(bigDS)):
-            g = bigDS[j]
+        indices = big_w.rds(indices = True)
+        new_prec = prec // N
+        Y = [None] * len(big_ds)
+        for j, g in enumerate(big_ds):
             r_val = g*N*S*g/2
             big_offset = -frac(r_val)
-            if g in bigRDS:
-                Y.append([g,big_offset,O(q^(floor(prec/N) + ceil(-big_offset)))])
+            if indices[j] is None:
+                Y[j] = [g, big_offset, O(q^(new_prec + ceil(-big_offset)))]
                 for a in divisors(N):
-                    d = N/a
+                    d = N//a
+                    a_pow = a^k_1
                     try:
-                        i = DS.index(vector(frac(d*x) for x in g))
+                        i = ds_dict[tuple(frac(d * x) for x in g)]
                         offset = X[i][1]
-                        n = -1
-                        prec = X[i][2].prec()
-                        while (d/a)*(n+big_offset) - offset < prec:
-                            try:
-                                n += 1
-                                if (n + big_offset + r_val) % a == 0:
-                                    Y[j][2] += X[i][2][ZZ(d/a * (n + big_offset) - offset)] * q^(n) * a^k_1
-                            except:
-                                pass
-                    except:
+                        n = big_offset
+                        while n < (prec + offset) * (a / d):
+                            if (n + r_val) % a == 0:
+                                Y[j][2] += X[i][2][ZZ(d * n / a - offset)] * q^(ceil(n)) * a_pow
+                            n += 1
+                    except KeyError:
                         pass
             else:
-                i = bigDS.index(vector(frac(-x) for x in g))
-                Y.append([g,big_offset,Y[i][2]])
-                #Y[j][2] = Y[i][2]
-        return JacobiForm(self.weight, N*S, Y )
+                i = indices[j]
+                Y[j] = [g, big_offset, eps * Y[i][2]]
+        return WeilRepModularForm(self.weight(), N*S, Y )
+
+    def reduce_lattice(self, z = None, z_prime = None, zeta = None):
+        r"""
+        Compute self's image under lattice reduction.
+
+        This implements the lattice-reduction map from isotropic lattices of signature (b^+, b^-) to signature (b^+ - 1, b^- - 1). In Borcherds' notation ([B], Chapter 5) this takes the form F_M as input and outputs the form F_K.
+
+        NOTE: If it is possible to choose zeta with <z, zeta> = 1 then this method yields a smaller-rank lattice with an equivalent discriminant form and it preserves Fourier coefficients. (This is always possible if we have an isotropic lattice of square-free discriminant.) Otherwise if L is the original lattice and K is the result lattice then |L'/L| = N^2 * |K'/K| where <z, zeta> = N.
+
+        INPUT:
+        - ``z`` -- a primitive norm-zero vector. If this is not given then we try to compute such a vector using PARI qfsolve(), and raise a ValueError if this does not exist (i.e. the lattice is anisotropic; this can only happen if the lattice is definite, or indefinite of rank less than 5).
+        - ``z_prime`` -- a vector in the dual lattice with <z, z_prime> = 1. If this is not given then we compute it.
+        - ``zeta`` -- a lattice vector for which <z, zeta> = N is minimal among all <z, x> for x in the lattice. If this is not given then we compute it.
+
+        OUTPUT: WeilRepModularForm
+
+        EXAMPLES::
+
+            sage: w = WeilRep(matrix([[2, 0], [0, -2]]))
+            sage: f = w.eisenstein_series(4, 10)
+            sage: f.reduce_lattice()
+            [(), 1 + 240*q + 2160*q^2 + 6720*q^3 + 17520*q^4 + 30240*q^5 + 60480*q^6 + 82560*q^7 + 140400*q^8 + 181680*q^9 + O(q^10)]
+        """
+        w = self.weilrep()
+        s = w.gram_matrix()
+        if z is None:
+            z = pari(s).qfsolve().sage()
+        try:
+            _ = len(z)
+            z = vector(z)
+        except TypeError:
+            raise ValueError('This lattice is anisotropic!')
+        sz = s * z
+        if z_prime is None or zeta is None:
+            def xgcd_v(x): #xgcd for more than two arguments
+                if len(x) > 1:
+                    g, a = xgcd_v(x[:-1])
+                    if g == 1:
+                        return g, vector(list(a) + [0])
+                    new_g, s, t = xgcd(g, x[-1])
+                    return new_g, vector(list(a * s) + [t])
+                return x[0], vector([1])
+            if zeta is None:
+                _, zeta = xgcd_v(sz)
+            if z_prime is None:
+                _, sz_prime = xgcd_v(z)
+                z_prime = s.inverse() * sz_prime
+            else:
+                sz_prime = s * z_prime
+        szeta = s * zeta
+        n = sz * zeta
+        zeta_norm = zeta * szeta
+        z_prime_norm = z_prime * sz_prime
+        k = matrix(matrix([sz, sz_prime]).transpose().integer_kernel().basis())
+        try:
+            k_k = k * s * k.transpose()
+        except TypeError:
+            k_k = matrix([])
+        w_k = WeilRep(k_k)
+        ds_k_dict = w_k.ds_dict()
+        ds_k = w_k.ds()
+        ds = w.ds()
+        zeta_K = zeta - n * (z_prime - z_prime_norm * z) - (szeta * z_prime)* z
+        Y = [None] * len(ds_k)
+        X = self.fourier_expansion()
+        prec = self.precision()
+        r.<q> = PowerSeriesRing(QQ)
+        for i, g in enumerate(ds):
+            if not ZZ(g * sz) % n:
+                g_k = g - (g * sz) * (z_prime - z_prime_norm * z) - (g * sz_prime) * z
+                pg = g_k - (g * sz) * zeta_K / n
+                try:
+                    pg = vector(map(frac, k.solve_left(pg)))
+                except ValueError:
+                    pg = vector([])
+                j = ds_k_dict[tuple(pg)]
+                if Y[j] is None:
+                    Y[j] = [pg, -frac(pg * k_k * pg / 2), X[i][2]]
+                else:
+                    Y[j][2] += X[i][2]
+        for j, g in enumerate(ds_k):
+            if Y[j] is None:
+                o = -frac(g * k_k * g / 2)
+                Y[j] = g, o, O(q^(prec - floor(o)))
+        return WeilRepModularForm(self.weight(), k_k, Y, w_k)
 
     def serre_derivative(self, normalize_constant_term = False):
         r"""
@@ -594,17 +923,17 @@ class WeilRepModularForm(object):
             sage: w = WeilRep(matrix([[-2]]))
             sage: w.theta_series(5).serre_derivative()
             [(0), -1/24 + 35/12*q + 5*q^2 + 10*q^3 + 275/12*q^4 + O(q^5)]
-            [(1/2), 5/12*q^(1/4) + 2*q^(5/4) + 125/12*q^(9/4) + 10*q^(13/4) + 20*q^(17/4) + O(q^5)]
+            [(1/2), 5/12*q^(1/4) + 2*q^(5/4) + 125/12*q^(9/4) + 10*q^(13/4) + 20*q^(17/4) + O(q^(21/4))]
 
             sage: WeilRep(matrix([[-8]])).zero(1/2, 5).serre_derivative()
             [(0), O(q^5)]
-            [(7/8), O(q^5)]
-            [(3/4), O(q^5)]
-            [(5/8), O(q^5)]
+            [(7/8), O(q^(81/16))]
+            [(3/4), O(q^(21/4))]
+            [(5/8), O(q^(89/16))]
             [(1/2), O(q^5)]
-            [(3/8), O(q^5)]
-            [(1/4), O(q^5)]
-            [(1/8), O(q^5)]
+            [(3/8), O(q^(89/16))]
+            [(1/4), O(q^(21/4))]
+            [(1/8), O(q^(81/16))]
 
         """
 
@@ -626,6 +955,19 @@ class WeilRepModularForm(object):
         - ``b`` -- an integer-norm vector in self's discriminant group.
 
         OUTPUT: WeilRepModularForm
+
+        EXAMPLES::
+
+            sage: f = WeilRep(matrix([[-8]])).eisenstein_series(5/2, 5)
+            sage: f.symmetrized(vector([1/2]))
+            [(0), 1 - 70*q - 120*q^2 - 240*q^3 - 550*q^4 + O(q^5)]
+            [(7/8), O(q^(81/16))]
+            [(3/4), -10*q^(1/4) - 48*q^(5/4) - 250*q^(9/4) - 240*q^(13/4) - 480*q^(17/4) + O(q^(21/4))]
+            [(5/8), O(q^(89/16))]
+            [(1/2), 1 - 70*q - 120*q^2 - 240*q^3 - 550*q^4 + O(q^5)]
+            [(3/8), O(q^(89/16))]
+            [(1/4), -10*q^(1/4) - 48*q^(5/4) - 250*q^(9/4) - 240*q^(13/4) - 480*q^(17/4) + O(q^(21/4))]
+            [(1/8), O(q^(81/16))]
         """
         d_b = denominator(b)
         if d_b == 1:
@@ -633,14 +975,15 @@ class WeilRepModularForm(object):
         R.<q> = PowerSeriesRing(QQ)
         S = self.__gram_matrix
         X = self.components()
-        ds = self.ds()
+        w = self.weilrep()
+        ds = w.ds()
         symm = self.is_symmetric
         if symm:
             eps = 1
         else:
             eps = -1
-        indices = self.rds(indices = True)
-        norm_list = self.weilrep().norm_list()
+        indices = w.rds(indices = True)
+        norm_list = w.norm_list()
         Y = [None] * len(ds)
         prec = self.precision()
         for i, g in enumerate(ds):
@@ -677,13 +1020,14 @@ class WeilRepModularForm(object):
             sage: w = WeilRep(matrix([[-2,1],[1,2]]))
             sage: w.eisenstein_series(6, 5).theta_contraction()
             [(0), 1 - 25570/67*q - 1147320/67*q^2 - 10675440/67*q^3 - 52070050/67*q^4 + O(q^5)]
-            [(1/2), -10/67*q^(1/4) - 84816/67*q^(5/4) - 2229850/67*q^(9/4) - 16356240/67*q^(13/4) - 73579680/67*q^(17/4) + O(q^5)]
+            [(1/2), -10/67*q^(1/4) - 84816/67*q^(5/4) - 2229850/67*q^(9/4) - 16356240/67*q^(13/4) - 73579680/67*q^(17/4) + O(q^(21/4))]
 
          """
         symm = self.is_symmetric()
         prec = self.precision()
         R.<q> = PowerSeriesRing(QQ)
         big_S = self.gram_matrix()
+        val = self.valuation()
         big_e = big_S.nrows()
         e = big_e - 1
         S = big_S[:e,:e]
@@ -697,7 +1041,7 @@ class WeilRepModularForm(object):
         X = self.fourier_expansion()
         g_list = []
         S_indices = []
-        bound = 3 + 2*isqrt(m * (prec - self.valuation()))
+        bound = 3 + 2*isqrt(m * (prec - val))
         if components:
             _ds, _indices = components
         else:
@@ -710,6 +1054,12 @@ class WeilRepModularForm(object):
         bm2 = ZZ(2*m*b_denom)
         Y = [None] * len(_ds)
         eps = (2 * (odd != symm) - 1)
+        if val < 0:
+            def map_to_R(f):
+                try:
+                    return R(f)
+                except TypeError:
+                    return R(0)
         for i, g in enumerate(_ds):
             offset = frac(g*S*g/2)
             prec_g = prec + ceil(offset)
@@ -746,7 +1096,10 @@ class WeilRepModularForm(object):
                             theta_twist[i_m][r_square] += 1
                     elif r > 0:
                         break
-                Y[i] = g, -offset, sum([R(theta_twist[j]) * X[g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])+O(q ** prec_g)
+                if val >= 0:
+                    Y[i] = g, -offset, sum([R(theta_twist[j]) * X[g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])+O(q ** prec_g)
+                else:
+                    Y[i] = g, -offset, q^(val) * (sum([R(theta_twist[j]) * map_to_R(q^(-val) * X[g_ind[j]][2]) for j in range(min(bm2, len(g_ind))) if theta_twist[j]])+O(q ** (prec_g - val)))
             else:
                 Y[i] = g, -offset, eps * Y[_indices[i]][2]
         return WeilRepModularForm(self.weight() + 1/2 + odd, S, Y, weilrep = weilrep)
