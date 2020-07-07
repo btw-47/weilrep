@@ -140,6 +140,13 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         self._OrthogonalModularFormLorentzian__fourier_expansion = fourier_expansion
         self._OrthogonalModularFormLorentzian__weight = weight
         self._OrthogonalModularFormLorentzian__scale = scale
+        d = base_field.discriminant()
+        self._OrthogonalModularFormLorentzian__qexp_representation = 'hilbert', base_field
+        if d % 4:
+            S = matrix([[(d - 1)//2, 1], [1, -2]])
+        else:
+            S = matrix([[d//2, 1], [1, -2]])
+        self._OrthogonalModularFormLorentzian__gram_matrix = S
         if weylvec is None:
             self._OrthogonalModularFormLorentzian__weylvec = vector([0, 0])
         else:
@@ -320,6 +327,43 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             return HMFCharacter(self.base_field(), (24 * val)/scale, (12 * (val + r))/scale)
         return HMFCharacter(self.base_field(), (24 * val)/scale, (24 * r)/scale)
 
+    #get Fourier coefficients
+
+
+    def __getitem__(self, a):
+        r"""
+        Extract the Fourier coefficient indexed by ``a``.
+
+        INPUT:
+        - ``a`` -- a number field element
+
+        OUTPUT: a rational number
+
+        EXAMPLES::
+
+            sage: x = var('x')
+            sage: K.<sqrt2> = NumberField(x^2 - 2)
+            sage: e2 = HMF(K).eisenstein_series(2, 5)
+            sage: e2[2 - sqrt2]
+            1488
+        """
+        scale = self.scale()
+        K = self.base_field()
+        D = K.discriminant()
+        try:
+            tt = K(a).trace()
+            i = ZZ(scale * tt)
+            if D % 4:
+                sqrtD = K(D).sqrt()
+            else:
+                sqrtD = K(D).sqrt() / 2
+            n = ZZ(scale * (2 * a - tt) * sqrtD)
+            return self.fourier_expansion()[i][n]
+        except TypeError:
+            return 0
+
+    #other methods
+
     def hz_pullback(self, mu):
         r"""
         Compute the pullbacks to Hirzebruch--Zagier curves.
@@ -342,6 +386,8 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         mu = K(mu)
         nn = mu.norm()
         tt = mu.trace()
+        if tt <= 0 or nn <= 0:
+            raise ValueError('You called hz_pullback with a number that is not totally-positive!')
         a = isqrt((tt * tt - 4 * nn) / K.discriminant())
         h = self.fourier_expansion()
         r.<t> = PowerSeriesRing(QQ)

@@ -66,26 +66,28 @@ class WeilRepModularForm(object):
                     try:
                         return 'q^(%s)'%(QQ(y[2:]) + x)
                     except TypeError:
-                        return 'q^(%s)'%(QQ(1 + x))
+                        return 'q^(%s)'%(1 + x)
                 return b
             self.__qexp_string = '\n'.join(['[%s, %s]'%(x[0], sub(r'(q(\^-?\d+)?)|((?<!\^)\d+\s)', a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
             return self.__qexp_string
 
     def _latex_(self):
         X = self.fourier_expansion()
-        def a(obj):
-            y = obj.string[slice(*obj.span())]
-            if y[0] != 'q' and y != '*':
-                if x[1]:
-                    return '%sq^{%s} '%([y[:-1]+'*',''][y == '1 '], x[1])
-                return y
-            try:
-                return 'q^{%s}'%(QQ(y[2:]) + x[1])
-            except TypeError:
-                if y == '*':
-                    return ''
-                return 'q^{%s}'%(1 + x[1])
-        return '&' + ' + &'.join(['\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r'q(\^-?\d+)?|\*|((?<!\^)\d+\s)', a, str(x[2])), x[0]) for x in X])[:-2]
+        def a(x):
+            def b(y):
+                y = y.string[slice(*y.span())]
+                if y[0] != 'q' and y != '*':
+                    if x:
+                        return '%sq^{%s} '%([y[:-1]+'*',''][y == '1 '], x)
+                    return y
+                try:
+                    return 'q^{%s}'%(QQ(y[2:]) + x)
+                except TypeError:
+                    if y == '*':
+                        return ''
+                    return 'q^{%s}'%(1 + x)
+            return b
+        return '&' + ' + &'.join(['\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r'q(\^-?\d+)?|\*|((?<!\^)\d+\s)', a(x[1]), str(x[2])), x[0]) for x in X])[:-2]
 
     ## basic attributes
 
