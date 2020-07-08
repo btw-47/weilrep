@@ -8,6 +8,16 @@ AUTHORS:
 
 """
 
+# ****************************************************************************
+#       Copyright (C) 2020 Brandon Williams
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#                  https://www.gnu.org/licenses/
+# ****************************************************************************
+
 
 class HMFCharacter:
     r"""
@@ -170,8 +180,8 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             s = ''
             sign = False
             for i, p in enumerate(h.list()):
-                for j, n in enumerate(p.exponents()):
-                    c = p.coefficients()[j]
+                for n in p.exponents():
+                    c = p[n]
                     if c:
                         q2exp = (i - n/sqrtD)/(d + d)
                         q1exp = i / d - q2exp
@@ -329,6 +339,19 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
 
     #get Fourier coefficients
 
+    def coefficients(self):
+        r"""
+        Return self's Fourier coefficients as a dictionary.
+        """
+        d = self.scale()
+        K = self.base_field()
+        D = K.discriminant()
+        sqrtD = K(D).sqrt()
+        if not D % 4:
+            sqrtD /= 2
+        X = {}
+        h = self.fourier_expansion()
+        return {(i + n/sqrtD)/(d + d):p[n] for i, p in enumerate(h.list()) for n in p.exponents()}
 
     def __getitem__(self, a):
         r"""

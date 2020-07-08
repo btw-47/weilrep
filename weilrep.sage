@@ -1806,16 +1806,9 @@ class WeilRep(object):
             prec = ceil(sturm_bound)
         else:
             prec = ceil(max(prec, sturm_bound))
-        #if S is a block diagonal matrix then let's try multiplying forms for different blocks together. TODO: the documentation should mention that WeilRep behaves differently when S is given as a block-diagonal matrix...
-        #note: this is not always efficient! it is only worthwhile if the weight is fairly large... otherwise it just slows us down.
         if k >= 7/2 or (k >= 5/2 and symm):
             if k >= 31/2 or (k >= 29/2 and symm):
                 deltasmf = [smf(12, delta_qexp(prec))]
-            if symm:
-                if not E:
-                    E = self.eisenstein_series(k, prec)
-                    if verbose:
-                        print('I computed the Eisenstein series of weight %s up to precision %s.' %(k, prec))
             rank = 0
             if symm and k >= 9/2:
                 E, X = self._eisenstein_packet(k, prec, dim = dim+1)

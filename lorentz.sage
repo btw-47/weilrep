@@ -153,8 +153,8 @@ class OrthogonalModularFormsLorentzian(object):
 
             sage: OrthogonalModularForms(II(1)).borcherds_input_basis(1, 5)
             [(0, 0), 1 + O(q^5)]
-------------------------------------------------------------
-[(0, 0), q^-1 + 196884*q + 21493760*q^2 + 864299970*q^3 + 20245856256*q^4 + O(q^5)]
+            ------------------------------------------------------------
+            [(0, 0), q^-1 + 196884*q + 21493760*q^2 + 864299970*q^3 + 20245856256*q^4 + O(q^5)]
         """
         S = self.gram_matrix()
         w = self.weilrep()
@@ -162,16 +162,19 @@ class OrthogonalModularFormsLorentzian(object):
         M, p, X = self.borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
         if verbose:
             print('I will now try to find a Hilbert basis.')
-        b = matrix(Cone(p).Hilbert_basis())
         try:
-            u = M.solve_left(b)
-        except ValueError:
-            return WeilRepModularFormsBasis(wt, [], w)
-        Y = [v * X for v in u.rows()]
-        Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
-        Y = WeilRepModularFormsBasis(wt, Y, w)
+            b = matrix(Cone(p).Hilbert_basis())
+            try:
+                u = M.solve_left(b)
+                Y = [v * X for v in u.rows()]
+                Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
+                Y = WeilRepModularFormsBasis(wt, Y, w)
+            except ValueError:
+                Y = WeilRepModularFormsBasis(wt, [], w)
+        except IndexError:
+            Y = WeilRepModularFormsBasis(wt, [], w)
         if wt >= 0:
-            X = w.modular_forms_basis(wt, prec)
+            X = deepcopy(w.basis_vanishing_to_order(wt, max(0, -pole_order), prec))
             if X:
                 X.extend(Y)
                 return X
@@ -193,25 +196,28 @@ class OrthogonalModularFormsLorentzian(object):
 
             sage: OrthogonalModularForms(II(1)).borcherds_input_Qbasis(1, 5)
             [(0, 0), 1 + O(q^5)]
-------------------------------------------------------------
-[(0, 0), q^-1 + 196884*q + 21493760*q^2 + 864299970*q^3 + 20245856256*q^4 + O(q^5)]
+            ------------------------------------------------------------
+            [(0, 0), q^-1 + 196884*q + 21493760*q^2 + 864299970*q^3 + 20245856256*q^4 + O(q^5)]
         """
         S = self.gram_matrix()
         w = self.weilrep()
         wt = 1 - S.nrows()/2
         M, p, X = self.borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
-        b = matrix(Cone(p).rays())
-        if verbose:
-            print('I will now try to find Borcherds product inputs.')
         try:
-            u = M.solve_left(b)
-        except ValueError:
-            return WeilRepModularFormsBasis(wt, [], w)
-        Y = [v * X for v in u.rows()]
-        Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
-        Y = WeilRepModularFormsBasis(wt, Y, w)
+            b = matrix(Cone(p).rays())
+            if verbose:
+                print('I will now try to find Borcherds product inputs.')
+            try:
+                u = M.solve_left(b)
+                Y = [v * X for v in u.rows()]
+                Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
+                Y = WeilRepModularFormsBasis(wt, Y, w)
+            except ValueError:
+                Y = WeilRepModularFormsBasis(wt, [], w)
+        except IndexError:
+            Y = WeilRepModularFormsBasis(wt, [], w)
         if wt >= 0:
-            X = w.modular_forms_basis(wt, prec)
+            X = X = deepcopy(w.basis_vanishing_to_order(wt, max(0, -pole_order), prec))
             if X:
                 X.extend(Y)
                 return X
@@ -355,7 +361,7 @@ class OrthogonalModularFormLorentzian:
                 rbgens = rb_x.base_ring().gens()
                 rescale_dict = {a : a ** d for a in rbgens}
                 return OrthogonalModularFormLorentzian(self.weight(), S, (f.map_coefficients(lambda y: (x ** (d * y.polynomial_construction()[1])) * rb_x([p.subs(rescale_dict) for p in list(y)]).subs({x : x ** d}))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
-            return OrthogonalModularFormLorentzian(self.weight(), S, (f.map_coefficients(lambda x: x**d)).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+            return OrthogonalModularFormLorentzian(self.weight(), S, (f.map_coefficients(lambda p: p.subs({x : x ** d}))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
         return OrthogonalModularFormLorentzian(self.weight(), S, f.V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
 
     def scale(self):
@@ -766,7 +772,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             h = copy(v)
             mult = max(1, ceil(1/4 - val))
             j = 1
-            s = isqrt(N)
+            s = isqrt(N) 
             s = s * s == N
             sqr = False
             if s:
