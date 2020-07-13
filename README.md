@@ -1,11 +1,19 @@
 # weilrep
 
-Sage code for computing with vector-valued modular forms and Jacobi forms.
+Sage code for computing with vector-valued modular forms, Jacobi forms and theta lifts.
 
 # Installation
 
-Download using `git clone git://github.com/btw-47/weilrep.git`. In the directory you downloaded this to, run `sage` and use `load('weilrep.sage')`.
+First enter `git clone git://github.com/btw-47/weilrep.git`
 
-# How to use this code
+Then install by typing `sage --python setup.py install --user`
 
-Please see the file `weilrep_readme.pdf` for details.
+You can also use this code in [CoCalc](https://cocalc.com/) without installing Sage. Open a project and create a new folder named 'weilrep'. Copy all files from the /weilrep folder into the CoCalc project. Finally, navigate up (out of the 'weilrep' folder) and open a Sage worksheet in your home directory.
+
+# How to use
+
+After installing, open Sage and type
+
+`from weilrep import *`
+
+Please see the file `weilrep_readme.pdf` for an overview of the functions.
