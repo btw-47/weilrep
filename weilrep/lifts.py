@@ -948,9 +948,9 @@ def orthogonal_eisenstein_series(k, S, prec, w = None):
             w = WeilRep(S)
         except AttributeError:
             w, S = S, S.gram_matrix()
-    nrows = ZZ(S.nrows())
+    nrows = Integer(S.nrows())
     try:
-        return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k - nrows/2, ceil(prec * prec / 4) + 1)).theta_lift(prec)
+        return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k + Integer(w.is_lorentzian()) - nrows/2, ceil(prec * prec / 4) + 1)).theta_lift(prec)
     except ValueError:
         raise ValueError('Invalid weight')
 
@@ -961,6 +961,9 @@ class WeilRepPositiveDefinite(WeilRep):
         self._WeilRep__eisenstein = {}
         self._WeilRep__cusp_forms_basis = {}
         self._WeilRep__modular_forms_basis = {}
+
+    def is_lorentzian(self):
+        return False
 
     def is_positive_definite(self):
         return True
