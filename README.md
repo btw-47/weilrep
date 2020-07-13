@@ -6,7 +6,7 @@ Sage code for computing with vector-valued modular forms, Jacobi forms and theta
 
 First enter `git clone git://github.com/btw-47/weilrep.git`
 
-Then install by typing `sage --python setup.py install --user`
+Then install by typing `sage --python weilrep/setup.py install --user`
 
 You can also use this code in [CoCalc](https://cocalc.com/) without installing Sage. Open a project and create a new folder named 'weilrep'. Copy all files from the /weilrep folder into the CoCalc project. Finally, navigate up (out of the 'weilrep' folder) and open a Sage worksheet in your home directory.
 
