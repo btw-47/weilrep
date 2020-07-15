@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
    name='weilrep',
@@ -6,5 +6,5 @@ setup(
    description='Weil representations, Jacobi forms and theta lifts',
    author='Brandon Williams',
    author_email='btw@math.berkeley.edu',
-   packages=['weilrep'],
+   packages=find_packages(),
 )
