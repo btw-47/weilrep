@@ -28,7 +28,7 @@ from sage.arith.misc import divisors, GCD, kronecker, XGCD
 from sage.calculus.var import var
 from sage.functions.other import ceil, floor, frac
 from sage.matrix.constructor import matrix
-from sage.matrix.special import block_diagonal_matrix
+from sage.matrix.special import block_diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
 from sage.modular.modform.element import is_ModularFormElement
 from sage.modules.free_module_element import vector
@@ -168,6 +168,7 @@ class WeilRepModularForm(object):
         try:
             return self.__weilrep
         except AttributeError:
+            from .weilrep import WeilRep
             self.__weilrep = WeilRep(self.gram_matrix())
             return self.__weilrep
 
@@ -630,8 +631,9 @@ class WeilRepModularForm(object):
 
         This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
         """
+        from .weilrep import WeilRep
         S = self.gram_matrix()
-        S_new = matrix(ZZ, S / (N^2))
+        S_new = matrix(ZZ, S / (N * N))
         nrows = S.nrows()
         symm = self.is_symmetric()
         w = self.weilrep()
