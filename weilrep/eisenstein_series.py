@@ -1068,7 +1068,7 @@ def L_values(L,c,S,p,k, t = None): #the Euler factors in the Eisenstein series, 
     if not c:
         return []
     if t is None:
-        t = p ** ZZ(1 + S.nrows()/2 - k)
+        t = p ** (1 + ZZ(S.nrows())/2 - k)
     if t == 1:#kluge. can it be fixed??
         t = p
         S = block_diagonal_matrix([S, matrix([[0,1],[1,0]])])
