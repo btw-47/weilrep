@@ -148,7 +148,7 @@ class OrthogonalModularFormsLorentzian(object):
         OUTPUT: a tuple consisting of an integral matrix M, a Polyhedron p, and a WeilRepModularFormsBasis X
         """
         S = self.gram_matrix()
-        wt = 1 - Integer(S.nrows())/2
+        wt = 1 - self.nvars()/2
         w = self.weilrep()
         rds = w.rds()
         norm_dict = w.norm_dict()
@@ -198,7 +198,7 @@ class OrthogonalModularFormsLorentzian(object):
         """
         S = self.gram_matrix()
         w = self.weilrep()
-        wt = 1 - Integer(S.nrows())/2
+        wt = 1 - self.nvars()/2
         M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
         if verbose:
             print('I will now try to find a Hilbert basis.')
@@ -242,7 +242,7 @@ class OrthogonalModularFormsLorentzian(object):
         """
         S = self.gram_matrix()
         w = self.weilrep()
-        wt = 1 - Integer(S.nrows())/2
+        wt = 1 - self.nvars()/2
         M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
         try:
             b = matrix(Cone(p).rays())
@@ -1101,6 +1101,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             except KeyError:
                                 pass
             if nrows > 1:
+                p = rpoly(1)
                 if (not extra_plane) and tuple(v) not in excluded_vectors:
                     v_big = vector(list(sv) + [0])
                     z = a_tr * v_big
@@ -1118,7 +1119,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         if c > 0:
                             f *= (1 - m + h) ** c
                         else:
-                            p = (1 - tpoly) ** c
+                            p *= (1 - tpoly) ** c
                             for j in range(2, isqrt(-val / norm_z) + 1):
                                 try:
                                     excluded_vectors.add(tuple(j * v))
@@ -1152,17 +1153,19 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                                 if c > 0:
                                     f *= (1 - mu * m + h) ** c
                                 else:
-                                    p = (1 - mu * tpoly) ** c
+                                    p *= (1 - mu * tpoly) ** c
                                     for j in range(2, isqrt(-val / norm_z) + 1):
-                                        try:
-                                            excluded_vectors.add(tuple([j*i % N] + list(j * v)))
-                                            c_new = coeffs[tuple([frac(j * y) for y in z] + [-j * j * norm_z] )]
-                                            p *= (1 - mu**j * (tpoly**j)) ** c_new
-                                        except KeyError:
-                                            pass
-                                    f *= rb_x(rpoly(p).subs({tpoly:m}))
+                                        v_new = tuple([j*i % N] + list(j * v))
+                                        if v_new not in excluded_vectors:
+                                            try:
+                                                c_new = coeffs[tuple([frac(j * y) for y in z] + [-j * j * norm_z] )]
+                                                p *= (1 - mu**j * (tpoly**j)) ** c_new
+                                                excluded_vectors.add(v_new)
+                                            except KeyError:
+                                                pass
                             except KeyError:
                                 pass
+                f *= rb_x(rpoly(p).subs({tpoly:m}))
         v = a.rows()[-1]
         norm_v = v * S * v / 2
         for j in srange(1, prec):
