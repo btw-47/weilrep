@@ -25,10 +25,11 @@ PariError = cypari2.PariError
 from copy import copy
 from re import sub
 from sage.arith.misc import divisors, GCD, kronecker, XGCD
+from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.functions.other import ceil, floor, frac
 from sage.matrix.constructor import matrix
-from sage.matrix.special import block_diagonal_matrix, identity_matrix
+from sage.matrix.special import block_diagonal_matrix
 from sage.misc.functional import denominator, isqrt
 from sage.modular.modform.element import is_ModularFormElement
 from sage.modules.free_module_element import vector
@@ -73,14 +74,16 @@ class WeilRepModularForm(object):
         self.__weight = weight
         self.__gram_matrix = gram_matrix
         self.__fourier_expansions = fourier_expansions
-        if weilrep:
-            self.__weilrep = weilrep
-            if weilrep.is_positive_definite():
-                from .lifts import WeilRepModularFormPositiveDefinite
-                self.__class__ = WeilRepModularFormPositiveDefinite #in the 'lifts.sage' file.
-            elif weilrep.is_lorentzian():
-                from .lorentz import WeilRepModularFormLorentzian
-                self.__class__ = WeilRepModularFormLorentzian #in the 'lorentzian.sage' file.
+        if weilrep is None:
+            from .weilrep import WeilRep
+            weilrep = WeilRep(gram_matrix)
+        self.__weilrep = weilrep
+        if weilrep.is_positive_definite():
+            from .lifts import WeilRepModularFormPositiveDefinite
+            self.__class__ = WeilRepModularFormPositiveDefinite #in the 'lifts.sage' file.
+        elif weilrep.is_lorentzian() or weilrep.is_lorentzian_plus_II():
+            from .lorentz import WeilRepModularFormLorentzian
+            self.__class__ = WeilRepModularFormLorentzian #in the 'lorentzian.sage' file.
 
     def __repr__(self): #represent as a list of pairs (g, f) where g is in the discriminant group and f is a q-series with fractional exponents
         try:
@@ -168,7 +171,6 @@ class WeilRepModularForm(object):
         try:
             return self.__weilrep
         except AttributeError:
-            from .weilrep import WeilRep
             self.__weilrep = WeilRep(self.gram_matrix())
             return self.__weilrep
 
@@ -257,6 +259,12 @@ class WeilRepModularForm(object):
             if exact:
                 return self.__exact_valuation
             return self.__valuation
+
+    def is_cusp_form(self):
+        return self.valuation(exact = True) > 0
+
+    def is_holomorphic(self):
+        return self.valuation(exact = True) >= 0
 
     def is_symmetric(self):
         r"""
@@ -631,9 +639,8 @@ class WeilRepModularForm(object):
 
         This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
         """
-        from .weilrep import WeilRep
         S = self.gram_matrix()
-        S_new = matrix(ZZ, S / (N * N))
+        S_new = matrix(ZZ, S / (N^2))
         nrows = S.nrows()
         symm = self.is_symmetric()
         w = self.weilrep()
@@ -926,6 +933,8 @@ class WeilRepModularForm(object):
                 z_prime = s.inverse() * sz_prime
             else:
                 sz_prime = s * z_prime
+        else:
+            sz_prime = s * z_prime
         szeta = s * zeta
         n = sz * zeta
         zeta_norm = zeta * szeta
@@ -945,9 +954,10 @@ class WeilRepModularForm(object):
         q, = X[0][2].parent().gens()
         prec = self.precision()
         for i, g in enumerate(ds):
-            if not Integer(g * sz) % n:
-                g_k = g - (g * sz) * (z_prime - z_prime_norm * z) - (g * sz_prime) * z
-                pg = g_k - (g * sz) * zeta_K / n
+            gsz = Integer(g * sz)
+            if not gsz % n:
+                g_k = g - gsz * (z_prime - z_prime_norm * z) - (g * sz_prime) * z
+                pg = g_k - gsz * zeta_K / n
                 try:
                     pg = vector(map(frac, k.solve_left(pg)))
                 except ValueError:
@@ -1024,6 +1034,9 @@ class WeilRepModularForm(object):
             [(1/4), -10*q^(1/4) - 48*q^(5/4) - 250*q^(9/4) - 240*q^(13/4) - 480*q^(17/4) + O(q^(21/4))]
             [(1/8), O(q^(81/16))]
         """
+        S = self.gram_matrix()
+        if not (b * S * b / 2) in ZZ:
+            raise ValueError('Nonzero norm vector in method .symmetrized()')
         d_b = denominator(b)
         if d_b == 1:
             return self
@@ -1032,7 +1045,7 @@ class WeilRepModularForm(object):
         X = self.components()
         w = self.weilrep()
         ds = w.ds()
-        symm = self.is_symmetric
+        symm = self.is_symmetric()
         if symm:
             eps = 1
         else:
@@ -1051,7 +1064,7 @@ class WeilRepModularForm(object):
                     Y[i] = g, norm_list[i], f
             else:
                 Y[i] = g, norm_list[i], eps * Y[indices[i]][2]
-        return WeilRepModularForm(self.__weight, S, Y, weilrep = self.weilrep())
+        return WeilRepModularForm(self.weight(), S, Y, weilrep = w)
 
     def theta_contraction(self, odd = False, components = None, weilrep = None):
         r"""
@@ -1118,6 +1131,8 @@ class WeilRepModularForm(object):
                     return R(f)
                 except TypeError:
                     return R(0)
+                    #R0, q = LaurentSeriesRing(QQ, 'q').objgen()
+                    #return R0(f)
         for i, g in enumerate(_ds):
             offset = frac(g*S*g/2)
             prec_g = prec + ceil(offset)
@@ -1131,9 +1146,9 @@ class WeilRepModularForm(object):
                 r_square = ((bound + 1 + gSb) ** 2) / (4*m) + offset
                 old_offset = 0
                 big_offset_ind = []
-                for r in range(-bound, bound+1):
+                for r in srange(-bound, bound+1):
                     r_i += 1
-                    r_shift = QQ(r) - gSb
+                    r_shift = r - gSb
                     if r_i < bm2:
                         i_m = r_i
                         g_new = list(g - b * r_shift/(2 * m)) + [r_shift/(2 * m)]
@@ -1157,7 +1172,10 @@ class WeilRepModularForm(object):
                 if val >= 0:
                     Y[i] = g, -offset, sum([R(theta_twist[j]) * X[g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])+O(q ** prec_g)
                 else:
-                    Y[i] = g, -offset, q ** (val) * (sum([R(theta_twist[j]) * map_to_R(q ** (-val) * X[g_ind[j]][2]) for j in range(min(bm2, len(g_ind))) if theta_twist[j]])+O(q ** (prec_g - val)))
+                    try:
+                        Y[i] = g, -offset, q ** (val) * (sum([R(theta_twist[j]) * map_to_R(q ** (-val) * X[g_ind[j]][2]) for j in range(min(bm2, len(g_ind))) if theta_twist[j]])+O(q ** (prec_g - val)))
+                    except:
+                        Y[i] = g, -offset, O(q ** (prec_g - val))
             else:
                 Y[i] = g, -offset, eps * Y[_indices[i]][2]
         return WeilRepModularForm(QQ(self.weight() + sage_one_half + odd), S, Y, weilrep = weilrep)

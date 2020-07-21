@@ -101,10 +101,10 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose
     thetablockQ_4 = QuadraticForm(matrix([[4,0,0,0],[0,8,8,4],[0,8,16,8],[0,4,8,6]]))
     thetablock_tuple = thetablockQ_1, thetablockQ_2, thetablockQ_3, thetablockQ_4
     from .jacobi_forms_class import theta_block
-    thetablock_1 = lambda a, b, c, d, prec: theta_block([a, a+b, a+b+c, a+b+c+d, b, b+c, b+c+d, c, c+d, d],-6,prec)
-    thetablock_2 = lambda a, b, c, d, prec: theta_block([a, 3*a+b, 3*a+b+b, a+a+b, a+b, b, c+c, c+c+d, 2*(c+d), d], -6, prec)
-    thetablock_3 = lambda a, b, c, d, prec: theta_block([a+a, b+b, b+b+c, 2*(b+c+d+d), b+b+c+d+d, b+b+c+4*d, c, c+d+d, c+4*d, d+d], -6, prec)
-    thetablock_4 = lambda a, b, c, d, prec: theta_block([a+a, b, b+b+c+c+d, b+c, b+c+c+d, b+c+d, c, c+c+d, c+d, d], -6, prec)
+    thetablock_1 = lambda a, b, c, d, prec: theta_block([a, a+b, a+b+c, a+b+c+d, b, b+c, b+c+d, c, c+d, d], -6, prec, jacobiforms = jacobiforms)
+    thetablock_2 = lambda a, b, c, d, prec: theta_block([a, 3*a+b, 3*a+b+b, a+a+b, a+b, b, c+c, c+c+d, 2*(c+d), d], -6, prec, jacobiforms = jacobiforms)
+    thetablock_3 = lambda a, b, c, d, prec: theta_block([a+a, b+b, b+b+c, 2*(b+c+d+d), b+b+c+d+d, b+b+c+4*d, c, c+d+d, c+4*d, d+d], -6, prec, jacobiforms = jacobiforms)
+    thetablock_4 = lambda a, b, c, d, prec: theta_block([a+a, b, b+b+c+c+d, b+c, b+c+c+d, b+c+d, c, c+c+d, c+d, d], -6, prec, jacobiforms = jacobiforms)
     thetablocks = thetablock_1, thetablock_2, thetablock_3, thetablock_4
     basis = []
     basis_vectors = []
@@ -179,14 +179,14 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
     args8 = lambda a, b, c, d, e, f : [a+a, b, c, d, b + d, c + d, b + c + d, e, d + e, b + d + e, c + d + e, b + c + d + e, b + c + 2*d + e, f, e + f, d + e + f, b + d + e + f, c + d + e + f, b + c + d + e + f, b + c + 2*d + e + f, b + c + 2*d + 2*e + f]
     args_tuple = args1, args2, args3, args4, args5, args6, args7, args8
     from .jacobi_forms_class import theta_block
-    thetablock_1 = lambda b, c, d, prec: theta_block(args1(b, c, d), -3, prec)
-    thetablock_2 = lambda b, c, d, prec: theta_block(args2(b, c, d), -3, prec)
-    thetablock_3 = lambda a, b, d, e, f, prec: theta_block(args3(a, b, d, e, f), -3, prec)
-    thetablock_4 = lambda a, b, c, d, e, f, prec: theta_block(args4(a, b, c, d, e, f), -3, prec)
-    thetablock_5 = lambda a, b, c, d, e, f, prec: theta_block(args5(a, b, c, d, e, f), -3, prec)
-    thetablock_6 = lambda a, b, c, d, e, f, prec: theta_block(args6(a, b, c, d, e, f), -3, prec)
-    thetablock_7 = lambda a, b, c, d, e, f, prec: theta_block(args7(a, b, c, d, e, f), -15, prec)
-    thetablock_8 = lambda a, b, c, d, e, f, prec: theta_block(args8(a, b, c, d, e, f), -15, prec)
+    thetablock_1 = lambda b, c, d, prec: theta_block(args1(b, c, d), -3, prec, jacobiforms = jacobiforms)
+    thetablock_2 = lambda b, c, d, prec: theta_block(args2(b, c, d), -3, prec, jacobiforms = jacobiforms)
+    thetablock_3 = lambda a, b, d, e, f, prec: theta_block(args3(a, b, d, e, f), -3, prec, jacobiforms = jacobiforms)
+    thetablock_4 = lambda a, b, c, d, e, f, prec: theta_block(args4(a, b, c, d, e, f), -3, prec, jacobiforms = jacobiforms)
+    thetablock_5 = lambda a, b, c, d, e, f, prec: theta_block(args5(a, b, c, d, e, f), -3, prec, jacobiforms = jacobiforms)
+    thetablock_6 = lambda a, b, c, d, e, f, prec: theta_block(args6(a, b, c, d, e, f), -3, prec, jacobiforms = jacobiforms)
+    thetablock_7 = lambda a, b, c, d, e, f, prec: theta_block(args7(a, b, c, d, e, f), -15, prec, jacobiforms = jacobiforms)
+    thetablock_8 = lambda a, b, c, d, e, f, prec: theta_block(args8(a, b, c, d, e, f), -15, prec, jacobiforms = jacobiforms)
     thetablocks = thetablock_1, thetablock_2, thetablock_3, thetablock_4, thetablock_5, thetablock_6, thetablock_7, thetablock_8
     basis = []
     basis_vectors = []

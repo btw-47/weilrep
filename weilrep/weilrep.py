@@ -64,6 +64,9 @@ from .weilrep_modular_forms_class import smf, WeilRepModularForm, WeilRepModular
 
 sage_one_half = Integer(1) / Integer(2)
 sage_three_half = Integer(3) / Integer(2)
+sage_five_half = Integer(5) / Integer(2)
+sage_seven_half = Integer(7) / Integer(2)
+sage_nine_half = Integer(9) / Integer(2)
 
 
 class WeilRep(object):
@@ -105,6 +108,40 @@ class WeilRep(object):
     def __repr__(self):
         #when printed:
         return 'Weil representation associated to the Gram matrix\n%s' % (self.gram_matrix())
+
+    ## rescale, add weilrep's
+
+    def dual(self):
+        r"""
+        Compute the dual representation.
+
+        This is simply the Weil representation obtained by multiplying the underlying quadratic form by (-1).
+
+        NOTE: w.dual() is the same as w(-1)
+
+        OUTPUT: a WeilRep instance
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[2,1],[1,2]])).dual()
+            Weil representation associated to the Gram matrix
+            [-2 -1]
+            [-1 -2]
+
+        """
+        return WeilRep(-self.gram_matrix())
+
+    def __call__(self, N):
+        r"""
+        Rescale the underlying lattice.
+        """
+        return WeilRep(N * self.gram_matrix())
+
+    def __add__(self, other):
+        return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+
+    __radd__ = __add__
 
     ## basic attributes
 
@@ -151,6 +188,9 @@ class WeilRep(object):
             self.__is_lorentzian = self.__true_signature + 2 == self.__gram_matrix.nrows()
             return self.__is_lorentzian
 
+    def is_lorentzian_plus_II(self):
+        return False
+
     def is_positive_definite(self):
         try:
             return self.__is_positive_definite
@@ -174,7 +214,12 @@ class WeilRep(object):
             0
 
         """
-        return [1,None,0,None][(Integer(2 * weight) + self.signature()) % 4]
+        i = (Integer(weight + weight) + self.signature()) % 4
+        if i == 0:
+            return 1
+        elif i == 2:
+            return 0
+        return None
 
     ## methods for the discriminant form
 
@@ -295,33 +340,6 @@ class WeilRep(object):
                 self.__ds = ds
                 self.__ds_dict = ds_dict
                 return self.__ds_dict
-
-    def dual(self):
-        r"""
-        Compute the dual representation.
-
-        This is simply the Weil representation obtained by multiplying the underlying quadratic form by (-1).
-
-        NOTE: w.dual() is the same as w(-1)
-
-        OUTPUT: a WeilRep instance
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[2,1],[1,2]])).dual()
-            Weil representation associated to the Gram matrix
-            [-2 -1]
-            [-1 -2]
-
-        """
-        return WeilRep(-self.gram_matrix())
-
-    def __call__(self, N):
-        r"""
-        Rescale the underlying lattice.
-        """
-        return WeilRep(N * self.gram_matrix())
 
     def embiggen(self, b, m):
         S = self.gram_matrix()
@@ -1896,11 +1914,11 @@ class WeilRep(object):
             prec = ceil(sturm_bound)
         else:
             prec = ceil(max(prec, sturm_bound))
-        if k >= 7/2 or (k >= 5/2 and symm):
-            if k >= 31/2 or (k >= 29/2 and symm):
+        if k >= sage_seven_half or (k >= sage_five_half and symm):
+            if k >= ZZ(31)/2 or (k >= ZZ(29)/2 and symm):
                 deltasmf = [smf(12, delta_qexp(prec))]
             rank = 0
-            if symm and k >= 9/2:
+            if symm and k >= sage_nine_half:
                 E, X = self._eisenstein_packet(k, prec, dim = dim+1)
                 if verbose and X:
                     print('I computed a packet of %d cusp forms using Eisenstein series. (They may be linearly dependent.)'%len(X))
@@ -1958,7 +1976,7 @@ class WeilRep(object):
                                             if verbose:
                                                 print('-'*40)
                                             if m != failed_exponent:
-                                                y = w_new.cusp_forms_basis(k - sage_one_half, prec, verbose = verbose, dim = min(dim_rank, ceil((3/4)*dim))).theta()
+                                                y = w_new.cusp_forms_basis(k - sage_one_half, prec, verbose = verbose, dim = min(dim_rank, ceil(sage_three_half*dim / 2))).theta(weilrep = self)
                                                 if y:
                                                     X.extend(y)
                                                     if verbose and (len(X) > rank):
@@ -1975,7 +1993,7 @@ class WeilRep(object):
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
                                             j = 1
                                             k_j = k - 12
-                                            while k_j > 5/2:
+                                            while k_j > sage_five_half:
                                                 try:
                                                     delta_j = deltasmf[j - 1]
                                                 except IndexError:
@@ -1992,9 +2010,9 @@ class WeilRep(object):
                                                 X = Y
                                     else:
                                         w_new = self.embiggen(b, m)
-                                        if dim_rank > 1 and k > 9/2:
+                                        if dim_rank > 1 and k > sage_nine_half:
                                             _, x = w_new._eisenstein_packet(k - sage_one_half, prec, dim = dim_rank)
-                                            X.extend(x.theta())
+                                            X.extend(x.theta(weilrep = self))
                                             if x and verbose:
                                                 print('I computed a packet of %d cusp forms using the index %s.'%(len(x), (b, m)))
                                         rank = X.rank()
@@ -2005,7 +2023,7 @@ class WeilRep(object):
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
                                             j = 1
                                             k_j = k - 12
-                                            while k_j > 5/2:
+                                            while k_j > sage_five_half:
                                                 try:
                                                     delta_j = deltasmf[j - 1]
                                                 except IndexError:
@@ -2027,7 +2045,7 @@ class WeilRep(object):
                                             if verbose:
                                                 print('-'*40)
                                             if m != failed_exponent:
-                                                y = w_new.cusp_forms_basis(k - sage_three_half, prec, verbose = verbose, dim = dim - Integer(len(X))).theta(odd = True)
+                                                y = w_new.cusp_forms_basis(k - sage_three_half, prec, verbose = verbose, dim = dim - Integer(len(X))).theta(odd = True, weilrep = self)
                                                 if y:
                                                     X.extend(y)
                                                     if verbose:
@@ -2051,7 +2069,7 @@ class WeilRep(object):
                                         w_new = self.embiggen(b, m)
                                         if dim_rank > 1 and k > 6:
                                             Y = copy(X)
-                                            y = w_new._eisenstein_packet(k - sage_three_half, prec, dim = dim_rank, include_E = True).theta(odd = True)
+                                            y = w_new._eisenstein_packet(k - sage_three_half, prec, dim = dim_rank, include_E = True).theta(odd = True, weilrep = self)
                                             Y.extend(y)
                                             if verbose:
                                                 print('I computed a packet of %d cusp forms using the index %s.'%(len(y), (b, m)))
@@ -2062,7 +2080,7 @@ class WeilRep(object):
                                                 print('I computed a Poincare square series of index %s.'%([b, m]))
                                             j = 1
                                             k_j = k - 12
-                                            while k_j > 7/2:
+                                            while k_j > sage_seven_half:
                                                 try:
                                                     delta_j = deltasmf[j - 1]
                                                 except IndexError:
@@ -2196,6 +2214,10 @@ class WeilRep(object):
         _ds = self.ds()
         _indices = self.rds(indices = True)
         _norm_list = self.norm_list()
+        try:
+            weight = Integer(weight)
+        except TypeError:
+            weight = QQ(weight)
         sturm_bound = weight / 12
         prec = max(prec, sturm_bound)
         b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and (self.__ds_denominators_list[i] < 5 or self.__ds_denominators_list[i] == 6)]
@@ -2315,6 +2337,10 @@ class WeilRep(object):
             print('I am now looking for modular forms of weight %s which vanish to order %s at infinity.' %(k, N))
         if inclusive and inclusive_except_zero_component:
             raise ValueError('At most one of "inclusive" and "inclusive_except_zero_component" may be true')
+        try:
+            k = Integer(k)
+        except TypeError:
+            k = QQ(k)
         symm = self.is_symmetric_weight(k)
         if symm is None:
             return WeilRepModularFormsBasis(k, [], self)
@@ -2428,9 +2454,13 @@ class WeilRep(object):
         """
         if verbose:
             print('I am now looking for modular forms of weight %s which are holomorphic on H and have a pole of order at most %s in infinity.' %(k, pole_order))
+        try:
+            k = Integer(k)
+        except TypeError:
+            k = QQ(k)
         sturm_bound = k/12
         prec = max(prec, sturm_bound)
-        dual_sturm_bound = 1/6 - sturm_bound
+        dual_sturm_bound = Integer(1)/Integer(6) - sturm_bound
         symm = self.is_symmetric_weight(k)
         if symm is None:
             return []
@@ -2453,7 +2483,7 @@ class WeilRep(object):
         ceil_pole_order = ceil(pole_order)
         computed_weight = k + 12 * ceil_pole_order
         N = ceil_pole_order
-        while computed_weight < 7/2 or (symm and computed_weight < 5/2):
+        while computed_weight < sage_seven_half or (symm and computed_weight < sage_five_half):
             computed_weight += 12
             N += 1
         if force_N_positive and N <= pole_order:
@@ -2492,7 +2522,7 @@ class WeilRep(object):
         """
         prec = ceil(prec)
         d = self.discriminant()
-        if weight > 2 or (weight == 2 and ((d%4 and d.is_squarefree()) or (d//4).is_squarefree())):
+        if weight > 2 or (weight == 2 and ((d % 4 and d.is_squarefree()) or (d//4).is_squarefree())):
             if verbose:
                 print('I am looking for obstructions to Borcherds products of weight %s.' %weight)
             E = self.eisenstein_series(weight, prec)

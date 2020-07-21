@@ -70,7 +70,7 @@ class OrthogonalModularForms(object):
         except AttributeError:
             w = WeilRep(w)
             S = w.gram_matrix()
-        if w.is_lorentzian():
+        if w.is_lorentzian() or w.is_lorentzian_plus_II():
             from .lorentz import OrthogonalModularFormsLorentzian
             self.__class__ = OrthogonalModularFormsLorentzian
             OrthogonalModularFormsLorentzian.__init__(self, w)
@@ -965,6 +965,9 @@ class WeilRepPositiveDefinite(WeilRep):
     def is_lorentzian(self):
         return False
 
+    def is_lorentzian_plus_II(self):
+        return False
+
     def is_positive_definite(self):
         return True
 
@@ -978,7 +981,7 @@ class WeilRepPositiveDefinite(WeilRep):
             zerom = matrix([[0]])
             zerov = matrix([[0]*S.nrows()])
             zerovt = zerov.transpose()
-            N = other.N()
+            N = other._N()
             return WeilRepLorentzian(block_matrix([[zerom, zerov, N], [zerovt, S, zerovt], [N, zerov, -(N + N)]], subdivide = False), lift_qexp_representation = 'PD+II')
         else:
             raise NotImplementedError

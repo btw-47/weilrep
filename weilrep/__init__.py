@@ -1,4 +1,4 @@
-from .hilbert import HMF, HilbertModularForms
+from .hilbert import HMF, HilbertModularForms, hmf_inputs
 from .jacobi_forms_class import jacobi_eisenstein_series, JacobiForms, theta_block
 from .lifts import jacobian, orthogonal_eisenstein_series, OrthogonalModularForms, ParamodularForms
 from .lorentz import II, RescaledHyperbolicPlane
