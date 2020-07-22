@@ -361,7 +361,7 @@ class OrthogonalModularFormLorentzian:
                     f = self.__q_s_exp
                 self.__string = str(f)
                 if not qs:
-                    self.__string += ' + O(s^%s)'%hprec
+                    self.__string = sub(r'O\(q.*\)', lambda x: 'O(q, s)%s'%x.string[slice(*x.span())][3:-1], self.__string)
                 self.__string = self.__string.replace('((', '(')
                 self.__string = self.__string.replace('))', ')')
                 if d != 1:
@@ -906,7 +906,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             else:
                 X_small = copy(self)
                 X = copy(X_small)
-            v = vector([0] + list(X.theta_contraction().weyl_vector(_x = False)))
+            v = vector([QQ(0)] + list(X.theta_contraction().weyl_vector(_x = False)))
             if not _x:
                 X_small = X_small.conjugate(u)
                 S = u * S * u
