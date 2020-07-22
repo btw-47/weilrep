@@ -1234,7 +1234,7 @@ class WeilRep(object):
             [(1/2, 1/2), -7616/31*q - 8448*q^2 - 1876736/31*q^3 - 270336*q^4 + O(q^5)]
 
         """
-        if weight < 5/2:
+        if weight < sage_five_half:
             raise NotImplementedError
         S = self.gram_matrix()
         if not weilrep:
@@ -1251,12 +1251,12 @@ class WeilRep(object):
         new_k = weight - sage_one_half
         _components = [self.ds(), self.rds(indices = True)]
         X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(components = _components)
-        if weight > 5/2:
+        if weight > sage_five_half:
             return X
-        elif weight == 5/2:#result might be wrong so lets fix it
+        elif weight == sage_five_half:#result might be wrong so lets fix it
             dets = w.discriminant()
             try:
-                epsilon = QQ(24 * (-1)**((1 + self.signature())/4) / sqrt(abs(dets))) #maybe we will need this number
+                epsilon = QQ(Integer(24) * (-1)**((1 + self.signature())/4) / sqrt(abs(dets))) #maybe we will need this number
             except TypeError:
                 return X #result was ok
             q, = PowerSeriesRing(QQ, 'q').gens()
@@ -1310,7 +1310,7 @@ class WeilRep(object):
             [(2/3, 1/2, 2/3), O(q^(71/12))]
 
         """
-        if weight < 7/2:
+        if weight < sage_seven_half:
             raise NotImplementedError
         if not weilrep:
             S = self.gram_matrix()
@@ -1326,11 +1326,11 @@ class WeilRep(object):
             w = weilrep
         new_k = weight - sage_three_half
         X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(odd = True, weilrep = self)
-        if weight > 7/2:
+        if weight > sage_seven_half:
             return X
         else:#result might be wrong so lets fix it
             try:
-                epsilon = QQ(8 * (-1)**((1 + self.signature())/4) / sqrt(self.discriminant()))#factor has to be 8 here, not 24 like in pss()
+                epsilon = QQ(Integer(8) * (-1)**((1 + self.signature())/4) / sqrt(self.discriminant()))#factor has to be 8 here, not 24 like in pss()
             except TypeError:
                 return X#result was ok
             q, = PowerSeriesRing(QQ, 'q').gens()
