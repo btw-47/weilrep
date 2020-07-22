@@ -42,7 +42,7 @@ from sage.matrix.special import block_matrix, identity_matrix
 from sage.misc.functional import denominator, round, isqrt
 from sage.misc.misc_c import prod
 from sage.modular.dirichlet import DirichletGroup, kronecker_character
-from sage.modular.modform.constructor import ModularForms
+from sage.modular.modform.constructor import CuspForms, ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import is_ModularFormElement
 from sage.modular.modform.j_invariant import j_invariant_qexp
