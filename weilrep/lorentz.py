@@ -42,6 +42,7 @@ from sage.misc.functional import denominator, isqrt
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
+from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.number_field.number_field import CyclotomicField
@@ -284,7 +285,6 @@ class OrthogonalModularFormLorentzian:
         self.__weight = k
         self.__gram_matrix = S
         self.__fourier_expansion = f
-        self.__precision = f.prec()
         self.__scale = scale
         self.__valuation = f.valuation()
         if plusII:
@@ -391,6 +391,38 @@ class OrthogonalModularFormLorentzian:
         except AttributeError:
             return self.base_ring()
 
+    def coefficients(self, prec = +Infinity):
+        r"""
+        Return a dictionary of self's known Fourier coefficients.
+
+        The input into the dictionary should be a tuple of the form (a, b_0, ..., b_d, c). The output will then be the Fourier coefficient of the monomial x^a r_0^(b_0)...r_d^(b_d) t^c.
+        """
+        L = {}
+        d = self.scale()
+        nrows = self.gram_matrix().nrows()
+        f = self.true_fourier_expansion()
+        d_prec = d * prec
+        for j_t, p in f.dict().items():
+            if j_t < d_prec:
+                if nrows > 1:
+                    for j_x, h in p.dict().items():
+                        if nrows > 2:
+                            if nrows > 3:
+                                for j_r, y in h.dict().items():
+                                    g = tuple([j_x/d] + list(vector(j_r) / d) + [j_t / d])
+                                    L[g] = y
+                            else:
+                                for j_r, y in h.dict().items():
+                                    g = tuple([j_x/d, j_r/d, j_t / d])
+                                    L[g] = y
+                        else:
+                            g = tuple([j_x/d, j_t /d])
+                            L[g] = h
+                else:
+                    g = tuple([j_t / d])
+                    L[g] = p
+        return L
+
     def gram_matrix(self):
         r"""
         Return our Gram matrix.
@@ -407,7 +439,7 @@ class OrthogonalModularFormLorentzian:
         r"""
         Return our precision.
         """
-        return self.__precision
+        return self.true_fourier_expansion().prec() / self.scale()
 
     def qexp_representation(self):
         r"""
@@ -1137,12 +1169,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             p *= (1 - tpoly) ** c
                             for j in range(2, isqrt(-val / norm_z) + 1):
                                 try:
-                                    excluded_vectors.add(tuple(j * v))
                                     c_new = coeffs[tuple([frac(j * y) for y in z] + [-j * j * norm_z] )]
                                     p *= (1 - tpoly**j) ** c_new
+                                    excluded_vectors.add(tuple(j * v))
                                 except KeyError:
                                     pass
-                            f *= rb_x(rpoly(p).subs({tpoly:m}))
                     except KeyError:
                         pass
                 elif extra_plane:

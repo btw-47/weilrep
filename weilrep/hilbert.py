@@ -24,6 +24,7 @@ from sage.functions.other import ceil, floor, frac, sqrt
 from sage.matrix.constructor import matrix
 from sage.misc.functional import denominator, isqrt
 from sage.rings.big_oh import O
+from sage.rings.infinity import Infinity
 from sage.rings.integer_ring import ZZ
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
@@ -381,13 +382,17 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
     def qexp_representation(self):
         return 'hilbert', self.base_field()
 
+    def nvars(self):
+        return 2
+
     #get Fourier coefficients
 
-    def coefficients(self):
+    def coefficients(self, prec=+Infinity):
         r"""
         Return self's Fourier coefficients as a dictionary.
         """
         d = self.scale()
+        d_prec = d * prec
         K = self.base_field()
         D = K.discriminant()
         sqrtD = K(D).sqrt()
@@ -395,7 +400,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             sqrtD /= 2
         X = {}
         h = self.fourier_expansion()
-        return {(i + n/sqrtD)/(d + d):p[n] for i, p in enumerate(h.list()) for n in p.exponents()}
+        return {(i + n/sqrtD)/(d + d):p[n] for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
 
     def __getitem__(self, a):
         r"""

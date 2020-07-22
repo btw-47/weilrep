@@ -42,6 +42,7 @@ from sage.misc.functional import denominator, isqrt
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
 from sage.rings.big_oh import O
+from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
@@ -571,7 +572,6 @@ class OrthogonalModularForm:
         self.__weight = k
         self.__gram_matrix = S
         self.__fourier_expansion = f
-        self.__precision = f.prec()
         self.__scale = scale
         self.__valuation = f.valuation()
         self.__weylvec = weylvec
@@ -625,7 +625,7 @@ class OrthogonalModularForm:
         r"""
         Return our precision.
         """
-        return self.__precision
+        return Integer(self.true_fourier_expansion().prec()) / self.scale()
 
     def rescale(self, d):
         r"""
@@ -669,7 +669,7 @@ class OrthogonalModularForm:
 
     ## methods to extract Fourier coefficients
 
-    def coefficients(self):
+    def coefficients(self, prec=+Infinity):
         r"""
         Return a dictionary of self's known Fourier coefficients.
 
@@ -688,17 +688,19 @@ class OrthogonalModularForm:
         f = self.fourier_expansion()
         coeffs = f.coefficients()
         q, s = f.parent().gens()
+        d_prec = d * prec
         for j, x in coeffs.items():
             a, c = j.exponents()[0]
-            x_coeffs = x.coefficients()
-            if nrows > 1:
-                for i, y in enumerate(x.exponents()):
-                    g = tuple([a/d] + list(vector(y)/d) + [c/d])
-                    L[g] = x_coeffs[i]
-            else:
-                for i, y in enumerate(x.exponents()):
-                    g = a/d, y/d, c/d
-                    L[g] = x_coeffs[i]
+            if a+c < d_prec:
+                x_coeffs = x.coefficients()
+                if nrows > 1:
+                    for i, y in enumerate(x.exponents()):
+                        g = tuple([a/d] + list(vector(y)/d) + [c/d])
+                        L[g] = x_coeffs[i]
+                else:
+                    for i, y in enumerate(x.exponents()):
+                        g = a/d, y/d, c/d
+                        L[g] = x_coeffs[i]
         return L
 
     def fourier_expansion(self):
@@ -732,7 +734,7 @@ class OrthogonalModularForm:
             sage: f = ParamodularForms(1).spezialschar(10, 5)[0]
             sage: f.fourier_jacobi()
             [O(q^5), (w^-1 - 2 + w)*q + (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q^2 + (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q^3 + O(q^4), (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q + (-16*w^-3 + 240*w^-2 - 240*w^-1 + 32 - 240*w + 240*w^2 - 16*w^3)*q^2 + O(q^3), (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q + O(q^2), O(q^1)]
-        
+
             sage: from weilrep import *
             sage: f = ParamodularForms(4).borcherds_input_by_weight(1/2, 5)[0].borcherds_lift()
             sage: (f ** 8).fourier_jacobi()
@@ -1425,3 +1427,39 @@ def jacobian(X):
         return OrthogonalModularForm(k, S, matrix(L).determinant(), scale = 1, weylvec = v)
     from .lorentz import OrthogonalModularFormLorentzian
     return OrthogonalModularFormLorentzian(k, S, matrix(L).determinant(), scale = 1, weylvec = v, qexp_representation = Xref.qexp_representation())
+
+def omf_matrix(X):
+    r"""
+    Convert the Fourier coefficients of a list of orthogonal modular forms X into a matrix.
+    """
+    if not X:
+        return matrix([])
+    nrows = X[0].nvars()
+    prec = min(x.precision() for x in X)
+    Xcoeffs = [x.coefficients(prec = prec) for x in X]
+    Xitems = [set(xcoeffs.keys()) for xcoeffs in Xcoeffs]
+    Xitems = list(Xitems[0].union(*Xitems[1:]))
+    lenXitems = len(Xitems)
+    L = [[0]*lenXitems for _ in X]
+    M = []
+    for i, x in enumerate(X):
+        L = [0]*lenXitems
+        for j, g in enumerate(Xitems):
+            try:
+                L[j] = Xcoeffs[i][g]
+            except KeyError:
+                pass
+        M.append(L)
+    return matrix(M)
+
+def omf_rank(X):
+    r"""
+    Compute the rank of the space spanned by the list of orthogonal modular forms X.
+    """
+    return omf_matrix(X).rank()
+
+def omf_relations(X):
+    r"""
+    Compute all linear relations among the list of orthogonal modular forms X.
+    """
+    return omf_matrix(X).kernel()
