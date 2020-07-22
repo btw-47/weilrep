@@ -37,7 +37,7 @@ from sage.functions.other import ceil, floor, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
-from sage.matrix.special import block_matrix
+from sage.matrix.special import block_diagonal_matrix, block_matrix
 from sage.misc.functional import denominator, isqrt
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
@@ -74,11 +74,21 @@ class OrthogonalModularForms(object):
             from .lorentz import OrthogonalModularFormsLorentzian
             self.__class__ = OrthogonalModularFormsLorentzian
             OrthogonalModularFormsLorentzian.__init__(self, w)
+        elif not w.is_positive_definite():
+            raise NotImplementedError
         self.__weilrep = w
         self.__gram_matrix = S
 
     def __repr__(self):
         return 'Orthogonal modular forms associated to the Gram matrix\n%s + 2U'%self.__gram_matrix
+
+    def __add__(self, other):
+        from .lorentz import RescaledHyperbolicPlane
+        w = self.weilrep()
+        if isinstance(other, RescaledHyperbolicPlane):
+            return OrthogonalModularForms(w + other)
+        raise NotImplementedError
+    __radd__ = __add__
 
     def gram_matrix(self):
         return self.__gram_matrix
@@ -608,6 +618,9 @@ class OrthogonalModularForm:
         """
         return self.__gram_matrix
 
+    def nvars(self):
+        return 2 + Integer(self.gram_matrix().nrows())
+
     def precision(self):
         r"""
         Return our precision.
@@ -983,9 +996,10 @@ class WeilRepPositiveDefinite(WeilRep):
             zerovt = zerov.transpose()
             N = other._N()
             return WeilRepLorentzian(block_matrix([[zerom, zerov, N], [zerovt, S, zerovt], [N, zerov, -(N + N)]], subdivide = False), lift_qexp_representation = 'PD+II')
-        else:
-            raise NotImplementedError
-
+        from .weilrep import WeilRep
+        if isinstance(other, WeilRep):
+            return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+        return NotImplemented
     __radd__ = __add__
 
 class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
@@ -1375,13 +1389,14 @@ def jacobian(X):
     """
     N = len(X)
     Xref = X[0]
+    nvars = Xref.nvars()
     f = Xref.true_fourier_expansion()
-    t = f.parent().gens()[0]
+    t, = f.parent().gens()
     rb_x = f.base_ring()
-    x = rb_x.gens()[0]
+    x, = rb_x.gens()
     r_list = rb_x.base_ring().gens()
-    if not N == len(r_list) + 3:
-        raise ValueError('The Jacobian requires %d modular forms.'%(len(r_list) + 3))
+    if not N == nvars + 1:
+        raise ValueError('The Jacobian requires %d modular forms.'%(nvars + 1))
     k = N - 1
     v = vector([0] * (N - 1))
     r_deriv = [[] for _ in r_list]
@@ -1391,14 +1406,22 @@ def jacobian(X):
     for y in X:
         f = y.true_fourier_expansion()
         t_deriv.append(t * f.derivative())
-        x_deriv.append(f.map_coefficients(lambda a: x * a.derivative()))
-        for i, r in enumerate(r_list):
-            r_deriv[i].append(f.map_coefficients(lambda a: rb_x([r * y.derivative(r) for y in list(a)]) * (x ** (a.polynomial_construction()[1]) )))
+        if nvars > 1:
+            x_deriv.append(f.map_coefficients(lambda a: x * a.derivative()))
+            if nvars > 2:
+                for i, r in enumerate(r_list):
+                    r_deriv[i].append(f.map_coefficients(lambda a: rb_x([r * y.derivative(r) for y in list(a)]) * (x ** (a.polynomial_construction()[1]) )))
         y_k = y.weight()
         k += y_k
         v += y.weyl_vector()
         u.append(y_k * f)
     S = Xref.gram_matrix()
-    L = [u, t_deriv, x_deriv]
-    L.extend(r_deriv)
-    return OrthogonalModularForm(k, S, matrix(L).determinant(), scale = 1, weylvec = v)
+    L = [u, t_deriv]
+    if nvars > 1:
+        L.append(x_deriv)
+        if nvars > 2:
+            L.extend(r_deriv)
+    if nvars > S.nrows():
+        return OrthogonalModularForm(k, S, matrix(L).determinant(), scale = 1, weylvec = v)
+    from .lorentz import OrthogonalModularFormLorentzian
+    return OrthogonalModularFormLorentzian(k, S, matrix(L).determinant(), scale = 1, weylvec = v, qexp_representation = Xref.qexp_representation())

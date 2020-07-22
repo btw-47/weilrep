@@ -378,6 +378,9 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             return HMFCharacter(self.base_field(), (24 * val)/scale, (12 * (val + r))/scale)
         return HMFCharacter(self.base_field(), (24 * val)/scale, (24 * r)/scale)
 
+    def qexp_representation(self):
+        return 'hilbert', self.base_field()
+
     #get Fourier coefficients
 
     def coefficients(self):

@@ -139,7 +139,9 @@ class WeilRep(object):
         return WeilRep(N * self.gram_matrix())
 
     def __add__(self, other):
-        return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+        if isinstance(other, WeilRep):
+            return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+        return NotImplemented
 
     __radd__ = __add__
 

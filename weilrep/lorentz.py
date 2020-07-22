@@ -73,7 +73,18 @@ class OrthogonalModularFormsLorentzian(object):
         self.__gram_matrix = S
 
     def __repr__(self):
-        return 'Orthogonal modular forms associated to the quadratic form \n%s + U'%self.__gram_matrix
+        w = self.weilrep()
+        if w.is_lorentzian():
+            return 'Orthogonal modular forms associated to the quadratic form \n%s + U'%self.gram_matrix()
+        else:
+            return 'Orthogonal modular forms associated to the quadratic form\n%s'%self.gram_matrix()
+
+    def __add__(self, other):
+        w = self.weilrep()
+        if w.is_lorentzian() and isinstance(other, RescaledHyperbolicPlane):
+            return OrthogonalModularFormsLorentzian(w + other)
+        raise NotImplementedError
+    __radd__ = __add__
 
     def gram_matrix(self):
         r"""
@@ -556,6 +567,7 @@ class OrthogonalModularFormLorentzian:
             raise ValueError('Not a valid exponent')
         return OrthogonalModularFormLorentzian(other * self.weight(), self.__gram_matrix, self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector(), qexp_representation = self.__qexp_representation)
 
+
 class WeilRepLorentzian(WeilRep):
     def __init__(self, S, lift_qexp_representation = None):
         #S should be a Lorentzian lattice in which the bottom-right entry is negative
@@ -578,7 +590,9 @@ class WeilRepLorentzian(WeilRep):
             S_new[0, -1], S_new[-1, 0] = N, N
             return WeilRepLorentzianPlusII(S_new, S, N, lift_qexp_representation = self.lift_qexp_representation)
         from .weilrep import WeilRep
-        return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+        if isinstance(other, WeilRep):
+            return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+        return NotImplemented
 
     __radd__ = __add__
 
@@ -826,7 +840,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             prec= j
                             break
                         pass
-        if eps == -1 and extra_plane:
+        if eps == -1 and extra_plane and N >= 3:
             lift /= sum(zeta**i - zeta**(-i) for i in range(1, (N + 1)//2))
         return OrthogonalModularFormLorentzian(k, S, lift + O(t ** prec), scale = 1, qexp_representation = w.lift_qexp_representation)
 
@@ -844,6 +858,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         w = self.weilrep()
         S = w._lorentz_gram_matrix()
         nrows = Integer(S.nrows())
+        if not self:
+            return vector([0] * nrows)
         #suppose v is a primitive vector. extend_vector computes a matrix M in GL_n(Z) whose left column is v. If v has a denominator then we divide it off first.
         extend_vector = lambda v: matrix(ZZ, matrix([v]).transpose().echelon_form(transformation = True)[1].inverse())
         if nrows > 1:
@@ -866,7 +882,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             u = -S[-1, -1] // 2
             m = X.valuation(exact = True)
             prime = GCD(norm, u) == 1 and not (norm.is_square() and u.is_square())
-            a = vector([-1] + [0] * (N - 1) + [isqrt(4 * norm * (1 / (4 * u) - m))])
+            a = vector([-1] + [0] * (N - 1) + [isqrt(4 * norm * (1 / (4 * u) - m))]) #make the last component big so we're in the weyl chamber
             norm = Integer(a * S * a // 2)
             while (norm >= 0 or is_square(-norm)) or (prime and not is_prime(-norm)):
                 a[-1] += 1
@@ -892,9 +908,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         if x[2].valuation() <= 0:
                             ds.append(x[0])
                             L.append(i)
-                    _ds = [x[0] for i, x in enumerate(f) if x[2].valuation() <= 0]
-                    indices = [None] * len(_ds)
-                    e = w.dual().eisenstein_series(sage_three_half, max(1, 1 - ceil(val)), allow_small_weight = True, components = (_ds, indices)).fourier_expansion()
+                    indices = [None] * len(ds)
+                    e = w.dual().eisenstein_series(sage_three_half, max(1, 1 - ceil(val)), allow_small_weight = True, components = (ds, indices)).fourier_expansion()
                     s = sum([(f[j][2] * e[i][2] * q ** (floor(f[j][1])))[0] for i, j in enumerate(L)])
                 else:
                     s = f[0][2][0]
@@ -932,7 +947,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             X = self * X
             m = X.valuation(exact = True)
             scale = isqrt(2 / N - 4 * p_0 * m)
-            while i < 2:
+            while i < 2: #we can raise this bound for some redundant checks that the weyl vector is correct
                 jN = j * j * N
                 for p in range(jN - j * j * scale - 1, jN):
                     d = jN - p
@@ -941,7 +956,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         v[i] = vector([j, f])
                         L.append(extend_vector(v[i]))
                         i += 1
-                    if i == 2:
+                    if i == 2: #by Chebotarev density theorem this SHOULD eventually happen
                         break
                 j += 1
             for j, a in enumerate(L):
