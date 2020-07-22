@@ -20,7 +20,7 @@ AUTHORS:
 
 from sage.arith.functions import lcm
 from sage.arith.misc import bernoulli
-from sage.functions.other import ceil, frac
+from sage.functions.other import ceil, floor, frac, sqrt
 from sage.matrix.constructor import matrix
 from sage.misc.functional import denominator, isqrt
 from sage.rings.big_oh import O
@@ -195,7 +195,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         if d % 4:
             S = matrix([[(d - 1)//2, 1], [1, -2]])
         else:
-            S = matrix([[d//2, 1], [1, -2]])
+            S = matrix([[d//2, 0], [0, -2]])
         self._OrthogonalModularFormLorentzian__gram_matrix = S
         if weylvec is None:
             self._OrthogonalModularFormLorentzian__weylvec = vector([0, 0])
@@ -457,11 +457,12 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         tt = mu.trace()
         if tt <= 0 or nn <= 0:
             raise ValueError('You called hz_pullback with a number that is not totally-positive!')
-        a = isqrt((tt * tt - 4 * nn) / K.discriminant())
+        d = K.discriminant()
+        a = isqrt((tt * tt - 4 * nn) / d)
         h = self.fourier_expansion()
         t, = PowerSeriesRing(QQ, 't').gens()
         d = K.discriminant()
-        prec = ceil(h.prec() / nn)
+        prec = floor(h.prec() / (tt/2 + 2 * a / sqrt(d)))
         if d % 4:
             f = sum([p[n] * t ** ((i*tt + n * a)/2) for i, p in enumerate(h.list()) for n in p.exponents()]) + O(t**prec)
         else:

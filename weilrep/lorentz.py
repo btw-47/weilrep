@@ -738,7 +738,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             vs_list = vs_matrix.sage().columns()
             rb0 = rb.gens()[0]
         elif nrows == 2:
-            vs_list = [vector([n]) for n in srange(1, isqrt(2 * new_prec * s_0[0, 0]))]
+            vs_list = [vector([n]) for n in srange(1, isqrt(4 * new_prec * s_0[0, 0]))]
         else:
             vs_list = []
         lift = O(t ** prec)
@@ -1046,7 +1046,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             vs_list = vs_matrix.sage().columns()
             rb0 = rb.gens()[0]
         elif nrows == 2:
-            vs_list = [vector([n]) for n in range(1, isqrt(2 * new_prec * scale * s_0[0, 0]))]
+            vs_list = [vector([n]) for n in range(1, isqrt(4 * new_prec *  s_0[0, 0]))]
         else:
             vs_list = []
         h = O(t ** prec)
