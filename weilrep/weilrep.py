@@ -42,6 +42,7 @@ from sage.matrix.special import block_matrix, identity_matrix
 from sage.misc.functional import denominator, round, isqrt
 from sage.misc.misc_c import prod
 from sage.modular.dirichlet import DirichletGroup, kronecker_character
+from sage.modular.modform.constructor import ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import is_ModularFormElement
 from sage.modular.modform.j_invariant import j_invariant_qexp
@@ -2263,7 +2264,7 @@ class WeilRep(object):
                 eps = -1
             else:
                 eps = 1
-            m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in mod_forms])
+            m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker_symbol(i + 1, p) == eps] for x in mod_forms])
             v_basis = m.kernel().basis()
             L = [sum([mf * v[i] for i, mf in enumerate(mod_forms)]) for v in v_basis]
             L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
