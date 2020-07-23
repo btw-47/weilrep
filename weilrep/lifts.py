@@ -1405,7 +1405,9 @@ def jacobian(X):
     t_deriv = []
     x_deriv = []
     u = []
+    new_scale = lcm(x.scale() for x in X)
     for y in X:
+        y = y.rescale(new_scale // y.scale())
         f = y.true_fourier_expansion()
         t_deriv.append(t * f.derivative())
         if nvars > 1:
@@ -1424,9 +1426,9 @@ def jacobian(X):
         if nvars > 2:
             L.extend(r_deriv)
     if nvars > S.nrows():
-        return OrthogonalModularForm(k, S, matrix(L).determinant(), scale = 1, weylvec = v)
+        return OrthogonalModularForm(k, S, matrix(L).determinant(), scale = new_scale, weylvec = v)
     from .lorentz import OrthogonalModularFormLorentzian
-    return OrthogonalModularFormLorentzian(k, S, matrix(L).determinant(), scale = 1, weylvec = v, qexp_representation = Xref.qexp_representation())
+    return OrthogonalModularFormLorentzian(k, S, matrix(L).determinant(), scale = new_scale, weylvec = v, qexp_representation = Xref.qexp_representation())
 
 def omf_matrix(X):
     r"""
