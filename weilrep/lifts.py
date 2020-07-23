@@ -754,7 +754,7 @@ class OrthogonalModularForm:
         if self.scale() != 1:
             v = self.weyl_vector()
             if v[0] in ZZ and v[-1] in ZZ: #ok we'll try this but it's not a good solution
-                prec = self.precision() // self.scale()
+                prec = self.precision()
                 L = [O(q ** (prec - n)) for n in range(prec)]
                 coeffs = self.coefficients()
                 for x, y in coeffs.items():

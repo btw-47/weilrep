@@ -385,6 +385,9 @@ class OrthogonalModularFormLorentzian:
                 return self.__string
 
     def base_ring(self):
+        r"""
+        Returns self's base ring.
+        """
         f = self.__fourier_expansion
         try:
             return f.base_ring()
@@ -601,8 +604,10 @@ class OrthogonalModularFormLorentzian:
 
 
 class WeilRepLorentzian(WeilRep):
+    r"""
+    WeilRep for Lorentzian lattices. The Gram matrix should have signature (n, 1) for some n (possibly 0) and its bottom-right entry must be strictly negative.
+    """
     def __init__(self, S, lift_qexp_representation = None):
-        #S should be a Lorentzian lattice in which the bottom-right entry is negative
         self._WeilRep__gram_matrix = S
         self._WeilRep__quadratic_form = QuadraticForm(S)
         self._WeilRep__eisenstein = {}
@@ -629,6 +634,13 @@ class WeilRepLorentzian(WeilRep):
     __radd__ = __add__
 
     def change_of_basis_matrix(self):
+        r"""
+        Computes a change-of-basis matrix that splits our lattice (over QQ) in the form L_0 + <-b> where L_0 is positive-definite and b > 0.
+
+        This matrix is generally not invertible over ZZ.
+
+        OUTPUT: a matrix a \in ZZ for which a * S * a.transpose() consists of a positive-definite upper-left block and a negative-definite bottom-right entry, where S is self's Gram matrix.
+        """
         try:
             return self.__change_of_basis_matrix
         except AttributeError:
@@ -650,6 +662,11 @@ class WeilRepLorentzian(WeilRep):
         return False
 
     def orthogonalized_gram_matrix(self):
+        r"""
+        Compute a Gram matrix of a finite-index sublattice that splits orthogonally into a positive-definite lattice and a negative-definite line.
+
+        This returns a * S * a.transpose(), where ``S`` is self's Gram matrix and ``a`` is the result of self.change_of_basis_matrix()
+        """
         try:
             return self.__orthogonalized_gram_matrix
         except AttributeError:
@@ -692,6 +709,11 @@ def II(N): #short constructor for rescaled hyperbolic planes
     return RescaledHyperbolicPlane(N)
 
 class WeilRepModularFormLorentzian(WeilRepModularForm):
+    r"""
+
+    This is a class for modular forms attached to Lorentzian lattices or Lorentzian lattices + II(N) for some N. It provides the additive theta lift and the Borcherds lift.
+
+    """
 
     def __init__(self, k, f, w):
         self._WeilRepModularForm__weight = k

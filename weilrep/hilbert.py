@@ -454,7 +454,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             sage: x = var('x')
             sage: K.<sqrt13> = NumberField(x * x - 13)
             sage: HMF(K).eisenstein_series(2, 15).hz_pullback(4 - sqrt13)
-            1 + 24*q + 216*q^2 + 888*q^3 + 1752*q^4 + O(q^5)
+            1 + 24*q + O(q^2)
         """
         K = self.base_field()
         mu = K(mu)
