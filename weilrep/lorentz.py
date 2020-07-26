@@ -940,7 +940,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         if nrows > 1:
             N = nrows - 1
             v = vector(list(self.theta_contraction().__weyl_vector()) + [QQ(0)])
-            norm = S[-1, -1] // 2
+            u = vector([0] + [1] * N)
+            norm = u * S * u / 2
             u = -S[0, 0] // 2
             prime = GCD(norm, u) == 1 and not (norm.is_square() and u.is_square())
             z = vector([isqrt(4 * norm * (1 / (4 * u) - val))] + [-1] * N)
