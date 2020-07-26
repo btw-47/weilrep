@@ -31,6 +31,7 @@ from sage.functions.other import ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix
 from sage.misc.functional import denominator, isqrt
+from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import is_ModularFormElement
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
@@ -42,8 +43,6 @@ from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 from sage.structure.element import is_Matrix
-
-from .weilrep_misc import serre_derivative_on_q_series
 
 sage_one_half = Integer(1) / Integer(2)
 
@@ -407,7 +406,7 @@ class WeilRepModularForm(object):
         finally:
             return X_minus_Y
 
-    def __mul__(self, other): #tensor product!
+    def __mul__(self, other, w=None): #tensor product!
         r"""
         Tensor multiplication of WeilRepModularForms.
 
@@ -442,9 +441,12 @@ class WeilRepModularForm(object):
             if not S2:
                 return WeilRepModularForm(self.weight() + other.weight(), S1, [(x[0], x[1], x[2]*other.fourier_expansion()[0][2]) for x in self.fourier_expansion()], weilrep = self.weilrep())
             else:
-                from weilrep import WeilRep
-                S = block_diagonal_matrix([S1,S2])
-                w = WeilRep(S)
+                if w is None:
+                    from weilrep import WeilRep
+                    S = block_diagonal_matrix([S1,S2])
+                    w = WeilRep(S)
+                else:
+                    S = w.gram_matrix()
                 _ds_dict = w.ds_dict()
                 X = [None]*w.discriminant()
                 q, = PowerSeriesRing(QQ, 'q').gens()
@@ -1000,16 +1002,22 @@ class WeilRepModularForm(object):
             [(1/8), O(q^(81/16))]
 
         """
-
         X = self.fourier_expansion()
         k = self.weight()
         prec = self.precision()
-        X = [(x[0], x[1], serre_derivative_on_q_series(x[2],x[1],k,prec)) for x in X]
+        mod_e2 = (k / 12) * eisenstein_series_qexp(2, prec, normalization = 'constant')
+        def sd(offset, f):
+            r, q = f.parent().objgen()
+            val = f.valuation()
+            prec = f.prec()
+            return (q**val * r([(i + offset) * f[i] for i in range(val, prec)]) - f * mod_e2).add_bigoh(prec - floor(offset))
+        X = [(x[0], x[1], sd(x[1], x[2])) for x in X]
+        f = WeilRepModularForm(k + 2, self.gram_matrix(), X, weilrep = self.weilrep())
         if normalize_constant_term:
             a = X[0][2][0]
-            if a != 0:
-                return WeilRepModularForm(self.weight() + 2, self.gram_matrix(), X, weilrep = self.weilrep()) / a
-        return WeilRepModularForm(self.weight() + 2, self.gram_matrix(), X, weilrep = self.weilrep())
+            if a:
+                f /= a
+        return f
 
     def symmetrized(self, b):
         r"""
@@ -1379,12 +1387,26 @@ class WeilRepModularFormsBasis:
         return self.__basis
 
     def __mul__(self, v):
-        return sum([self.__basis[i] * w for i, w in enumerate(v)])
+        r"""
+        Linear combinations.
+        """
+        return sum(self.__basis[i] * w for i, w in enumerate(v))
 
     def precision(self):
         return min(x.precision() for x in self.__basis)
 
+    def principal_parts(self):
+        r"""
+        Return the principal parts of all entries in self.
+
+        The output is a string of the form (i, x.principal_part()) for x in X joined by newlines.
+        """
+        return '\n'.join(['%d %s'%(i, x.principal_part()) for i, x in enumerate(self)])
+
     def rank(self, starting_from = 0):
+        r"""
+        Compute the dimension of the modular forms spanned by self.
+        """
         ending_with = self.__weight / 12
         m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
         return m.rank()
@@ -1395,6 +1417,9 @@ class WeilRepModularFormsBasis:
     __rmul__ = __mul__
 
     def shrink(self, starting_from = 0, ending_with = None):
+        r"""
+        Delete modular forms until we are left with a linearly independent list.
+        """
         if ending_with is None:
             ending_with = self.__weight / 12
         m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
@@ -1493,3 +1518,76 @@ class WeilRepModularFormsBasis:
 
     def weilrep(self):
         return self.__weilrep
+
+def rankin_cohen(N, X, Y):
+    r"""
+    Compute the Nth Rankin--Cohen bracket [X, Y]_N.
+
+    This computes the Nth Rankin--Cohen bracket of the two vector-valued modular forms X and Y. If X has weight k and Y has weight l, then the result is a modular form of weight k+l+2N for the Weil representation on the direct sum of the lattices for X and for Y.
+
+    INPUT:
+    - ``N`` -- a natural number (including 0)
+    - ``X``, ``Y`` -- WeilRepModularForm
+
+    OUTPUT: WeilRepModularForm. If X has weight k and Y has weight ell then the result has weight k + ell + 2N.
+
+    EXAMPLES::
+
+        sage: from weilrep import *
+        sage: f = WeilRep(matrix([[-2]])).theta_series(10)
+        sage: rankin_cohen(1, f, f)
+        [(0, 0), O(q^10)]
+        [(1/2, 0), -1/4*q^(1/4) + 3/2*q^(5/4) - 9/4*q^(9/4) - 5/2*q^(13/4) + 15/2*q^(17/4) - 11/4*q^(25/4) - 21/2*q^(29/4) + 35/2*q^(37/4) + O(q^(41/4))]
+        [(0, 1/2), 1/4*q^(1/4) - 3/2*q^(5/4) + 9/4*q^(9/4) + 5/2*q^(13/4) - 15/2*q^(17/4) + 11/4*q^(25/4) + 21/2*q^(29/4) - 35/2*q^(37/4) + O(q^(41/4))]
+        [(1/2, 1/2), O(q^(21/2))]
+
+        sage: f = WeilRep(matrix([[2, 0], [0, 2]])).eisenstein_series(3, 5)
+        sage: theta = WeilRep(matrix([[-4]])).theta_series(5)
+        sage: rankin_cohen(2, f, theta)
+        [(0, 0, 0), 360*q + 6051*q^2 + 28836*q^3 + 98676*q^4 + O(q^5)]
+        [(0, 0, 3/4), 3/512*q^(1/8) + 161703/512*q^(9/8) + 361917/64*q^(17/8) + 15833319/512*q^(25/8) + 7228089/64*q^(33/8) + O(q^(41/8))]
+        [(0, 0, 1/2), 3/16*q^(1/2) + 1485/4*q^(3/2) + 36477/4*q^(5/2) + 49062*q^(7/2) + 2745063/16*q^(9/2) + O(q^(11/2))]
+        [(0, 0, 1/4), 3/512*q^(1/8) + 161703/512*q^(9/8) + 361917/64*q^(17/8) + 15833319/512*q^(25/8) + 7228089/64*q^(33/8) + O(q^(41/8))]
+        [(1/2, 0, 0), 108*q^(3/4) + 3528*q^(7/4) + 21516*q^(11/4) + 69768*q^(15/4) + 208260*q^(19/4) + O(q^(23/4))]
+        [(1/2, 0, 3/4), 1443/16*q^(7/8) + 51813/16*q^(15/8) + 354303/16*q^(23/8) + 645903/8*q^(31/8) + 3796551/16*q^(39/8) + O(q^(47/8))]
+        [(1/2, 0, 1/2), 78*q^(5/4) + 5076*q^(9/4) + 35730*q^(13/4) + 121836*q^(17/4) + 348516*q^(21/4) + O(q^(25/4))]
+        [(1/2, 0, 1/4), 1443/16*q^(7/8) + 51813/16*q^(15/8) + 354303/16*q^(23/8) + 645903/8*q^(31/8) + 3796551/16*q^(39/8) + O(q^(47/8))]
+        [(0, 1/2, 0), 108*q^(3/4) + 3528*q^(7/4) + 21516*q^(11/4) + 69768*q^(15/4) + 208260*q^(19/4) + O(q^(23/4))]
+        [(0, 1/2, 3/4), 1443/16*q^(7/8) + 51813/16*q^(15/8) + 354303/16*q^(23/8) + 645903/8*q^(31/8) + 3796551/16*q^(39/8) + O(q^(47/8))]
+        [(0, 1/2, 1/2), 78*q^(5/4) + 5076*q^(9/4) + 35730*q^(13/4) + 121836*q^(17/4) + 348516*q^(21/4) + O(q^(25/4))]
+        [(0, 1/2, 1/4), 1443/16*q^(7/8) + 51813/16*q^(15/8) + 354303/16*q^(23/8) + 645903/8*q^(31/8) + 3796551/16*q^(39/8) + O(q^(47/8))]
+        [(1/2, 1/2, 0), 18*q^(1/2) + 2160*q^(3/2) + 11628*q^(5/2) + 69600*q^(7/2) + 112050*q^(9/2) + O(q^(11/2))]
+        [(1/2, 1/2, 3/4), 1737/128*q^(5/8) + 251409/128*q^(13/8) + 750897/64*q^(21/8) + 9546003/128*q^(29/8) + 19208217/128*q^(37/8) + O(q^(45/8))]
+        [(1/2, 1/2, 1/2), 9/4*q + 2910*q^2 + 37557/2*q^3 + 121140*q^4 + 378549/2*q^5 + O(q^6)]
+        [(1/2, 1/2, 1/4), 1737/128*q^(5/8) + 251409/128*q^(13/8) + 750897/64*q^(21/8) + 9546003/128*q^(29/8) + 19208217/128*q^(37/8) + O(q^(45/8))]
+    """
+    if N == 0:
+        return X * Y
+    elif N < 0:
+        raise ValueError
+    k1 = X.weight()
+    k2 = Y.weight()
+    S1 = X.gram_matrix()
+    S2 = Y.gram_matrix()
+    w1 = X.weilrep()
+    w2 = Y.weilrep()
+    w = w1 + w2
+    binom1, binom2, deriv1, deriv2 = [[None] * (N + 1) for _ in range(4)]
+    binom1[0], binom2[0], deriv1[0], deriv2[0] = 1, 1, X.fourier_expansion(), Y.fourier_expansion()
+    k = k1 + N - 1
+    ell = k2 + N - 1
+    weight = k1 + k2 + N + N
+    def d0(offset, f):
+        r, q = f.parent().objgen()
+        val = f.valuation()
+        prec = f.prec()
+        return (q**val * r([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
+    def d(f):
+        return [(x[0], x[1], d0(x[1], x[2])) for x in f]
+    for r in range(1, N + 1):
+        binom1[r] = (binom1[r - 1] * k) // r
+        binom2[r] = (binom2[r - 1] * ell) // r
+        deriv1[r] = d(deriv1[r - 1])
+        deriv2[r] = d(deriv2[r - 1])
+        k, ell = k-1, ell-1
+    return sum( (-1)**r * binom1[r] * binom2[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w = w) for r in range(N + 1))

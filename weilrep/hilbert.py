@@ -90,10 +90,8 @@ def hmf_inputs(K):
     if not (K.is_totally_real() and K.degree() == 2):
         raise ValueError('HMF only accepts real-quadratic number fields.')
     d = K.discriminant()
-    if d % 2:
-        S = matrix([[ZZ((d - 1)/2), 1], [1, -2]])
-    else:
-        S = matrix([[ZZ(d / 2), 0], [0, -2]])
+    a, b = d.quo_rem(2)
+    S = matrix([[-2, b], [b, a]])
     w = WeilRep(S)
     w.lift_qexp_representation = 'hilbert', K
     return w

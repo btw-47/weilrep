@@ -25,7 +25,7 @@ from sage.arith.misc import divisors
 from sage.calculus.var import var
 from sage.functions.other import binomial, ceil, floor, frac
 from sage.matrix.constructor import matrix
-from sage.matrix.special import block_diagonal_matrix
+from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
 from sage.misc.functional import isqrt
 from sage.misc.misc_c import prod
 from sage.modular.modform.eis_series import eisenstein_series_qexp
@@ -1242,3 +1242,33 @@ def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to 
         if j < bound:
             eta += eps * q**ZZ(j)
     return JacobiForm(weight, matrix([[sum([a * a for a in a])]]), prod([theta**a0[a0_list[i]] for i, theta in enumerate(thetas)]) * (eta**n) * q**qval * w_0**wval, jacobiforms = jacobiforms)
+
+def jf_rankin_cohen(N, f1, f2, direct = False):
+    r"""
+    Compute the Nth Rankin--Cohen bracket of two Jacobi forms.
+
+    This computes the Rankin--Cohen bracket on the level of vector-valued modular forms and converts the result into a Jacobi form. If the optional parameter "direct" is set to True then all multiplications are carried out with separate elliptic variables; the result is a Jacobi form whose index is the direct sum of the indices of f1 and f2 (understood as lattices)
+
+    INPUT:
+    - ``N`` -- a natural number (including 0)
+    - ``f1`` -- a JacobiForm
+    - ``f2`` -- a JacobiForm
+    - ``direct`` -- boolean (default False)
+
+    OUTPUT: A JacobiForm. If direct=False and f1 has weight k1 and index m1 and f2 has weight k2 and index m2, then the result has weight k1+k2+2N and index m1+m2
+    """
+    from .weilrep_modular_forms_class import rankin_cohen
+    F = rankin_cohen(N, f1.theta_decomposition(), f2.theta_decomposition())
+    if direct:
+        return F.jacobi_form()
+    nvars1 = f1.nvars()
+    nvars2 = f2.nvars()
+    if nvars1 != nvars2:
+        raise ValueError('The number of variables do not match.')
+    I = identity_matrix(ZZ, nvars1)
+    zero = matrix(ZZ, nvars1)
+    A = block_matrix([[I, zero], [I, I]])
+    F = F.conjugate(A)
+    for _ in range(nvars1):
+        F = F.theta_contraction()
+    return F.jacobi_form()

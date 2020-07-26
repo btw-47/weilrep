@@ -94,6 +94,9 @@ class OrthogonalModularForms(object):
     def gram_matrix(self):
         return self.__gram_matrix
 
+    def nvars(self):
+        return Integer(self.gram_matrix().nrows())
+
     def weilrep(self):
         return self.__weilrep
 
@@ -119,15 +122,16 @@ class OrthogonalModularForms(object):
         """
         return orthogonal_eisenstein_series(k, self.gram_matrix(), prec, w = self.weilrep())
 
-    def spezialschar(self, k, prec):
+    def spezialschar(self, k, prec, cusp_forms = True):
         r"""
         Compute a basis of the Maass Spezialschar of weight ``k`` up to precision ``prec``.
 
-        This computes the theta lifts of a basis of cusp forms.
+        This computes the theta lifts of a basis of cusp forms (or a basis of modular forms, if ``cusp_forms`` is set to False).
 
         INPUT:
         - ``k`` -- the weight
         - ``prec`` -- the precision of the output
+        - ``cusp_forms`` -- boolean (default True). If True then we output only cusp forms.
 
         OUTPUT: list of OrthogonalModularForm's
 
@@ -138,9 +142,11 @@ class OrthogonalModularForms(object):
             [(r^-1 - 2 + r)*q*s + (-2*r^-2 - 16*r^-1 + 36 - 16*r - 2*r^2)*q^2*s + (-2*r^-2 - 16*r^-1 + 36 - 16*r - 2*r^2)*q*s^2 + (r^-3 + 36*r^-2 + 99*r^-1 - 272 + 99*r + 36*r^2 + r^3)*q^3*s + (-16*r^-3 + 240*r^-2 - 240*r^-1 + 32 - 240*r + 240*r^2 - 16*r^3)*q^2*s^2 + (r^-3 + 36*r^-2 + 99*r^-1 - 272 + 99*r + 36*r^2 + r^3)*q*s^3 + O(q, s)^5]
         """
         S = self.gram_matrix()
-        nrows = S.nrows()
         w = self.weilrep()
-        X = w.cusp_forms_basis(k - nrows/2, ceil(prec * prec / 4) + 1)
+        if cusp_forms:
+            X = w.cusp_forms_basis(k - self.nvars()/2, ceil(prec * prec / 4) + 1)
+        else:
+            X = w.modular_forms_basis(k - self.nvars()/2, ceil(prec * prec / 4) + 1)
         return [x.theta_lift(prec) for x in X]
     maass_space = spezialschar
 
@@ -192,7 +198,7 @@ class OrthogonalModularForms(object):
             A 2-dimensional polyhedron in QQ^3 defined as the convex hull of 1 vertex and 2 rays
         """
         S = self.gram_matrix()
-        wt = -Integer(S.nrows())/2
+        wt = -self.nvars()/2
         w = self.weilrep()
         rds = w.rds()
         norm_dict = w.norm_dict()
@@ -612,6 +618,9 @@ class OrthogonalModularForm:
         """
         return self.__fourier_expansion.base_ring().base_ring()
 
+    def __bool__(self):
+        return bool(self.true_fourier_expansion())
+
     def gram_matrix(self):
         r"""
         Return our Gram matrix.
@@ -911,7 +920,7 @@ class OrthogonalModularForm:
 
     def is_lift(self):
         r"""
-        Return True if self's Fourier coefficients satisfy the Maass relations, otherwise False
+        Return True if self's (known) Fourier coefficients satisfy the Maass relations, otherwise False
 
         ALGORITHM: check whether this equals the Gritsenko lift of its first Fourier--Jacobi coefficient
 
@@ -993,11 +1002,11 @@ class WeilRepPositiveDefinite(WeilRep):
         from .lorentz import RescaledHyperbolicPlane, WeilRepLorentzian
         if isinstance(other, RescaledHyperbolicPlane):
             S = self.gram_matrix()
-            zerom = matrix([[0]])
             zerov = matrix([[0]*S.nrows()])
             zerovt = zerov.transpose()
             N = other._N()
-            return WeilRepLorentzian(block_matrix([[zerom, zerov, N], [zerovt, S, zerovt], [N, zerov, -(N + N)]], subdivide = False), lift_qexp_representation = 'PD+II')
+            return WeilRepLorentzian(block_matrix([[-(N + N), zerov, N], [zerovt, S, zerovt], [N, zerov, matrix([[0]])]], subdivide = False), lift_qexp_representation = 'PD+II')
+            #return WeilRepLorentzian(block_matrix([[zerom, zerov, N], [zerovt, S, zerovt], [N, zerov, -(N + N)]], subdivide = False), lift_qexp_representation = 'PD+II')
         from .weilrep import WeilRep
         if isinstance(other, WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
@@ -1124,14 +1133,14 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         nrows = ZZ(S.nrows())
         wt = k + nrows / 2
         if nrows > 1:
-            _, _, vs_matrix = pari(S_inv).qfminim(prec0 + 1, flag = 2)
+            _, _, vs_matrix = pari(S_inv).qfminim(prec0 + prec0 + 1, flag = 2)
             vs_list = vs_matrix.sage().columns()
         else:
-            vs_list = [vector([n]) for n in srange(1, isqrt(2 * prec0*S[0, 0]) + 1)]
+            vs_list = [vector([n]) for n in range(1, isqrt(2 * prec0*S[0, 0]) + 1)]
         f = O(t ** prec)
         if wt % 2 == 0:
             try:
-                f_0 = coeffs[tuple([0]*(S.nrows() + 1))]
+                f_0 = coeffs[tuple([0]*(nrows + 1))]
                 if f_0:
                     e = eisenstein_series_qexp(wt, prec + 1)
                     f = f + f_0 * (e(t*x) + e(~x * t) - e[0])
@@ -1140,38 +1149,39 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         for v in vs_list:
             j = next(j for j, w in enumerate(v) if w)
             if v[j] > 0:
-                g = S_inv * v
-                v_norm = v * g / 2
-                sqrt_v_norm = ceil(sqrt(v_norm))
-                if nrows > 1:
-                    v_monomial = rb.monomial(*v)
-                    v_monomial = v_monomial + (-1)**wt * v_monomial**(-1)
-                else:
-                    v_monomial = z**v[0] + (-1)**wt * z**(-v[0])
-                a = max(1, sqrt_v_norm)
-                while a < prec:
-                    c = max(1, ceil(v_norm / a))
-                    while c < min(a + 1, prec- a):
-                        a_plus_c = a + c
-                        n = a * c - v_norm
-                        if n >= 0:
-                            sum_coeff = 0
-                            for d in divisors(GCD([a, c] + list(v))):
-                                d_wt = d ** (wt - 1)
-                                g_n = tuple([frac(y) for y in g / d] + [n / (d * d)])
-                                try:
-                                    sum_coeff += coeffs[g_n] * d_wt
-                                except KeyError:
-                                    if n >= prec0:
-                                        prec = min(a_plus_c, prec)
-                                        f += O(t ** prec)
-                                    pass
-                            if a != c:
-                                f += sum_coeff * t**(a_plus_c) * (x**(a-c) + x**(c-a)) * v_monomial
-                            else:
-                                f += sum_coeff * t**(a_plus_c) * v_monomial
-                        c += 1
-                    a += 1
+                v = -v
+            g = S_inv * v
+            v_norm = v * g / 2
+            sqrt_v_norm = ceil(sqrt(v_norm))
+            if nrows > 1:
+                v_monomial = rb.monomial(*v)
+                v_monomial = v_monomial + (-1)**wt * v_monomial**(-1)
+            else:
+                v_monomial = z**v[0] + (-1)**wt * z**(-v[0])
+            a = max(1, sqrt_v_norm)
+            while a < prec:
+                c = max(1, ceil(v_norm / a))
+                while c < min(a + 1, prec- a):
+                    a_plus_c = a + c
+                    n = a * c - v_norm
+                    if n >= 0:
+                        sum_coeff = 0
+                        for d in divisors(GCD([a, c] + list(v))):
+                            d_wt = d ** (wt - 1)
+                            g_n = tuple([frac(y) for y in g / d] + [n / (d * d)])
+                            try:
+                                sum_coeff += coeffs[g_n] * d_wt
+                            except KeyError:
+                                if n >= prec0:
+                                    prec = min(a_plus_c, prec)
+                                    f += O(t ** prec)
+                                pass
+                        if a != c:
+                            f += sum_coeff * t**(a_plus_c) * (x**(a-c) + x**(c-a)) * v_monomial
+                        else:
+                            f += sum_coeff * t**(a_plus_c) * v_monomial
+                    c += 1
+                a += 1
         for a in range(prec):
             for c in range(min(a + 1, prec - a)):
                 n = a * c
@@ -1221,7 +1231,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             _, _, weyl_vs_matrix = pari(S_inv).qfminim(prec + 1, flag = 2)
             weyl_vs_list = weyl_vs_matrix.sage().columns()
         else:
-            weyl_vs_list = [vector([n]) for n in srange(1, isqrt(2*prec*S[0, 0]) + 1)]
+            weyl_vs_list = [vector([n]) for n in range(1, isqrt(2*prec*S[0, 0]) + 1)]
         coeff_sum = 0
         vec_sum = vector([0] * nrows)
         for v in weyl_vs_list:
@@ -1292,7 +1302,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             _, _, vs_matrix = pari(S_inv).qfminim(prec0val + prec0val + 1, flag = 2)
             vs_list = vs_matrix.sage().columns()
         else:
-            vs_list = [vector([n]) for n in srange(1, isqrt(2*prec0*S[0, 0]) + 1)]
+            vs_list = [vector([n]) for n in range(1, isqrt(2*prec0*S[0, 0]) + 1)]
         vs_list.append(vector([0]*nrows))
         F = self.fourier_expansion()
         h = O(t ** prec)
