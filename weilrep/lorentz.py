@@ -1061,19 +1061,19 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         except PariError:
             vs_list = [vector([n]) for n in range(1, isqrt(2 * K[0, 0] * (-val)) + 1)]
         for v in vs_list:
-            y = map(frac, K_inv * v)
+            y = list(map(frac, K_inv * v))
             s = next(s for s in v if s)
             if s < 0:
                 v *= -1
             v_norm = -v * K_inv * v / 2
             try:
-                rho += Xcoeff[tuple([0] + list(y) + [0, v_norm])] * v
+                rho += Xcoeff[tuple([0] + y + [0, v_norm])] * v
             except KeyError:
                 pass
             for i in srange(N):
                 j = i / N
                 try:
-                    c = Xcoeff[tuple([j] + list(y) + [0, v_norm])]
+                    c = Xcoeff[tuple([j] + y + [0, v_norm])]
                     rho_z += c * (j * (j - 1) + Integer(1) / 6) / 2
                 except KeyError:
                     pass
@@ -1260,8 +1260,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         sz *= -1
                     norm_z = z * sz / 2
                     try:
-                        if norm_z == 1/4 or norm_z == 0:
-                            print('wow!', tuple([frac(y) for y in z] + [-norm_z] ))
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
                         if c > 0:
                             f *= (1 - m + h) ** c
