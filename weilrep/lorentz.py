@@ -29,7 +29,7 @@ from copy import copy, deepcopy
 from re import sub
 
 from sage.arith.functions import lcm
-from sage.arith.misc import bernoulli, GCD, is_prime, is_square
+from sage.arith.misc import bernoulli, divisors, GCD, is_prime, is_square
 from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.combinat.combinat import bernoulli_polynomial
@@ -39,6 +39,7 @@ from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
+from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
@@ -828,7 +829,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             j = 1
             while j < prec:
                 prec_j = prec//j + 1
-                #v_big = vector(list(sv) + [-j / b_norm])
                 v_big = vector([-j / b_norm] + list(sv))
                 z = a_tr * v_big
                 v_big_2 = vector([-j / b_norm] + list(-sv))
@@ -909,11 +909,14 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         r"""
         Compute the Weyl vector for the Borcherds lift.
 
-        NOTE: this uses a recursive algorithm to compute the Weyl vector instead of a closed formula. It would be better to use Theorem 10.4 of [Borcherds1998]
+        For lattices of the form L + II(m) + II(n) where w is positive-definite we use Borcherds Theorem 10.4. Otherwise we use a recursive method (which may have bugs and should not be trusted!!)
 
         OUTPUT: a vector
         """
         w = self.weilrep()
+        if w.lift_qexp_representation == 'PD+II':
+            v = self.__weyl_vector_II()
+            return vector([v[0] + v[-1], v[-1] - v[0]] + list(v[1:-1]))
         S = w._lorentz_gram_matrix()
         nrows = Integer(S.nrows())
         if not self:
@@ -930,6 +933,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
 
         Auxiliary function for the Weyl vector. This should not be called directly.
 
+        WARNING: this has known bugs!
+
         """
         w = self.weilrep()
         S = w._lorentz_gram_matrix()
@@ -944,7 +949,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             norm = u * S * u / 2
             u = -S[0, 0] // 2
             prime = GCD(norm, u) == 1 and not (norm.is_square() and u.is_square())
-            z = vector([isqrt(4 * norm * (1 / (4 * u) - val))] + [-1] * N)
+            z = vector([1 + isqrt(4 * norm * (1 / (4 * u) - val))] + [-1] * N)
             norm = Integer(z * S * z // 2)
             while (norm >= 0 or is_square(-norm)) or (prime and not is_prime(-norm)):
                 z[0] += 1
@@ -960,7 +965,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         else:
             N = -Integer(S[0, 0] / 2)
             q, = PowerSeriesRing(QQ, 'q').gens()
-            if N == 1 or N.is_prime():
+            if (N == 1 or N.is_prime()):
                 f = self.fourier_expansion()
                 if val < 0:
                     L = []
@@ -977,8 +982,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 return vector([s * (1 + N) / 24])
             i = 0
             L = []
-            v = [None, None]
-            h = copy(v)
             mult = max(1, ceil(Integer(1)/4 - val))
             j = 1
             s = isqrt(N)
@@ -1007,23 +1010,83 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 p_0 = 1
             X = self * X
             m = X.valuation(exact = True)
-            scale = isqrt(2 / N - 4 * p_0 * m)
-            while i < 2: #we can raise this bound for some redundant checks that the weyl vector is correct
+            Xcoeff = X.principal_part_coefficients()
+            e = X.weilrep().dual().eisenstein_series(2, ceil(-m)).coefficients()
+            scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.iteritems() if n < 0) #dubious
+            v = []
+            h = [None] * 2
+            bound = 2
+            j = ceil(scale)
+            while i < bound: #we can raise this bound for some redundant checks that the weyl vector is correct
                 jN = j * j * N
-                for p in range(jN - j * j * scale - 1, jN):
-                    d = jN - p
-                    f = isqrt(d // p_0)
-                    if f * f * p_0 == d and (sqr or is_prime(p)):
-                        v[i] = vector([j, f])
-                        L.append(extend_vector(v[i]))
-                        i += 1
-                    if i == 2: #by Chebotarev density theorem this SHOULD eventually happen
+                for f in range(1, 1 + (j // scale)):
+                    norm = f * f * p_0 - jN
+                    if norm < 0 and norm.is_squarefree():
+                        if sqr or is_prime(-norm):
+                            y = vector([j, -f])
+                            v.append(y)
+                            L.append(extend_vector(y))
+                            i += 1
+                    if i == bound:
                         break
                 j += 1
             for j, a in enumerate(L):
                 x = X.conjugate(a).theta_contraction()
                 h[j] = QQ(x.__weyl_vector()[0])
             return vector([(matrix(v).solve_right(vector(h)) * Integer(p_0) / 12)[0]])
+
+    def __weyl_vector_II(self):
+        r"""
+
+        Auxiliary function for the Weyl vector. This should not be called directly.
+
+        """
+        S = self.gram_matrix()
+        nrows = S.nrows()
+        N = S[-1, 0]
+        M = identity_matrix(nrows)
+        M[-1, 0] = 1
+        X = self.conjugate(M)
+        XK = X.reduce_lattice(z = vector([1] + [0]*(nrows - 1)), z_prime = vector([0]*(nrows - 1) + [Integer(1) / N]))
+        val = X.valuation()
+        K = S[1:-1,1:-1]
+        K_inv = K.inverse()
+        Theta_K = WeilRep(-K).theta_series(1 - val)
+        Xcoeff = X.principal_part_coefficients()
+        rho = vector([0] * (nrows - 2))
+        rho_z = 0
+        try:
+            _, _, vs_matrix = pari(K_inv).qfminim(1 - val, flag=2)
+            vs_list = vs_matrix.sage().columns()
+        except PariError:
+            vs_list = [vector([n]) for n in range(1, isqrt(2 * K[0, 0] * (-val)) + 1)]
+        for v in vs_list:
+            y = map(frac, K_inv * v)
+            s = next(s for s in v if s)
+            if s < 0:
+                v *= -1
+            v_norm = -v * K_inv * v / 2
+            try:
+                rho += Xcoeff[tuple([0] + list(y) + [0, v_norm])] * v
+            except KeyError:
+                pass
+            for i in srange(N):
+                j = i / N
+                try:
+                    c = Xcoeff[tuple([j] + list(y) + [0, v_norm])]
+                    rho_z += c * (j * (j - 1) + Integer(1) / 6) / 2
+                except KeyError:
+                    pass
+        for i in srange(N):
+            j = i / N
+            try:
+                c = Xcoeff[tuple([j] + [0]*nrows)]
+                rho_z += c * (j * (j - 1) + Integer(1) / 6) / 4
+            except KeyError:
+                pass
+        e2 = eisenstein_series_qexp(2, 1 - val)
+        rho_z_prime = -((XK &Theta_K) * e2)[0]
+        return vector([rho_z_prime] + list(rho/2) + [N * rho_z])
 
     def borcherds_lift(self, prec = None):
         r"""
@@ -1095,7 +1158,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             weyl_vector = self.weyl_vector()
         a = w.change_of_basis_matrix()
         a_tr = a.transpose()
-        #weyl_vector = a_tr.inverse() * weyl_vector
         d = denominator(weyl_vector)
         weyl_vector *= d
         scale = Integer(a.determinant())
@@ -1117,6 +1179,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         corrector = r(1)
         excluded_vectors = set([])
         rpoly, tpoly = PolynomialRing(K, 'tpoly').objgen()
+        negative = lambda v: v[0] < 0 or next(s for s in reversed(v[1:]) if s) < 0
         for v in vs_list:
             sv = s_0inv * v
             v *= d
@@ -1126,13 +1189,15 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     m *= rb.monomial(*v[1:])
                 else:
                     m *= rb0**v[1]
-            for j in range(1, prec):
+            for j in srange(1, prec):
                 v_big = vector([-j / b_norm] + list(sv))
                 z = a_tr * v_big
                 sz = S * z
-                s = next(s for s in sz if s)
-                if s < 0:
-                    norm_z = z * S * z / 2
+                if negative(sz):
+                #s = next(s for s in sz if s)
+                #if s < 0:
+                    #norm_z = z * S * z / 2
+                    norm_z = z * sz / 2
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
@@ -1155,9 +1220,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 v_big = vector([-j / b_norm] + list(-sv))
                 z = a_tr * v_big
                 sz = S * z
-                s = next(s for s in sz if s)
-                if s < 0:
-                    norm_z = z * S * z / 2
+                if negative(sz):
+                #s = next(s for s in sz if s)
+                #if s < 0:
+                    #norm_z = z * S * z / 2
+                    norm_z = z * sz / 2
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
@@ -1183,8 +1250,9 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     v_big = vector([0] + list(sv))
                     z = a_tr * v_big
                     sz = S * z
-                    s = next(s for s in sz if s)
-                    if s > 0:
+                    #s = next(s for s in sz if s)
+                    if not negative(sz):
+                    #if s > 0:
                         v *= -1
                         m = ~m
                         sv *= -1
@@ -1192,6 +1260,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         sz *= -1
                     norm_z = z * sz / 2
                     try:
+                        if norm_z == 1/4 or norm_z == 0:
+                            print('wow!', tuple([frac(y) for y in z] + [-norm_z] ))
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
                         if c > 0:
                             f *= (1 - m + h) ** c
@@ -1210,8 +1280,9 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     v_big = vector([0] + list(sv))
                     z = a_tr * v_big
                     sz = S * z
-                    s = next(s for s in sz if s)
-                    if s < 0:
+                    #s = next(s for s in sz if s)
+                    if not negative(sz):
+                    #if s < 0:
                         v *= -1
                         m = ~m
                         sv *= -1

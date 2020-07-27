@@ -360,6 +360,12 @@ class WeilRepModularForm(object):
         """
         return {tuple(x[0]):x[2] for x in self.fourier_expansion()}
 
+    def principal_part_coefficients(self):
+        r"""
+        Return the coefficients of self corresponding to nonpositive exponents as a dictionary.
+        """
+        return {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents() if n <= 0}
+
     ## arithmetic operations
 
     def __add__(self, other):
@@ -851,6 +857,7 @@ class WeilRepModularForm(object):
             return smf(k_0, 0 + O(q ** self.precision()))
         prec = self.precision()
         w = self.weilrep()
+        val = self.valuation()
         ds_dict = w.ds_dict()
         ds = w.ds()
         big_w = w(N)
@@ -869,7 +876,7 @@ class WeilRepModularForm(object):
                     try:
                         i = ds_dict[tuple(frac(d * x) for x in g)]
                         offset = X[i][1]
-                        n = big_offset
+                        n = big_offset + val
                         while n < (prec + offset) * (a / d):
                             if (n + r_val) % a == 0:
                                 Y[j][2] += X[i][2][Integer(d * n / a - offset)] * q ** (ceil(n)) * a_pow
@@ -947,6 +954,10 @@ class WeilRepModularForm(object):
         except TypeError:
             k_k = matrix([])
         w_k = WeilRep(k_k)
+        try:
+            w_k.lift_qexp_representation = w.lift_qexp_representation
+        except AttributeError:
+            pass
         ds_k_dict = w_k.ds_dict()
         ds_k = w_k.ds()
         ds = w.ds()
