@@ -154,6 +154,9 @@ class OrthogonalModularFormsLorentzian(object):
             X = w.modular_forms_basis(k + 1 - self.nvars()/2, ceil(prec * prec / 4) + 1)
         return [x.theta_lift(prec) for x in X]
 
+    spezialschar = lifts_basis
+    maass_space = lifts_basis
+
     ## methods for borcherds products
 
     def _borcherds_product_polyhedron(self, pole_order, prec, verbose = False):
@@ -803,6 +806,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         else:
             vs_list = []
         lift = O(t ** prec)
+        #negative = lambda v: v[0] < 0 or next(s for s in reversed(v[1:]) if s) < 0
+        negative = lambda v: next(s for s in v if s) < 0
         if not w.is_lorentzian():
             extra_plane = True
             if k % 2 == 0:
@@ -835,26 +840,19 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 sz = S * z
                 z_2 = a_tr * v_big_2
                 sz_2 = S * z_2
-                s = next(s for s in sz if s)
-                s2 = next(s2 for s2 in sz_2 if s2)
-                if s < 0 or s2 < 0:
+                m = x ** v[0]
+                if nrows >= 3:
+                    if nrows >= 4:
+                        m *= rb.monomial(*v[1:])
+                    else:
+                        m *= rb0 ** v[1]
+                if negative(sz):
                     norm_z = z * sz / 2
-                    m = x ** v[0]
-                    if nrows >= 3:
-                        if nrows >= 4:
-                            m *= rb.monomial(*v[1:])
-                        else:
-                            m *= rb0 ** v[1]
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                        if s < 0 and s2 < 0:
-                            lift += c * sum([n ** (k - 1) * (m ** n + eps * m ** (-n)) * t ** (n * j) for n in srange(1, prec_j)])
-                        elif s < 0 and s2 > 0:
-                            lift += c * sum([n ** (k - 1) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
-                        else:
-                            lift += c * eps * sum([n ** (k - 1) * (m ** (-n)) * t ** (n * j) for n in srange(1, prec_j)])
+                        lift += c * sum([n ** (k - 1) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                     except KeyError:
                         if -norm_z >= prec0:
                             prec = j
@@ -866,12 +864,31 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             zeta_i = zeta ** i
                             try:
                                 c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                                if s < 0 and s2 < 0:
-                                    lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n + eps * m ** (-n)) * t ** (n * j) for n in srange(1, prec_j)])
-                                elif s < 0 and s2 > 0:
-                                    lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
-                                else:
-                                    lift += c * eps * sum([n ** (k - 1) * (zeta_i ** n) * (m ** (-n)) * t ** (n * j) for n in srange(1, prec_j)])
+                                lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n + eps * m ** (-n)) * t ** (n * j) for n in srange(1, prec_j)])
+                            except KeyError:
+                                pass
+                if negative(sz_2):
+                    z = z_2
+                    sz = sz_2
+                    norm_z = z * sz / 2
+                    m = ~m
+                    if extra_plane:
+                        z = vector([0] + list(z) + [0])
+                    try:
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        lift += c * sum([n ** (k - 1) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
+                    except KeyError:
+                        if -norm_z >= prec0:
+                            prec = j
+                            break
+                        pass
+                    if extra_plane:
+                        for i in srange(1, N):
+                            z[0] = i / N
+                            zeta_i = zeta ** i
+                            try:
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                             except KeyError:
                                 pass
                 j += 1
@@ -880,8 +897,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             v_big[0] = -j / b_norm
             z = a_tr * v_big
             sz = S * z
-            s = next(s for s in sz if s)
-            if s < 0:
+            if True:
+            #if negative(sz):
                 norm_z = z * sz / 2
                 if extra_plane:
                     z = vector([0] + list(z) + [0])
