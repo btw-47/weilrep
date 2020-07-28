@@ -1070,6 +1070,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         Xcoeff = X.principal_part_coefficients()
         rho = vector([0] * (nrows - 2))
         rho_z = 0
+        negative = lambda v: next(s for s in reversed(v) if s) < 0
         try:
             _, _, vs_matrix = pari(K_inv).qfminim(1 - val, flag=2)
             vs_list = vs_matrix.sage().columns()
@@ -1077,8 +1078,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             vs_list = [vector([n]) for n in range(1, isqrt(2 * K[0, 0] * (-val)) + 1)]
         for v in vs_list:
             y = list(map(frac, K_inv * v))
-            s = next(s for s in v if s)
-            if s < 0:
+            if negative(v):
                 v *= -1
             v_norm = -v * K_inv * v / 2
             try:
