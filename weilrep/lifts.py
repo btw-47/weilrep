@@ -149,6 +149,7 @@ class OrthogonalModularForms(object):
             X = w.modular_forms_basis(k - self.nvars()/2, ceil(prec * prec / 4) + 1)
         return [x.theta_lift(prec) for x in X]
     maass_space = spezialschar
+    lifts_basis = spezialschar
 
     def modular_form_from_fourier_jacobi_expansion(self, k, fj):
         r"""
