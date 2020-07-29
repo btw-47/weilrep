@@ -1448,6 +1448,7 @@ def omf_matrix(X):
     if not X:
         return matrix([])
     nrows = X[0].nvars()
+    k = X[0].weight()
     prec = min(x.precision() for x in X)
     Xcoeffs = [x.coefficients(prec = prec) for x in X]
     Xitems = [set(xcoeffs.keys()) for xcoeffs in Xcoeffs]
@@ -1455,7 +1456,11 @@ def omf_matrix(X):
     lenXitems = len(Xitems)
     L = [[0]*lenXitems for _ in X]
     M = []
+    check_wt = True
     for i, x in enumerate(X):
+        if check_wt and x.weight() != k:
+            print('Warning: these forms do not have the same weight!')
+            check_wt = False
         L = [0]*lenXitems
         for j, g in enumerate(Xitems):
             try:

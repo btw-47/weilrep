@@ -46,11 +46,12 @@ from sage.rings.big_oh import O
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
+from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.number_field.number_field import CyclotomicField
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
-from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
+from sage.rings.qqbar import AA
 from sage.rings.rational_field import QQ
 
 sage_one_half = Integer(1) / Integer(2)
@@ -806,7 +807,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         else:
             vs_list = []
         lift = O(t ** prec)
-        #negative = lambda v: v[0] < 0 or next(s for s in reversed(v[1:]) if s) < 0
         negative = lambda v: next(s for s in v if s) < 0
         if not w.is_lorentzian():
             extra_plane = True
@@ -1026,7 +1026,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             X = self * X
             m = X.valuation(exact = True)
             Xcoeff = X.principal_part_coefficients()
-            e = X.weilrep().dual().eisenstein_series(2, ceil(-m)).coefficients()
+            e = X.weilrep().dual().eisenstein_series(2, ceil(-m), allow_small_weight = True).coefficients()
             scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.iteritems() if n < 0) #dubious
             v = []
             h = [None] * 2
@@ -1049,6 +1049,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 x = X.conjugate(a).theta_contraction()
                 h[j] = QQ(x.__weyl_vector()[0])
             return vector([(matrix(v).solve_right(vector(h)) * Integer(p_0) / 12)[0]])
+
 
     def __weyl_vector_II(self):
         r"""
@@ -1144,9 +1145,9 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         if N <= 2:
             K = QQ
             if N == 1:
-                zeta = 1
+                zeta = Integer(1)
             else:
-                zeta = -1
+                zeta = -Integer(1)
         else:
             K = CyclotomicField(N, var('mu%d'%N))
             zeta, = K.gens()
@@ -1209,9 +1210,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 z = a_tr * v_big
                 sz = S * z
                 if negative(sz):
-                #s = next(s for s in sz if s)
-                #if s < 0:
-                    #norm_z = z * S * z / 2
                     norm_z = z * sz / 2
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
@@ -1236,9 +1234,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 z = a_tr * v_big
                 sz = S * z
                 if negative(sz):
-                #s = next(s for s in sz if s)
-                #if s < 0:
-                    #norm_z = z * S * z / 2
                     norm_z = z * sz / 2
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
@@ -1265,9 +1260,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     v_big = vector([0] + list(sv))
                     z = a_tr * v_big
                     sz = S * z
-                    #s = next(s for s in sz if s)
                     if not negative(sz):
-                    #if s > 0:
                         v *= -1
                         m = ~m
                         sv *= -1
@@ -1293,9 +1286,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     v_big = vector([0] + list(sv))
                     z = a_tr * v_big
                     sz = S * z
-                    #s = next(s for s in sz if s)
                     if not negative(sz):
-                    #if s < 0:
                         v *= -1
                         m = ~m
                         sv *= -1
@@ -1360,6 +1351,20 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     weyl_monomial *= rb.monomial(*weyl_vector[2:])
                 else:
                     weyl_monomial *= rb0**weyl_vector[-1]
+        if extra_plane and N > 1:
+            C = Integer(1)
+            for i in srange(1, N // 2):
+                try:
+                    c = Integer(coeffs[tuple([i / N] + [0] * (nrows + 2))])
+                    C *= (1 - zeta**i)**c
+                except KeyError:
+                    pass
+            try:
+                c = Integer(coeffs[tuple([Integer(1) / 2] + [0] * (nrows + 2))])
+                C *= 2**Integer(c / 2)
+            except (KeyError, TypeError):
+                pass
+            f *= C
         return OrthogonalModularFormLorentzian(k, S, f.V(d) * weyl_monomial * (t ** weyl_vector[0]), scale = d, weylvec = weyl_vector, qexp_representation = w.lift_qexp_representation)
 
 class WeilRepLorentzianPlusII(WeilRepLorentzian):
