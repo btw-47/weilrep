@@ -33,6 +33,7 @@ from sage.arith.misc import bernoulli, divisors, GCD, is_prime, is_square
 from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.combinat.combinat import bernoulli_polynomial
+from sage.functions.log import exp, log
 from sage.functions.other import ceil, floor, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
@@ -1190,7 +1191,9 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         else:
             vs_list = []
         h = O(t ** prec)
-        f = 1 + h
+        #f = 1 + h
+        log_f = h
+        const_f = rb_x(1)
         val = self.valuation(exact = True)
         corrector = r(1)
         excluded_vectors = set([])
@@ -1198,24 +1201,29 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         negative = lambda v: v[0] < 0 or next(s for s in reversed(v[1:]) if s) < 0
         for v in vs_list:
             sv = s_0inv * v
-            v *= d
-            m = x**v[0]
-            if nrows >= 3:
-                if nrows >= 4:
-                    m *= rb.monomial(*v[1:])
-                else:
-                    m *= rb0**v[1]
-            for j in srange(1, prec):
-                v_big = vector([-j / b_norm] + list(sv))
-                z = a_tr * v_big
-                sz = S * z
-                if negative(sz):
-                    norm_z = z * sz / 2
+            vnorm = v * sv / 2
+            j_bound = 1
+            if val + vnorm > 0:
+                j_bound = max(1, isqrt(-2 * b_norm * (val + vnorm)))
+            if j_bound < prec:
+                v *= d
+                m = x**v[0]
+                if nrows >= 3:
+                    if nrows >= 4:
+                        m *= rb.monomial(*v[1:])
+                    else:
+                        m *= rb0**v[1]
+                for j in srange(j_bound, prec):
+                    v_big = vector([-j / b_norm] + list(sv))
+                    z = a_tr * v_big
+                    sz = S * z
+                    norm_z = j * j / (b_norm + b_norm) + vnorm
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                        f *= (1 - t**j * m + h) ** c
+                        log_f += c * log(1 - t**j * m + h)
+                        #f *= (1 - t**j * m + h) ** c
                     except KeyError:
                         if -norm_z >= prec0:
                             prec = j
@@ -1227,19 +1235,18 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             z[0] = i / N
                             try:
                                 c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                                f *= (1 - (zeta ** i) * (t ** j) * m + h) ** c
+                                log_f += c * log(1 - (zeta**i) * (t ** j) * m + h)
+                                #f *= (1 - (zeta ** i) * (t ** j) * m + h) ** c
                             except KeyError:
                                 pass
-                v_big = vector([-j / b_norm] + list(-sv))
-                z = a_tr * v_big
-                sz = S * z
-                if negative(sz):
-                    norm_z = z * sz / 2
+                    v_big = vector([-j / b_norm] + list(-sv))
+                    z = a_tr * v_big
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                        f *= (1 - t**j * ~m + h) ** c
+                        #f *= (1 - t**j * ~m + h) ** c
+                        log_f += c * log(1 - t**j * ~m + h)
                     except KeyError:
                         if -norm_z >= prec0:
                             prec = j
@@ -1251,7 +1258,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             z[0] = i / N
                             try:
                                 c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                                f *= (1 - (zeta ** i) * (t ** j) * ~m + h) ** c
+                                #f *= (1 - (zeta ** i) * (t ** j) * ~m + h) ** c
+                                log_f += c * log(1 - (zeta ** i) * (t ** j) * ~m + h)
                             except KeyError:
                                 pass
             if nrows > 1:
@@ -1270,7 +1278,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     try:
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
                         if c > 0:
-                            f *= (1 - m + h) ** c
+                            const_f *= (1 - m + h) ** c
                         else:
                             p *= (1 - tpoly) ** c
                             for j in range(2, isqrt(-val / norm_z) + 1):
@@ -1302,7 +1310,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             try:
                                 c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
                                 if c > 0:
-                                    f *= (1 - mu * m + h) ** c
+                                    const_f *= (1 - mu * m + h) ** c
                                 else:
                                     p *= (1 - mu * tpoly) ** c
                                     for j in range(2, isqrt(-val / norm_z) + 1):
@@ -1316,7 +1324,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                                                 pass
                             except KeyError:
                                 pass
-                f *= rb_x(rpoly(p).subs({tpoly:m}))
+                const_f *= rb_x(rpoly(p).subs({tpoly:m}))
         v = a.rows()[0]
         norm_v = v * S * v / 2
         for j in srange(1, prec):
@@ -1326,18 +1334,20 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 for i in srange(N):
                     try:
                         c = coeffs[tuple([i/N] + list(map(frac, jb * v)) + [0, norm_z])]
-                        f *= (1 - zeta**i * t**j + h) ** c
+                        #f *= (1 - zeta**i * t**j + h) ** c
+                        log_f += c * log(1 - zeta**i * t**j + h)
                     except KeyError:
                         if not i and norm_z >= prec0:
                             prec = j
                             h = O(t ** j)
-                            f += h
+                            log_f += h
                             break
                         pass
             else:
                 try:
                     c = coeffs[tuple([frac(jb * y) for y in v] + [norm_z])]
-                    f *= (1 - t ** j + h) ** c
+                    #f *= (1 - t ** j + h) ** c
+                    log_f += c * log(1 - t**j + h)
                 except KeyError:
                     if norm_z >= prec0:
                         prec = j
@@ -1361,10 +1371,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     pass
             try:
                 c = Integer(coeffs[tuple([Integer(1) / 2] + [0] * (nrows + 2))])
-                C *= 2**Integer(c / 2)
+                C *= Integer(2)**Integer(c / 2)
             except (KeyError, TypeError):
                 pass
-            f *= C
+            const_f *= C
+        f = exp(log_f) * const_f
         return OrthogonalModularFormLorentzian(k, S, f.V(d) * weyl_monomial * (t ** weyl_vector[0]), scale = d, weylvec = weyl_vector, qexp_representation = w.lift_qexp_representation)
 
 class WeilRepLorentzianPlusII(WeilRepLorentzian):
