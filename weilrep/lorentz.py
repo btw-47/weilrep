@@ -1055,7 +1055,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             j = ceil(scale)
             while i < bound: #we can raise this bound for some redundant checks that the weyl vector is correct
                 jN = j * j * N
-                for f in range(1, 1 + (j // scale)):
+                for f in range(1, 1 + ceil(j / scale)):
                     norm = f * f * p_0 - jN
                     if norm < 0 and norm.is_squarefree():
                         if sqr or is_prime(-norm):
