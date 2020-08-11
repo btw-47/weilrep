@@ -1003,11 +1003,11 @@ class WeilRepPositiveDefinite(WeilRep):
         from .lorentz import RescaledHyperbolicPlane, WeilRepLorentzian
         if isinstance(other, RescaledHyperbolicPlane):
             S = self.gram_matrix()
+            z = matrix([[0]])
             zerov = matrix([[0]*S.nrows()])
             zerovt = zerov.transpose()
             N = other._N()
-            return WeilRepLorentzian(block_matrix([[-(N + N), zerov, N], [zerovt, S, zerovt], [N, zerov, matrix([[0]])]], subdivide = False), lift_qexp_representation = 'PD+II')
-            #return WeilRepLorentzian(block_matrix([[zerom, zerov, N], [zerovt, S, zerovt], [N, zerov, -(N + N)]], subdivide = False), lift_qexp_representation = 'PD+II')
+            return WeilRepLorentzian(block_matrix([[z, zerov, N], [zerovt, S, zerovt], [N, zerov, z]], subdivide = False), lift_qexp_representation = 'PD+II')
         from .weilrep import WeilRep
         if isinstance(other, WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
@@ -1416,10 +1416,12 @@ def jacobian(X):
     t_deriv = []
     x_deriv = []
     u = []
+    S = Xref.gram_matrix()
     new_scale = lcm(x.scale() for x in X)
     for y in X:
-        y = y.rescale(new_scale // y.scale())
-        f = y.true_fourier_expansion()
+        if y.gram_matrix() != S:
+            raise ValueError('These forms do not have the same Gram matrix.')
+        f = y.rescale(new_scale // y.scale()).true_fourier_expansion()
         t_deriv.append(t * f.derivative())
         if nvars > 1:
             x_deriv.append(f.map_coefficients(lambda a: x * a.derivative()))
@@ -1430,7 +1432,6 @@ def jacobian(X):
         k += y_k
         v += y.weyl_vector()
         u.append(y_k * f)
-    S = Xref.gram_matrix()
     L = [u, t_deriv]
     if nvars > 1:
         L.append(x_deriv)

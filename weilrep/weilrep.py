@@ -272,6 +272,7 @@ class WeilRep(object):
         Y1 = []
         X2 = []
         Y2 = []
+        prec = ceil(prec)
         for n in range(floor(starting_from),prec+1):
             for g in G:
                 true_n = n_dict[g] + n

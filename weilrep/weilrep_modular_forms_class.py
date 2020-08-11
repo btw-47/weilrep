@@ -200,42 +200,20 @@ class WeilRepModularForm(object):
 
     def principal_part(self):
         r"""
-        Return the principal part of self's Fourier expansion as a string.
+        Return the principal part of self's Fourier expansion as a WeilRepModularFormPrincipalPart object.
 
         EXAMPLES::
 
             sage: from weilrep import WeilRep
             sage: X = WeilRep(matrix([[2, 1],[1, 4]])).nearly_holomorphic_modular_forms_basis(-1, 1, 3)
             sage: X[1].principal_part()
-            '28*e_(0, 0) + -5*q^(-1/7)e_(1/7, 5/7) + -5*q^(-1/7)e_(6/7, 2/7) + q^(-4/7)e_(5/7, 4/7) + q^(-4/7)e_(2/7, 3/7)'
+            28*e_(0, 0) + -5*q^(-1/7)e_(1/7, 5/7) + -5*q^(-1/7)e_(6/7, 2/7) + q^(-4/7)e_(5/7, 4/7) + q^(-4/7)e_(2/7, 3/7)
         """
-        coeffs = self.coefficients()
-        w = self.weilrep()
-        ds_dict = w.ds_dict()
-        norm_dict = w.norm_dict()
-        ds = w.ds()
-        sorted_ds = sorted(ds, key = lambda x: -norm_dict[tuple(x)])
-        val = self.valuation()
-        len_ds = len(ds)
-        L = [None]*(len_ds * val)
         try:
-            C0 = coeffs[tuple([0] * (len(ds[0]) + 1))]
-        except KeyError:
-            C0 = 0
-        s = str(C0)+'*e_%s'%ds[0]
-        for i, g in enumerate(sorted_ds):
-            j = norm_dict[tuple(g)]
-            for n in range(1 - val):
-                if j or n:
-                    try:
-                        C = coeffs[tuple(list(g) + [j - n])]
-                        if C != 1:
-                            s += ' + %s*q^(%s)e_%s'%(C, (j - n), g)
-                        else:
-                            s += ' + q^(%s)e_%s'%((j - n), g)
-                    except KeyError:
-                        pass
-        return s
+            return self.__principal_part
+        except AttributeError:
+            self.__principal_part = WeilRepModularFormPrincipalPart(self.weilrep(), self.principal_part_coefficients())
+            return self.__principal_part
 
     def valuation(self, exact = False):
         r"""
@@ -588,7 +566,7 @@ class WeilRepModularForm(object):
             X_new[j] = x[0], x[1], (q ** val) * R([ y * (i + x[1] + val) ** (1-k) for i, y in enumerate(x[2])]) + O(q ** (prec - floor(x[1])))
         return WeilRepModularForm(2 - k, self.gram_matrix(), X_new, weilrep = self.weilrep())
 
-    def conjugate(self,A):
+    def conjugate(self, A, w=None):
         r"""
         Conjugate modular forms by integral matrices.
 
@@ -596,6 +574,7 @@ class WeilRepModularForm(object):
 
         INPUT:
         - ``A`` -- a square integral matrix with nonzero determinant
+        - ``w`` -- a WeilRep instance for the result (default none)
 
         EXAMPLES::
 
@@ -626,8 +605,9 @@ class WeilRepModularForm(object):
         prec = self.precision()
         S_conj = A.transpose()*S*A
         _ds_dict = self.weilrep().ds_dict()
-        w_conj = WeilRep(S_conj)
-        ds_conj = w_conj.ds()
+        if w is None:
+            w = WeilRep(S_conj)
+        ds_conj = w.ds()
         Y = [None] * len(ds_conj)
         for j, g in enumerate(ds_conj):
             g_old = tuple(frac(x) for x in A*g)
@@ -639,7 +619,7 @@ class WeilRepModularForm(object):
                 offset = -frac(g*S_conj*g/2)
                 prec_g = prec - floor(offset)
                 Y[j] = g, offset, O(q ** prec_g)
-        return WeilRepModularForm(self.weight(), S_conj, Y, weilrep = w_conj)
+        return WeilRepModularForm(self.weight(), S_conj, Y, weilrep = w)
 
     def hecke_P(self, N):
         r"""
@@ -876,7 +856,7 @@ class WeilRepModularForm(object):
                     try:
                         i = ds_dict[tuple(frac(d * x) for x in g)]
                         offset = X[i][1]
-                        n = big_offset + val
+                        n = big_offset + val * ceil(a / d)
                         while n < (prec + offset) * (a / d):
                             if (n + r_val) % a == 0:
                                 Y[j][2] += X[i][2][Integer(d * n / a - offset)] * q ** (ceil(n)) * a_pow
@@ -1111,6 +1091,10 @@ class WeilRepModularForm(object):
             [(0), 1 - 25570/67*q - 1147320/67*q^2 - 10675440/67*q^3 - 52070050/67*q^4 + O(q^5)]
             [(1/2), -10/67*q^(1/4) - 84816/67*q^(5/4) - 2229850/67*q^(9/4) - 16356240/67*q^(13/4) - 73579680/67*q^(17/4) + O(q^(21/4))]
 
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[2]])).nearly_holomorphic_modular_forms_basis(-1/2, 1/4, 20)[0].hecke_V(8).theta_contraction()
+            [(), 45/2 + O(q^2)]
+
          """
         symm = self.is_symmetric()
         prec = self.precision()
@@ -1149,13 +1133,13 @@ class WeilRepModularForm(object):
                 try:
                     return R(f)
                 except TypeError:
-                    return R(0)
-                    #R0, q = LaurentSeriesRing(QQ, 'q').objgen()
-                    #return R0(f)
+                    R0, q = LaurentSeriesRing(QQ, 'q').objgen()
+                    return R0(f)
         for i, g in enumerate(_ds):
             offset = frac(g*S*g/2)
             prec_g = prec + ceil(offset)
-            theta_twist = [[0]*prec_g for j in range(bm2)]
+            precval = prec_g - val
+            theta_twist = [[0]*precval for j in range(bm2)]
             gSb = frac(g*S*b)
             if (odd == symm) and g.denominator() <= 2:#component is zero
                 Y[i] = g, -offset, O(q ** prec_g)
@@ -1181,7 +1165,7 @@ class WeilRepModularForm(object):
                     new_offset = big_offset_ind[i_m]
                     r_square += (new_offset - old_offset) + (2*r_shift - 1) / (4*m)
                     old_offset = new_offset
-                    if r_square < prec_g:
+                    if r_square < precval:
                         if odd:
                             theta_twist[i_m][r_square] += r_shift
                         else:
@@ -1192,9 +1176,9 @@ class WeilRepModularForm(object):
                     Y[i] = g, -offset, sum([R(theta_twist[j]) * X[g_ind[j]][2] for j in range(min(bm2, len(g_ind)))])+O(q ** prec_g)
                 else:
                     try:
-                        Y[i] = g, -offset, q ** (val) * (sum([R(theta_twist[j]) * map_to_R(q ** (-val) * X[g_ind[j]][2]) for j in range(min(bm2, len(g_ind))) if theta_twist[j]])+O(q ** (prec_g - val)))
+                        Y[i] = g, -offset, q ** (val) * (sum([R(theta_twist[j]) * map_to_R(q ** (-val) * X[g_ind[j]][2]) for j in range(min(bm2, len(g_ind))) if theta_twist[j]])+O(q ** (precval)))
                     except:
-                        Y[i] = g, -offset, O(q ** (prec_g - val))
+                        Y[i] = g, -offset, O(q ** (precval))
             else:
                 Y[i] = g, -offset, eps * Y[_indices[i]][2]
         return WeilRepModularForm(QQ(self.weight() + sage_one_half + odd), S, Y, weilrep = weilrep)
@@ -1412,7 +1396,12 @@ class WeilRepModularFormsBasis:
 
         The output is a string of the form (i, x.principal_part()) for x in X joined by newlines.
         """
-        return '\n'.join(['%d %s'%(i, x.principal_part()) for i, x in enumerate(self)])
+        w = self.weilrep()
+        norm_dict = w.norm_dict()
+        w.sorted_ds = sorted(w.ds(), key = lambda x: -norm_dict[tuple(x)])
+        s = '\n'.join(['%d %s'%(i, str(x.principal_part())) for i, x in enumerate(self)])
+        del(w.sorted_ds)
+        return s
 
     def rank(self, starting_from = 0):
         r"""
@@ -1593,8 +1582,7 @@ def rankin_cohen(N, X, Y):
         val = f.valuation()
         prec = f.prec()
         return (q**val * r([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
-    def d(f):
-        return [(x[0], x[1], d0(x[1], x[2])) for x in f]
+    d = lambda f: [(x[0], x[1], d0(x[1], x[2])) for x in f]
     for r in range(1, N + 1):
         binom1[r] = (binom1[r - 1] * k) // r
         binom2[r] = (binom2[r - 1] * ell) // r
@@ -1602,3 +1590,63 @@ def rankin_cohen(N, X, Y):
         deriv2[r] = d(deriv2[r - 1])
         k, ell = k-1, ell-1
     return sum( (-1)**r * binom1[r] * binom2[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w = w) for r in range(N + 1))
+
+class WeilRepModularFormPrincipalPart:
+
+    def __init__(self, weilrep, coeffs_dict):
+        self.__weilrep = weilrep
+        self.__coeffs = coeffs_dict
+
+    def __repr__(self):
+        try:
+            return self.__string
+        except AttributeError:
+            coeffs = self.coeffs()
+            w = self.weilrep()
+            norm_dict = w.norm_dict()
+            try:
+                sorted_ds = w.sorted_ds
+            except AttributeError:
+                sorted_ds = sorted(w.ds(), key = lambda x: -norm_dict[tuple(x)])
+            val = self.valuation()
+            g = vector([0] * (w.gram_matrix().nrows()))
+            try:
+                C0 = coeffs[tuple([0] * (len(g) + 1))]
+            except KeyError:
+                C0 = 0
+            s = str(C0)+'*e_%s'%g
+            l = str(C0)+'\mathfrak{e}_{%s}'%g
+            for i, g in enumerate(sorted_ds):
+                j = norm_dict[tuple(g)]
+                for n in srange(1 - val):
+                    if j or n:
+                        try:
+                            C = coeffs[tuple(list(g) + [j - n])]
+                            if C != 1:
+                                s += ' + %s*q^(%s)e_%s'%(C, (j - n), g)
+                                l += ' + %sq^{%s}\mathfrak{e}_{%s}'%(C, (j - n), g)
+                            else:
+                                s += ' + q^(%s)e_%s'%((j - n), g)
+                                l += ' + q^{%s}\mathfrak{e}_{%s}'%((j - n), g)
+                        except KeyError:
+                            pass
+            self.__string = s
+            self.__latex = l
+            return s
+
+    def _latex_(self):
+        try:
+            return self.__latex
+        except AttributeError:
+            s = str(self)
+            return self.__latex
+
+    def coeffs(self):
+        return self.__coeffs
+    coefficients = coeffs
+
+    def valuation(self):
+        return min(x[-1] for x in self.coeffs().keys())
+
+    def weilrep(self):
+        return self.__weilrep
