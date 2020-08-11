@@ -786,8 +786,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             eps = -1
         nrows = Integer(s_0.nrows())
         k = wt + nrows/2 - 1
-        if k <= 1:
-            raise NotImplementedError('Not implemented in low weight')
+        if k == 1:
+            print('Warning: the constant term is not correctly implemented for lifts of weight one')
+        elif k <= 0:
+            raise NotImplementedError
+            #raise NotImplementedError('Not implemented in low weight')
         N = w._N()
         if N <= 2:
             K = QQ
@@ -1045,7 +1048,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             m = X.valuation(exact = True)
             Xcoeff = X.principal_part_coefficients()
             e = X.weilrep().dual().eisenstein_series(2, ceil(-m), allow_small_weight = True).coefficients()
-            scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.iteritems() if n < 0) #dubious
+            scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.items() if n < 0) #dubious
             v = []
             h = [None] * 2
             bound = 2
