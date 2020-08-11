@@ -1615,7 +1615,7 @@ class WeilRepModularFormPrincipalPart:
             except KeyError:
                 C0 = 0
             s = str(C0)+'*e_%s'%g
-            l = str(C0)+'\mathfrak{e}_{%s}'%g
+            l = str(C0)+'\\mathfrak{e}_{%s}'%g
             for i, g in enumerate(sorted_ds):
                 j = norm_dict[tuple(g)]
                 for n in srange(1 - val):
@@ -1624,10 +1624,10 @@ class WeilRepModularFormPrincipalPart:
                             C = coeffs[tuple(list(g) + [j - n])]
                             if C != 1:
                                 s += ' + %s*q^(%s)e_%s'%(C, (j - n), g)
-                                l += ' + %sq^{%s}\mathfrak{e}_{%s}'%(C, (j - n), g)
+                                l += ' + %sq^{%s}\\mathfrak{e}_{%s}'%(C, (j - n), g)
                             else:
                                 s += ' + q^(%s)e_%s'%((j - n), g)
-                                l += ' + q^{%s}\mathfrak{e}_{%s}'%((j - n), g)
+                                l += ' + q^{%s}\\mathfrak{e}_{%s}'%((j - n), g)
                         except KeyError:
                             pass
             self.__string = s
