@@ -1048,7 +1048,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             m = X.valuation(exact = True)
             Xcoeff = X.principal_part_coefficients()
             e = X.weilrep().dual().eisenstein_series(2, ceil(-m), allow_small_weight = True).coefficients()
-            scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.items() if n < 0) #dubious
+            scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.items() if n < 0 and tuple(list(g[:-1]) + [-g[-1]]) in e.keys()) #dubious
             v = []
             h = [None] * 2
             bound = 2
