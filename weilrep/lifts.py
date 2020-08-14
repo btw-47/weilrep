@@ -1471,6 +1471,12 @@ def omf_matrix(X):
         M.append(L)
     return matrix(M)
 
+def omf_pivots(X):
+    r"""
+    Compute a set of pivot indices in the list of orthogonal modular forms X.
+    """
+    return list(omf_matrix(X).transpose().pivots())
+
 def omf_rank(X):
     r"""
     Compute the rank of the space spanned by the list of orthogonal modular forms X.

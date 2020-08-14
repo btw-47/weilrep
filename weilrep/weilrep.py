@@ -1508,13 +1508,14 @@ class WeilRep(object):
         S_inv = -self.gram_matrix().inverse()
         deg_P = 0
         if P and test_P:#test whether P is OK
+            variables = P.parent().gens()
             deg_P = P.degree()
-            if len(P.variables()) != Q.dim():
+            if len(variables) != Q.dim():
                 raise ValueError('The number of variables in P does not equal the lattice rank')
             if not P.is_homogeneous():
                 raise ValueError('Not a homogeneous polynomial')
             u = vector(P.gradient())*S_inv
-            if sum(x.derivative(P.variables()[i]) for i, x in enumerate(u)):
+            if sum(x.derivative(variables[i]) for i, x in enumerate(u)):
                 raise ValueError('Not a harmonic polynomial')
         else:
             P = lambda x: 1
@@ -2495,15 +2496,15 @@ class WeilRep(object):
             computed_weight += 12
         if verbose:
             print('I will compute modular forms of weight %s which vanish in infinity to order %s and divide them by Delta^%d.' %(computed_weight, N - pole_order, N))
-        X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N, not inclusive, keep_N = True, verbose = verbose)
+        X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N + 1, not inclusive, keep_N = True, verbose = verbose)
         delta_power = smf(-12 * N, ~(delta_qexp(max(ceil(prec) + N + 1, 1)) ** N))
-        Y = WeilRepModularFormsBasis(k, [x * delta_power for x in X], self)
+        Y = WeilRepModularFormsBasis(k, [(x * delta_power) for x in X], self)
         if verbose:
             print('I am computing an echelon form.')
         Y.echelonize(starting_from = -N, ending_with = sturm_bound)
         if reverse:
             Y.reverse()
-        return Y
+        return Y.reduce_precision(prec)
 
     weakly_holomorphic_modular_forms_basis = nearly_holomorphic_modular_forms_basis
 

@@ -999,6 +999,8 @@ class WeilRepModularForm(object):
         mod_e2 = (k / 12) * eisenstein_series_qexp(2, prec, normalization = 'constant')
         def sd(offset, f):
             r, q = f.parent().objgen()
+            if not f:
+                return O(q ** f.prec())
             val = f.valuation()
             prec = f.prec()
             return (q**val * r([(i + offset) * f[i] for i in range(val, prec)]) - f * mod_e2).add_bigoh(prec - floor(offset))
@@ -1410,6 +1412,9 @@ class WeilRepModularFormsBasis:
         ending_with = self.__weight / 12
         m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
         return m.rank()
+
+    def reduce_precision(self, prec, in_place = False):
+        return WeilRepModularFormsBasis(self.weight(), [x.reduce_precision(prec, in_place = in_place) for x in self.__basis], self.weilrep())
 
     def reverse(self):
         self.__basis.reverse()

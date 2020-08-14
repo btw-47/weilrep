@@ -32,7 +32,7 @@ from sage.rings.rational_field import QQ
 
 
 
-from .lorentz import OrthogonalModularFormLorentzian, OrthogonalModularFormsLorentzian
+from .lorentz import II, OrthogonalModularFormLorentzian, OrthogonalModularFormsLorentzian
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
 
@@ -77,7 +77,7 @@ class HMFCharacter:
     def __pow__(self,n):
         return HMFCharacter(self.base_field, n * self.sl2_val, n * self.t_val)
 
-def hmf_inputs(K):
+def hmf_inputs(K, N = 1):
     r"""
     Constructs a WeilRep instance whose lifts are Hilbert modular forms.
 
@@ -93,6 +93,8 @@ def hmf_inputs(K):
     a, b = d.quo_rem(2)
     S = matrix([[-2, b], [b, a]])
     w = WeilRep(S)
+    if N > 1:
+        w += II(N)
     w.lift_qexp_representation = 'hilbert', K
     return w
 
@@ -100,10 +102,23 @@ def hmf_inputs(K):
 class HilbertModularForms(OrthogonalModularFormsLorentzian):
     r"""
     This class represents spaces of Hilbert modular forms for the full modular group in real-quadratic number fields (as a special case of modular forms for orthogonal groups of signature 2, 2).
+
+    INPUT:
+    Construct a HilbertModularForms instance with either
+    HilbertModularForms(K)
+    or
+    HMF(K)
+    where:
+
+    - ``K`` -- a real-quadratic number field
+
+    Optional parameter:
+
+    - ``N`` -- positive integer (default 1); this represents Hilbert modular forms for the subgroup \Gamma_1(N)
     """
-    def __init__(self, K):
+    def __init__(self, K, N = 1):
         self.__base_field = K
-        w = hmf_inputs(K)
+        w = hmf_inputs(K, N = N)
         self._OrthogonalModularFormsLorentzian__weilrep = w
         self._OrthogonalModularFormsLorentzian__gram_matrix = w.gram_matrix()
         d = K.discriminant()

@@ -40,6 +40,8 @@ from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
+from sage.modular.arithgroup.congroup_gamma0 import Gamma0_constructor
+from sage.modular.modform.constructor import ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
@@ -439,6 +441,24 @@ class OrthogonalModularFormLorentzian:
                     L[g] = p
         return L
 
+    def fourier_expansion(self):
+        r"""
+        Return our Fourier expansion, in variables 'q', 's' if available, otherwise in variables 't', 'x'.
+        """
+        s = str(self)
+        try:
+            return self.__q_s_exp
+        except AttributeError:
+            pass
+        f = self.true_fourier_expansion()
+        if self.qexp_representation() == 'shimura':
+            r = f.parent()
+            t, = f.parent().gens()
+            q, = PowerSeriesRing(r.base_ring(), 'q').gens()
+            return f.subs({t:q})
+        return f
+
+
     def gram_matrix(self):
         r"""
         Return our Gram matrix.
@@ -734,7 +754,61 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         self._WeilRepModularForm__weilrep = w
         self._WeilRepModularForm__gram_matrix = w.gram_matrix()
 
-    def theta_lift(self, prec = None):
+    def _weight_one_theta_lift_constant_term(self):
+        r"""
+        Compute the constant term in the additive theta lift to weight 1.
+
+        This should not be called directly.
+
+        The additive theta lift does not map cusp forms to cusp forms when the target has weight 1. (for subgroups of SL_2 this means weight 2). We try to compute the missing constant term here.
+
+        NOTE: theta lifts of weight 1 only exist for lattices of signature (2, n) with n <= 4.
+
+        OUTPUT: a rational number
+        """
+        if not self:
+            return 0
+        w = self.weilrep()
+        nrows = w.gram_matrix().nrows()
+        extra_plane = w.is_lorentzian_plus_II()
+        N = w._N()
+        if w.lift_qexp_representation == 'PD+II':
+            a = identity_matrix(nrows - 2*extra_plane)
+            a[-1, 0] = -1
+            if extra_plane:
+                w = WeilRepLorentzian(a.transpose() * w.gram_matrix()[1:-1, 1:-1] * a) + II(N)
+            else:
+                w=WeilRepLorentzian(a.transpose() * w.gram_matrix() * a)
+            if extra_plane:
+                z = matrix([[1]])
+                a = block_diagonal_matrix([z, a, z])
+            x = self.conjugate(a, w=w)
+        else:
+            x = self
+        if nrows > 1:
+            if extra_plane:
+                a = matrix(nrows)
+                a[0, 0], a[-1, 1] = 1, 1
+                for i in range(nrows - 2):
+                    a[i + 1, (i + 2)%nrows] = 1
+                x = x.conjugate(a)
+                nrows -= 2
+            while nrows != 1:
+                x = x.theta_contraction()
+                nrows -= 1
+        S = x.gram_matrix()
+        s = S[-1, -1]
+        if extra_plane:
+            A = matrix([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
+            x = x.conjugate(A, w = WeilRep(matrix([[s]])) + II(N))
+        x = x.theta_lift(constant_term_weight_one = False)
+        f = x.fourier_expansion()
+        m = ModularForms(Gamma0_constructor(-s*N // 2), 2, prec=x.precision()).echelon_basis()
+        f -= sum(z.qexp() * f[z.qexp().valuation()] for z in m[1:])
+        i = f.exponents()[0]
+        return f[i] / m[0].qexp()[i]
+
+    def theta_lift(self, prec = None, constant_term_weight_one = True):
         r"""
         Compute the (additive) theta lift.
 
@@ -750,6 +824,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             sage: from weilrep import *
             sage: WeilRep(matrix([[-2, 0, 0], [0, 2, 1], [0, 1, 2]])).cusp_forms_basis(11/2, 5)[0].theta_lift()
             t + ((-6*r_0^-1 - 6)*x^-1 + (-6*r_0^-1 + 12 - 6*r_0) + (-6 - 6*r_0)*x)*t^2 + ((15*r_0^-2 + 24*r_0^-1 + 15)*x^-2 + (24*r_0^-2 - 24*r_0^-1 - 24 + 24*r_0)*x^-1 + (15*r_0^-2 - 24*r_0^-1 + 162 - 24*r_0 + 15*r_0^2) + (24*r_0^-1 - 24 - 24*r_0 + 24*r_0^2)*x + (15 + 24*r_0 + 15*r_0^2)*x^2)*t^3 + O(t^4)
+
+            sage: from weilrep import *
+            sage: w = WeilRep(matrix([[2]]))
+            sage: (w + II(1) + II(4)).modular_forms_basis(1/2, 15)[0].theta_lift()
+            -1/4 - q - s - q^2 + (-r^-2 - 2 - r^2)*q*s - s^2 + (-2*r^-2 - 2*r^2)*q^2*s + (-2*r^-2 - 2*r^2)*q*s^2 - q^4 + (-r^-4 - 2 - r^4)*q^2*s^2 - s^4 + (-2)*q^5 + (-r^-4 - 2 - r^4)*q^4*s + (-r^-4 - 2 - r^4)*q*s^4 + (-2)*s^5 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q^5*s + (-2*r^-4 - 2*r^4)*q^4*s^2 + (-2*r^-4 - 2*r^4)*q^2*s^4 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q*s^5 + O(q, s)^7
         """
         w = self.weilrep()
         extra_plane = w.is_lorentzian_plus_II()
@@ -771,7 +850,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         prec0 = self.precision()
         val = self.valuation()
         if val < 0:
-            raise ValueError('Nonholomorphic input function in theta lift')
+            raise ValueError('Nonholomorphic input function in theta lift.')
         if prec is None:
             prec = isqrt(4 * prec0)
         else:
@@ -786,11 +865,14 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             eps = -1
         nrows = Integer(s_0.nrows())
         k = wt + nrows/2 - 1
-        if k == 1:
-            print('Warning: the constant term is not correctly implemented for lifts of weight one')
+        C = 0
+        if k == 1 and constant_term_weight_one:
+            try:
+                C = self._weight_one_theta_lift_constant_term()
+            except IndexError:
+                print('Warning: I could not find the correct constant term! Please use a higher precision.')
         elif k <= 0:
-            raise NotImplementedError
-            #raise NotImplementedError('Not implemented in low weight')
+            return NotImplemented
         N = w._N()
         if N <= 2:
             K = QQ
@@ -939,7 +1021,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     pass
         if eps == -1 and extra_plane and N >= 3:
             lift /= sum(zeta**i - zeta**(-i) for i in range(1, (N + 1)//2))
-        return OrthogonalModularFormLorentzian(k, S, lift + O(t ** prec), scale = 1, qexp_representation = w.lift_qexp_representation)
+        return OrthogonalModularFormLorentzian(k, S, lift + C + O(t ** prec), scale = 1, qexp_representation = w.lift_qexp_representation)
 
     def weyl_vector(self):
         r"""
