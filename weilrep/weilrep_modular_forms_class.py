@@ -517,8 +517,10 @@ class WeilRepModularForm(object):
         raise NotImplementedError
 
     def __eq__(self,other):
-        if isinstance(other,WeilRepModularForm):
-            return self.fourier_expansion() == other.fourier_expansion()
+        if isinstance(other,WeilRepModularForm) and self.weilrep() == other.weilrep():
+            x = self.fourier_expansion()
+            y = other.fourier_expansion()
+            return all(h[1][2] == y[h[0]][2] for h in enumerate(x))
         return False
 
     def __pow__(self, other):

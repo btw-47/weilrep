@@ -700,16 +700,16 @@ class OrthogonalModularForm:
         q, s = f.parent().gens()
         d_prec = d * prec
         for j, x in coeffs.items():
-            a, c = j.exponents()[0]
+            a, c = [Integer(i) for i in j.exponents()[0]]
             if a+c < d_prec:
                 x_coeffs = x.coefficients()
                 if nrows > 1:
                     for i, y in enumerate(x.exponents()):
-                        g = tuple([a/d] + list(vector(y)/d) + [c/d])
+                        g = tuple([a/d] + list(vector(ZZ, y)/d) + [c/d])
                         L[g] = x_coeffs[i]
                 else:
                     for i, y in enumerate(x.exponents()):
-                        g = a/d, y/d, c/d
+                        g = a/d, Integer(y)/d, c/d
                         L[g] = x_coeffs[i]
         return L
 

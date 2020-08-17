@@ -422,12 +422,14 @@ class OrthogonalModularFormLorentzian:
         d_prec = d * prec
         for j_t, p in f.dict().items():
             if j_t < d_prec:
+                j_t = Integer(j_t)
                 if nrows > 1:
                     for j_x, h in p.dict().items():
+                        j_x = Integer(j_x)
                         if nrows > 2:
                             if nrows > 3:
                                 for j_r, y in h.dict().items():
-                                    g = tuple([j_x/d] + list(vector(j_r) / d) + [j_t / d])
+                                    g = tuple([j_x/d] + list(vector(ZZ, j_r) / d) + [j_t / d])
                                     L[g] = y
                             else:
                                 for j_r, y in h.dict().items():
