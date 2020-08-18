@@ -254,13 +254,14 @@ class WeilRepModularForm(object):
             self.__is_symmetric = [1,None,0,None][(Integer(2*self.weight()) + self.weilrep().signature()) % 4]
             return self.__is_symmetric
 
-    def coefficient_vector(self, starting_from=None, ending_with=None, G = None, set_v = None):
+    def coefficient_vector(self, starting_from=None, ending_with=None, inclusive = True, G = None, set_v = None):
         r"""
         Return self's Fourier coefficients as a vector.
 
         INPUT:
         - ``starting_from`` -- the minimal exponent whose coefficient is included in the vector (default self's valuation)
         - ``ending_with`` -- the maximal exponent whose coefficient is included in the vector (default self's precision)
+        - ``inclusive`` -- boolean (default True). If True then we include coefficients exactly the value of 'ending_with' if they are known
         - ``set_v`` -- vector (default None). If a vector v is given then we *set* the coefficient vector of self to v. (this should only be used internally)
 
         OUTPUT: a vector of rational numbers
@@ -298,20 +299,24 @@ class WeilRepModularForm(object):
         X = [x for x in self.fourier_expansion()]
         X.sort(key = lambda x: x[1])
         Y = []
+        def b(n):
+            if inclusive:
+                return starting_from <= n <= ending_with
+            else:
+                return starting_from <= n < ending_with
         if ending_with is None:
             ending_with = prec + 1
-        if ending_with > prec + 1:
+        elif ending_with > prec + 1:
             raise ValueError('Insufficient precision')
         if starting_from is None:
             starting_from = self.valuation()
         for n in range(floor(starting_from),ceil(ending_with)+1):
             for x in X:
-                if starting_from <= n + x[1] <= ending_with:
-                    if (x[0] in G) and (symm or x[0].denominator() > 2):
-                        try:
-                            Y.append(x[2][n])
-                        except:
-                            pass
+                if b(n + x[1]) and (x[0] in G) and (symm or x[0].denominator() > 2):
+                    try:
+                        Y.append(x[2][n])
+                    except:
+                        pass
         v = vector(Y)
         if not (starting_from or ending_with):
             self.__coefficient_vector = v
@@ -1226,14 +1231,43 @@ class WeilRepModularFormsBasis:
             return s.join([x.__repr__() for x in self.__basis])
         return '[]'
 
+    def __add__(self, other):
+        X = copy(self)
+        X.extend(other)
+        return X
+
+    def __radd__(self, other):
+        X = copy(other)
+        X.extend(self)
+        return X
+
     def append(self, other):
         r"""
         Append a WeilRepModularForm to self.
         """
-        if other._WeilRepModularForm__weight == self.weight():
-            self.__basis.append(other)
+        if self.weilrep() == other.weilrep():
+            if other._WeilRepModularForm__weight == self.weight():
+                self.__basis.append(other)
+            else:
+                raise ValueError('I have weight %s and you are trying to append a modular form of weight %s.' %(self.weight(), other._WeilRepModularForm__weight))
         else:
-            raise ValueError('I have weight %s and you are trying to append a modular form of weight %s.' %(self.weight(), other._WeilRepModularForm__weight))
+            return NotImplemented
+
+    def coordinates(self, X):
+        r"""
+        Compute coordinates for X with respect to self.
+
+        Given a WeilRepModularForm X of the appropriate weight for the appropriate lattice, this tries to find a vector v = (v_1,...,v_n) such that, if self = [f_1,...,f_n] then
+        X = v_1 * f_1 + ... + v_n * f_n
+
+        If v cannot be found or v is not unique then we raise a ValueError.
+        """
+        if self.weilrep() != X.weilrep() or self.weight() != X.weight():
+            raise ValueError('Incompatible modular forms')
+        val = min(self.valuation(), X.valuation())
+        prec = min(self.precision(), X.precision())
+        m = matrix([v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False) for v in self.__basis])
+        return m.solve_left(X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False))
 
     def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None, integer = False):
         r"""
@@ -1271,12 +1305,17 @@ class WeilRepModularFormsBasis:
         r"""
         Extend self by another WeilRepModularFormsBasis
         """
-        try:
-            self.__basis.extend(other.list())
-        except:
-            self.__basis.extend(other)
+        if self.weilrep() == other.weilrep() and self.weight() == other.weight():
+            try:
+                self.__basis.extend(other.list())
+            except:
+                self.__basis.extend(other)
+        else:
+            return NotImplemented
 
     def __getitem__(self, n):
+        if isinstance(n, slice):
+            return WeilRepModularFormsBasis(self.__weight, self.__basis[n], self.__weilrep)
         return self.__basis[n]
 
     def __getslice__(self, i, j):
@@ -1606,6 +1645,12 @@ def rankin_cohen(N, X, Y):
 
 class WeilRepModularFormPrincipalPart:
 
+    r"""
+    The principal part of a modular form.
+
+    In other words the coefficients c(n, g) of q^n * e_g where either n < 0, or n = 0 and g = (0, ..., 0).
+    """
+
     def __init__(self, weilrep, coeffs_dict):
         self.__weilrep = weilrep
         self.__coeffs = coeffs_dict
@@ -1626,9 +1671,12 @@ class WeilRepModularFormPrincipalPart:
             try:
                 C0 = coeffs[tuple([0] * (len(g) + 1))]
             except KeyError:
+                if val >= 0:
+                    return 'None'
                 C0 = 0
             s = str(C0)+'*e_%s'%g
             l = str(C0)+'\\mathfrak{e}_{%s}'%g
+            sorted_ds.append(sorted_ds.pop(0))
             for i, g in enumerate(sorted_ds):
                 j = norm_dict[tuple(g)]
                 for n in srange(1 - val):
@@ -1659,7 +1707,10 @@ class WeilRepModularFormPrincipalPart:
     coefficients = coeffs
 
     def valuation(self):
-        return min(x[-1] for x in self.coeffs().keys())
+        try:
+            return min(x[-1] for x in self.coeffs().keys())
+        except ValueError:
+            return 0
 
     def weilrep(self):
         return self.__weilrep
