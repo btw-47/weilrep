@@ -1045,7 +1045,10 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         prec = self.precision()
         val = self.valuation()
         e = Integer(S.nrows())
-        Rb = LaurentPolynomialRing(QQ,list(var('w_%d' % i) for i in range(e) ))
+        if e:
+            Rb = LaurentPolynomialRing(QQ,list(var('w_%d' % i) for i in range(e) ))
+        else:
+            Rb = QQ
         R, q = PowerSeriesRing(Rb, 'q', prec).objgen()
         if e > 1:
             _ds_dict = self.weilrep().ds_dict()
@@ -1090,12 +1093,14 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                             jf[i] += wv*f[m]
                             m += 1
                 pass
-        else:
+        elif e == 1:
             w, = Rb.gens()
             m = S[0,0] #twice the index
             eps = 2*self.is_symmetric()-1
             jf = [X[0][2][i] + sum(X[r%m][2][ceil(i - r*r / (2*m))]*(w**r + eps * w**QQ(-r)) for r in range(1,isqrt(2*(i-val)*m)+1)) for i in range(val, prec)]
-        return JacobiForm(self.weight()+e/2, S, q ** val * R(jf) + O(q**prec), weilrep = self.weilrep(), modform = self)
+        else:
+            return JacobiForm(self.weight(), S, self.fourier_expansion()[0][2], weilrep = self.weilrep(), modform = self)
+        return JacobiForm(self.weight() + e/2, S, q ** val * R(jf) + O(q**prec), weilrep = self.weilrep(), modform = self)
 
     def theta_lift(self, prec = None):
         r"""

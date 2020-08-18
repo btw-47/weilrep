@@ -40,7 +40,7 @@ from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 
-from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import smf, WeilRepModularForm, WeilRepModularFormsBasis
 
 sage_one_half = Integer(1) / Integer(2)
 sage_three_half = Integer(3) / Integer(2)
@@ -57,11 +57,13 @@ class JacobiForms:
     - ``m`` -- a natural number (not 0)
 
     """
-    def __init__(self, index_matrix, weilrep=None):
+    def __init__(self, index_matrix = None, weilrep=None):
         if index_matrix in ZZ:
             self.__index_matrix = matrix([[2 * index_matrix]])
-        else:
+        elif index_matrix:
             self.__index_matrix = index_matrix
+        else:
+            self.__index_matrix = matrix([])
         if weilrep:
             self.__weilrep = weilrep
 
@@ -927,8 +929,15 @@ class JacobiForm:
             except AttributeError:
                 modform = None
             return JacobiForm(self.weight(), self.index_matrix(),self.fourier_expansion() * other, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms())
+        elif isinstance(other, WeilRepModularForm):
+            if other.weilrep().gram_matrix().nrows() == 0:
+                try:
+                    modform = self.modform() * other
+                except AttributeError:
+                    modform = None
+                return JacobiForm(self.weight() + other.weight(), self.index_matrix(), self.qexp() * other.fourier_expansion()[0][2], modform = modform)
         else:
-            raise TypeError('Cannot multiply these objects')
+            return NotImplemented
 
     __rmul__ = __mul__
 
@@ -1242,6 +1251,8 @@ def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to 
         if j < bound:
             eta += eps * q**ZZ(j)
     return JacobiForm(weight, matrix([[sum([a * a for a in a])]]), prod([theta**a0[a0_list[i]] for i, theta in enumerate(thetas)]) * (eta**n) * q**qval * w_0**wval, jacobiforms = jacobiforms)
+
+## Extra functions
 
 def jf_rankin_cohen(N, f1, f2, direct = False):
     r"""

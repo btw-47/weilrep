@@ -2765,6 +2765,8 @@ class WeilRep(object):
             sage: w._invariants_dim()
             1
         """
+        if self.discriminant() == 1: #unimodular
+            return 1
         S, _ = self._s_matrix()
         return S.ncols() - S.rank()
 

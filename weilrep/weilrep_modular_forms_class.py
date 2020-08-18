@@ -1308,7 +1308,10 @@ class WeilRepModularFormsBasis:
         prec = self.precision()
         val = self.valuation()
         e = Integer(S.nrows())
-        Rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e) ))
+        if e:
+            Rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e) ))
+        else:
+            Rb = QQ
         R, q = PowerSeriesRing(Rb, 'q', prec).objgen()
         w = self.weilrep()
         if e > 1:
@@ -1362,7 +1365,7 @@ class WeilRepModularFormsBasis:
                                 jf[ell][i] += wv * h[m]
                             m += 1
                 pass
-        else:
+        elif e:
             w, = Rb.gens()
             m = S[0,0] #twice the index
             if self.is_symmetric():
@@ -1377,6 +1380,9 @@ class WeilRepModularFormsBasis:
                         wr = (w ** r + eps * (w ** (-r)))
                         jf[j][i] += x[r%m][2][ceil(i + val - r * r / (2*m))] * wr
             k = self.weight() + sage_one_half
+        else:
+            k = self.weight()
+            return [JacobiForm(k, S, x.fourier_expansion()[0][2], weilrep = self.__weilrep, modform = x) for x in self.__basis]
         return [JacobiForm(k, S, q**val * R(x) + O(q**prec), weilrep = self.__weilrep, modform = self[i]) for i, x in enumerate(jf)]
 
     def __len__(self):
