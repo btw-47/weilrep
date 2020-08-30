@@ -447,7 +447,7 @@ class OrthogonalModularFormLorentzian:
         r"""
         Return our Fourier expansion, in variables 'q', 's' if available, otherwise in variables 't', 'x'.
         """
-        s = str(self)
+        _ = str(self) #kludge to initialize q-s expansion if we have one
         try:
             return self.__q_s_exp
         except AttributeError:
@@ -637,6 +637,75 @@ class OrthogonalModularFormLorentzian:
             raise ValueError('Not a valid exponent')
         return OrthogonalModularFormLorentzian(other * self.weight(), self.__gram_matrix, self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector(), qexp_representation = self.__qexp_representation)
 
+    ## other
+
+    def phi(self):
+        r"""
+        Apply the Siegel Phi operator.
+
+        WARNING: this is only defined for lattices of the form L + II(m) + II(n), where L is positive-definite
+
+        The Siegel Phi operator sets s->0 in self's Fourier--Jacobi expansion. The result is an OrthogonalModularForm on a lattice of signature (2, 1).
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
+            sage: X = m.borcherds_input_Qbasis(1, 10)
+            sage: X[1].borcherds_lift().phi()
+            q + 8*q^2 + 28*q^3 + 64*q^4 + 126*q^5 + 224*q^6 + 344*q^7 + O(q^8)
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(matrix([[6]])) + II(3)
+            sage: m.eisenstein_series(4, 10).phi()
+            1 + 240*q^3 + 2160*q^6 + 6720*q^9 + O(q^10)
+        """
+        if self.nvars() == 1:
+            return self
+        elif self.qexp_representation() == 'PD+II':
+            N = self.gram_matrix()[0, 0]
+            f = self.true_fourier_expansion()
+            R = PowerSeriesRing(QQ, 't')
+            prec = f.prec()
+            f = R([f[j][-j] for j in range(prec)]).O(prec)
+            S = matrix([[N]])
+            return OrthogonalModularFormLorentzian(self.weight() / 2, S, f, scale = self.scale(), weylvec = vector([self.__weylvec[0]]), qexp_representation = 'shimura')
+        return NotImplemented
+
+    def witt(self):
+        r"""
+        Apply the Witt operator.
+
+        WARNING: this is only defined for lattices of the form L + II(m) + II(n), where L is positive-definite
+
+        The Witt operator sets all r_i to 1 in self's Fourier--Jacobi expansion. The result is an OrthogonalModularForm on a lattice of signature (2, 2).
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
+            sage: X = m.borcherds_input_Qbasis(1/2, 15)
+            sage: X[1].borcherds_lift().witt()
+            q + 8*q^2 + (-16)*q*s + 28*q^3 + (-128)*q^2*s + 112*q*s^2 + 64*q^4 + (-448)*q^3*s + 896*q^2*s^2 + (-448)*q*s^3 + 126*q^5 + (-1024)*q^4*s + 3136*q^3*s^2 + (-3584)*q^2*s^3 + 1136*q*s^4 + 224*q^6 + (-2016)*q^5*s + 7168*q^4*s^2 + (-12544)*q^3*s^3 + 9088*q^2*s^4 + (-2016)*q*s^5 + 344*q^7 + (-3584)*q^6*s + 14112*q^5*s^2 + (-28672)*q^4*s^3 + 31808*q^3*s^4 + (-16128)*q^2*s^5 + 3136*q*s^6 + 512*q^8 + (-5504)*q^7*s + 25088*q^6*s^2 + (-56448)*q^5*s^3 + 72704*q^4*s^4 + (-56448)*q^3*s^5 + 25088*q^2*s^6 + (-5504)*q*s^7 + O(q, s)^9
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
+            sage: m.eisenstein_series(4, 5).witt()
+            1 + 240*q^2 + 3840*q*s + 240*s^2 + 30720*q^2*s + 30720*q*s^2 + 2160*q^4 + 107520*q^3*s + 303360*q^2*s^2 + 107520*q*s^3 + 2160*s^4 + O(q, s)^5
+        """
+        if self.qexp_representation() == 'PD+II':
+            if self.nvars() == 2:
+                return self
+            a = lambda x: sum(x[1] for x in x.dict().items())
+            def b(x):
+                u, v = x.polynomial_construction()
+                return u.map_coefficients(a) * (x.parent().gens()[0]**v)
+            f = self.true_fourier_expansion().map_coefficients(b)
+            N = self.gram_matrix()[0, -1]
+            S = matrix([[-(N + N), N], [N, 0]])
+            return OrthogonalModularFormLorentzian(self.weight(), S, f, scale = self.scale(), weylvec = vector([self.__weylvec[0], self.__weylvec[-1]]), qexp_representation = 'PD+II')
+        return NotImplemented
+
 
 class WeilRepLorentzian(WeilRep):
     r"""
@@ -651,6 +720,11 @@ class WeilRepLorentzian(WeilRep):
         self.lift_qexp_representation = lift_qexp_representation
 
     def __add__(self, other):
+        r"""
+        Tensor product of Weil representations.
+
+        If 'other' is a rescaled hyperbolic plane then we rearrange it so that 'other' goes in the first and last coordinates.
+        """
         if self.is_lorentzian() and isinstance(other, RescaledHyperbolicPlane):
             S = self.gram_matrix()
             n = S.nrows()
@@ -670,7 +744,7 @@ class WeilRepLorentzian(WeilRep):
 
     def change_of_basis_matrix(self):
         r"""
-        Computes a change-of-basis matrix that splits our lattice (over QQ) in the form L_0 + <-b> where L_0 is positive-definite and b > 0.
+        Computes a change-of-basis matrix that splits our lattice (over QQ) in the form <-b> + L_0 where L_0 is positive-definite and b > 0.
 
         This matrix is generally not invertible over ZZ.
 
@@ -818,6 +892,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
 
         INPUT:
         - ``prec`` -- max precision (default None). (This is limited by the precision of the input. If prec is None then we compute as much as possible.)
+        - ``constant_term_weight_one`` -- boolean (default True) for internal use. If False then we don't bother correcting the constant term when the result has weight 1.
 
         OUTPUT: OrthogonalModularFormLorentzian
 
@@ -1053,7 +1128,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
 
         Auxiliary function for the Weyl vector. This should not be called directly.
 
-        WARNING: this has known bugs!
+        WARNING: this has bugs! it should not be trusted!
 
         """
         w = self.weilrep()

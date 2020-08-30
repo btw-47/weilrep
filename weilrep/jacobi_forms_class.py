@@ -27,6 +27,7 @@ from sage.functions.other import binomial, ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
 from sage.misc.functional import isqrt
+from sage.misc.latex import latex
 from sage.misc.misc_c import prod
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import is_ModularFormElement

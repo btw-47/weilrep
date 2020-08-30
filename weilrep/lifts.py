@@ -39,6 +39,7 @@ from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix
 from sage.misc.functional import denominator, isqrt
+from sage.misc.misc_c import prod
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
 from sage.rings.big_oh import O
@@ -63,6 +64,8 @@ class OrthogonalModularForms(object):
     - ``S`` -- a Gram matrix for the lattice; or
     - ``S`` -- a quadratic form; or
     - ``S`` -- the WeilRep instance WeilRep(S)
+
+    NOTE: this takes positive-definite lattices and appends two unimodular hyperbolic planes to them to get lattices of signature (n, 2). Lattices that are not split by two unimodular hyperbolic planes will be bumped to the class OrthogonalModularFormsLorentzian from the .lorentz.py file.
     """
 
     def __init__(self, w):
@@ -76,7 +79,7 @@ class OrthogonalModularForms(object):
             self.__class__ = OrthogonalModularFormsLorentzian
             OrthogonalModularFormsLorentzian.__init__(self, w)
         elif not w.is_positive_definite():
-            raise NotImplementedError
+            raise ValueError('Invalid signature in OrthogonalModularForms')
         self.__weilrep = w
         self.__gram_matrix = S
 
@@ -946,6 +949,66 @@ class OrthogonalModularForm:
         except NotImplementedError:
             return False
 
+    def phi(self):
+        r"""
+        Apply the Siegel Phi operator.
+
+        The Siegel Phi operator sets s->0 in self's Fourier--Jacobi expansion. The result is an OrthogonalModularForm on a lattice of signature (2, 1).
+
+        OUTPUT: OrthogonalModularFormLorentzian
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = WeilRep(matrix([[2, 1], [1, 2]]))
+            sage: m = OrthogonalModularForms(w)
+            sage: m.eisenstein_series(4, 5).phi()
+            1 + 240*q + 2160*q^2 + 6720*q^3 + 17520*q^4 + O(q^5)
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(matrix([[4]]))
+            sage: X = m.borcherds_input_Qbasis(1, 10)
+            sage: X[2].borcherds_lift().phi()
+            -q + 24*q^2 - 252*q^3 + 1472*q^4 - 4830*q^5 + O(q^6)
+        """
+        f = self.true_fourier_expansion()
+        R = PowerSeriesRing(QQ, 't')
+        prec = f.prec()
+        f = R([f[j][j] for j in range(prec)]).O(prec)
+        from .lorentz import OrthogonalModularFormLorentzian
+        S = matrix([[-2]])
+        return OrthogonalModularFormLorentzian(self.weight() / 2, S, f, scale = self.scale(), weylvec = vector([self.__weylvec[0]]), qexp_representation = 'shimura')
+
+    def witt(self):
+        r"""
+        Apply the Witt operator.
+
+        The Witt operator sets all r_i to 1 in self's Fourier--Jacobi expansion. The result is an OrthogonalModularForm on a lattice of signature (2, 2).
+
+        OUTPUT: OrthogonalModularFormLorentzian
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(matrix([[2]]))
+            sage: X = m.borcherds_input_Qbasis(1, 10)
+            sage: X[1].borcherds_lift().witt()
+            2*q^(5/2)*s^(3/2) + (-2)*q^(3/2)*s^(5/2) + (-120)*q^(7/2)*s^(3/2) + 120*q^(3/2)*s^(7/2) + 3420*q^(9/2)*s^(3/2) + (-389988)*q^(7/2)*s^(5/2) + 389988*q^(5/2)*s^(7/2) + (-3420)*q^(3/2)*s^(9/2) + (-61360)*q^(11/2)*s^(3/2) + (-19505280)*q^(9/2)*s^(5/2) + 19505280*q^(5/2)*s^(9/2) + 61360*q^(3/2)*s^(11/2) + 773490*q^(13/2)*s^(3/2) + 180216090*q^(11/2)*s^(5/2) + 1837196280*q^(9/2)*s^(7/2) + (-1837196280)*q^(7/2)*s^(9/2) + (-180216090)*q^(5/2)*s^(11/2) + (-773490)*q^(3/2)*s^(13/2) + O(q, s)^9
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]]))
+            sage: m.eisenstein_series(4, 5).witt()
+            1 + 240*q + 240*s + 2160*q^2 + 57600*q*s + 2160*s^2 + 6720*q^3 + 518400*q^2*s + 518400*q*s^2 + 6720*s^3 + 17520*q^4 + 1612800*q^3*s + 4665600*q^2*s^2 + 1612800*q*s^3 + 17520*s^4 + O(q, s)^5
+        """
+        a = lambda x: sum(x[1] for x in x.dict().items())
+        def b(x):
+            u, v = x.polynomial_construction()
+            return u.map_coefficients(a) * (x.parent().gens()[0]**v)
+        f = self.true_fourier_expansion().map_coefficients(b)
+        from .lorentz import OrthogonalModularFormLorentzian
+        S = matrix([[-2, 1], [1, 0]])
+        return OrthogonalModularFormLorentzian(self.weight(), S, f, scale = self.scale(), weylvec = vector([self.__weylvec[0], self.__weylvec[-1]]), qexp_representation = 'PD+II')
+
 def orthogonal_eisenstein_series(k, S, prec, w = None):
     r"""
     Computes the "orthogonal Eisenstein series" as the theta-lift of the vector-valued Eisenstein series E_{k, 0} (if it exists). We renormalize such that the constant term is 1.
@@ -1450,6 +1513,8 @@ def jacobian(X):
 def omf_matrix(X):
     r"""
     Convert the Fourier coefficients of a list of orthogonal modular forms X into a matrix.
+
+    Used in omf_pivots; omf_rank; omf_relations
     """
     if not X:
         return matrix([])
@@ -1465,7 +1530,7 @@ def omf_matrix(X):
     check_wt = True
     for i, x in enumerate(X):
         if check_wt and x.weight() != k:
-            print('Warning: these forms do not have the same weight!')
+            print('Warning: these forms do not have the same weight!') #in this case the result is probably meaningless, but we'll do it anyway
             check_wt = False
         L = [0]*lenXitems
         for j, g in enumerate(Xitems):
@@ -1485,11 +1550,15 @@ def omf_pivots(X):
 def omf_rank(X):
     r"""
     Compute the rank of the space spanned by the list of orthogonal modular forms X.
+
+    WARNING: we only check the rank up to the *minimal precision of all elements of X*. For best results let X be a list of forms with the same (sufficiently high) precision!
     """
     return omf_matrix(X).rank()
 
 def omf_relations(X):
     r"""
     Compute all linear relations among the list of orthogonal modular forms X.
+
+    WARNING: we only check the relations up to the *minimal precision of all elements of X*. For best results let X be a list of forms with the same (sufficiently high) precision!
     """
     return omf_matrix(X).kernel()

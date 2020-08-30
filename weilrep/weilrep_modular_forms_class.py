@@ -82,7 +82,7 @@ class WeilRepModularForm(object):
             self.__class__ = WeilRepModularFormPositiveDefinite #in the 'lifts.sage' file.
         elif weilrep.is_lorentzian() or weilrep.is_lorentzian_plus_II():
             from .lorentz import WeilRepModularFormLorentzian
-            self.__class__ = WeilRepModularFormLorentzian #in the 'lorentzian.sage' file.
+            self.__class__ = WeilRepModularFormLorentzian #in the 'lorentz.sage' file.
 
     def __repr__(self): #represent as a list of pairs (g, f) where g is in the discriminant group and f is a q-series with fractional exponents
         try:
@@ -124,7 +124,9 @@ class WeilRepModularForm(object):
 
     def denominator(self):
         r"""
-        Return the denominator of self's Fourier coefficients.
+        Return the (presumed) denominator of self's Fourier coefficients.
+
+        This returns the minimum integer N such that all of the known coefficients of N * (self) are integers. (If the precision of self is lower than the Sturm bound then what will happen is a mystery.)
         """
         sturm_bound = self.weight() / 12
         val = self.valuation()
@@ -135,6 +137,15 @@ class WeilRepModularForm(object):
         Return the Fourier expansion.
         """
         return self.__fourier_expansions
+
+    def __getitem__(self, a):
+        r"""
+        Get the Fourier coefficients of 'a'.
+
+        This is called by
+        x[a]
+        where x is self. It tries to accept a few types of input and guess what is meant.
+        """
 
     def gram_matrix(self):
         r"""
@@ -1132,7 +1143,7 @@ class WeilRepModularForm(object):
                 weilrep = WeilRep(S)
             _indices = weilrep.rds(indices = True)
             _ds = weilrep.ds()
-        big_ds_dict = {tuple(X[i][0]) : i for i in range(len(X))}
+        big_ds_dict = {tuple(x[1][0]) : x[0] for x in enumerate(X)}
         b_denom = b.denominator()
         bm2 = Integer(2*m*b_denom)
         Y = [None] * len(_ds)
@@ -1232,11 +1243,15 @@ class WeilRepModularFormsBasis:
         return '[]'
 
     def __add__(self, other):
+        if not other:
+            return self
         X = copy(self)
         X.extend(other)
         return X
 
     def __radd__(self, other):
+        if not other:
+            return self
         X = copy(other)
         X.extend(self)
         return X
@@ -1463,12 +1478,7 @@ class WeilRepModularFormsBasis:
     def reduce_precision(self, prec, in_place = False):
         return WeilRepModularFormsBasis(self.weight(), [x.reduce_precision(prec, in_place = in_place) for x in self.__basis], self.weilrep())
 
-    def reverse(self):
-        self.__basis.reverse()
-
-    __rmul__ = __mul__
-
-    def shrink(self, starting_from = 0, ending_with = None):
+    def remove_nonpivots(self, starting_from = 0, ending_with = None):
         r"""
         Delete modular forms until we are left with a linearly independent list.
         """
@@ -1476,6 +1486,12 @@ class WeilRepModularFormsBasis:
             ending_with = self.__weight / 12
         m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
         self.__basis = [self[j] for j in m.pivot_rows()]
+
+    def reverse(self):
+        self.__basis.reverse()
+
+    __rmul__ = __mul__
+
 
     def theta(self, odd = False, weilrep = None):
         r"""

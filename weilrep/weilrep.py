@@ -31,7 +31,6 @@ from re import sub
 from sage.arith.functions import lcm
 from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, kronecker_symbol, moebius, prime_divisors, valuation
 from sage.arith.srange import srange
-from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.functions.log import log
 from sage.functions.other import ceil, floor, frac, sqrt
 from sage.functions.transcendental import zeta
@@ -49,6 +48,7 @@ from sage.modular.modform.j_invariant import j_invariant_qexp
 from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
+from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
 from sage.rings.fast_arith import prime_range
 from sage.rings.infinity import Infinity
@@ -182,6 +182,9 @@ class WeilRep(object):
 
     def __eq__(self, other):
         return self.gram_matrix() == other.gram_matrix()
+
+    def __ne__(self, other):
+        return not(self.__eq__(other))
 
     def is_lorentzian(self):
         try:
@@ -454,12 +457,14 @@ class WeilRep(object):
                 self.__order_two_in_rds_list = [1]
             else:
                 L = []
+                Gdict = self.ds_dict()
                 G = self.ds()
-                X = [None]*len(G)
-                X2 = [None]*len(G)
-                Y = [0]*len(G)
+                len_G = len(G)
+                X = [None]*len_G
+                X2 = [None]*len_G
+                Y = [0]*len_G
                 Z = []
-                order_two_ds = [0]*len(G)
+                order_two_ds = [0]*len_G
                 order_two_rds = []
                 for i, g in enumerate(G):
                     u = vector(map(frac, -g))
@@ -467,7 +472,7 @@ class WeilRep(object):
                     Y[i] = dg
                     order_two_ds[i] = not(2 % dg)
                     if u in L:
-                        X[i] = G.index(u)
+                        X[i] = Gdict[tuple(u)]
                     else:
                         L.append(g)
                         Z.append(dg)
@@ -496,9 +501,8 @@ class WeilRep(object):
         try:
             return self.__sorted_rds
         except AttributeError:
-            self.__rds = self.rds()
             n_dict = self.norm_dict()
-            G = [tuple(g) for g in self.__rds]
+            G = list(map(tuple, self.rds()))
             G.sort(key = lambda g: n_dict[g])
             self.__sorted_rds = G
             return G
@@ -1653,7 +1657,6 @@ class WeilRep(object):
         if weight <= 0 or symm is None:
             return 0
         elif weight >= 2 or force_Riemann_Roch:
-        #elif weight > 2 or (weight == 2 and (eta_twist or ((d%4 and d.is_squarefree()) or (not d%4 and (d//4).is_squarefree())) )) or force_Riemann_Roch:
             eps = 1 if symm else -1
             modforms_rank = self.rank(symm)
             pi_i = complex(0.0, math.pi)
@@ -1928,6 +1931,8 @@ class WeilRep(object):
         if symm is None:
             return WeilRepModularFormsBasis(k, [], self) #should this raise an error instead?
         def return_pivots():
+            if verbose:
+                print('Done!')
             if save_pivots:
                 return X, pivots
             return X
@@ -1952,207 +1957,168 @@ class WeilRep(object):
         if k == sage_one_half:
             X = self._weight_one_half_basis(prec)
             return WeilRepModularFormsBasis(sage_one_half, [x for x in X if x.valuation(exact = True)], self)
+        X = WeilRepModularFormsBasis(k, [], self)
         if k >= sage_seven_half or (k >= sage_five_half and symm):
-            if k >= ZZ(31)/2 or (k >= ZZ(29)/2 and symm):
-                deltasmf = [smf(12, delta_qexp(prec))]
-            rank = 0
+            try:
+                oldprec, Y = self.__cusp_forms_basis[k - 2]
+                if oldprec >= prec:
+                    X = WeilRepModularFormsBasis(k, [y.reduce_precision(prec, in_place = False).serre_derivative() for y in Y], self)
+                    rank = X.rank()
+                    if rank >= dim:
+                        if verbose:
+                            print('I found %d cusp forms using the cached cusp forms basis of weight %s.'%(len(X), k-2))
+                        pivots = X.echelonize(save_pivots = save_pivots)
+                        self.__cusp_forms_basis[k] = prec, X
+                        return return_pivots()
+            except KeyError:
+                if k - 6 >= sage_seven_half or (k - 6 >= sage_five_half and symm):
+                    e4 = smf(4, eisenstein_series_qexp(4, prec, normalization = 'constant'))
+                    e6 = smf(6, eisenstein_series_qexp(6, prec, normalization = 'constant'))
+                    X6 = self.cusp_forms_basis(k - 6, prec, verbose = verbose)
+                    X4 = [x.serre_derivative() for x in X6]
+                    if verbose:
+                        print('-'*80)
+                    X = WeilRepModularFormsBasis(k, [x*e4 for x in X4], self) + WeilRepModularFormsBasis(k, [x*e6 for x in X6], self) + WeilRepModularFormsBasis(k, [x.serre_derivative().serre_derivative() for x in X4], self)
+                    X.remove_nonpivots()
+                    rank = len(X)
+                    if k >= ZZ(31)/2 or (k >= ZZ(29)/2 and symm):
+                        deltasmf = [smf(12, delta_qexp(prec))]
+                else:
+                    rank = 0
             if symm and k >= sage_nine_half:
-                E, X = self._eisenstein_packet(k, prec, dim = dim+1)
-                if verbose and X:
-                    print('I computed a packet of %d cusp forms using Eisenstein series. (They may be linearly dependent.)'%len(X))
+                E, Y = self._eisenstein_packet(k, prec, dim = dim+1)
+                if verbose and Y:
+                    print('I computed a packet of %d cusp forms using Eisenstein series. (They may be linearly dependent.)'%len(Y))
+                    X.extend(Y)
             elif symm and not E:
                 E = self.eisenstein_series(k, prec)
-                X = WeilRepModularFormsBasis(k, [], self)
                 if verbose:
                     print('I computed the Eisenstein series of weight %s up to precision %s.' %(k, prec))
-            else:
-                X = WeilRepModularFormsBasis(k, [], self)
             if X:
                 rank = X.rank()
                 if rank >= dim:
                     pivots = X.echelonize(save_pivots = save_pivots)
                     self.__cusp_forms_basis[k] = prec, X
                     return return_pivots()
-            if rank and verbose:
-                print('I found %d linearly independent cusp forms in this packet.'%rank)
-            try:
-                oldprec, Y = self.__cusp_forms_basis[k - 2]
-                if oldprec >= prec:
-                    Z = WeilRepModularFormsBasis(k, [y.reduce_precision(prec, in_place = False).serre_derivative() for y in Y], self)
-                    X.extend(Z)
-                    rank = X.rank()
-                    if rank >= dim:
-                        if verbose:
-                            print('I found enough cusp forms using the cached cusp forms basis of weight %s.'%(k-2))
-                        pivots = X.echelonize(save_pivots = save_pivots)
-                        self.__cusp_forms_basis[k] = prec, X
-                        return return_pivots()
-            except KeyError:
                 pass
             m0 = 1
-            skipped_indices = []
-            failed_exponent = 0
             G = self.sorted_rds()
             indices = self.rds(indices = True)
             ds = self.ds()
             norm_list = self.norm_list()
             b_list = [i for i in range(len(ds)) if not (indices[i] or norm_list[i])]
-            #here we go!
+            def t_packet_1(X, k, m, b, max_dim, prec, verbose = False): #symmetric
+                w_new = self.embiggen(b, m)
+                if max_dim > 3 and k in ZZ:
+                    z = w_new.cusp_forms_basis(k - sage_one_half, prec, echelonize = False, verbose = verbose, dim = max_dim).theta(weilrep = self)
+                    if z and verbose:
+                        print('-'*80)
+                        print('I am returning to the Gram matrix\n%s'%self.gram_matrix())
+                        print('I computed a packet of %d cusp forms using the index %s.'%(len(z), (b, m)))
+                    X.extend(z)
+                if k > sage_nine_half:
+                    _, x = w_new._eisenstein_packet(k - sage_one_half, prec, dim = dim_rank)
+                    X.extend(x.theta(weilrep = self))
+                    if x and verbose:
+                        print('I computed a packet of %d cusp forms using the index %s.'%(len(x), (b, m)))
+                X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
+                if verbose:
+                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k))
+                if m <= 1:
+                    j = 1
+                    k_j = k - 12
+                    while k_j > sage_five_half:
+                        try:
+                            delta_j = deltasmf[j - 1]
+                        except IndexError:
+                            deltasmf.append(deltasmf[-1] * deltasmf[0])
+                            delta_j = deltasmf[-1]
+                            X.append(delta_j * (self.eisenstein_series(k_j, prec-j) - self.pss(k_j, b, m, prec - j, weilrep = w_new)))
+                            if verbose:
+                                 print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
+                        j += 1
+                        k_j -= 12
+                rank = len(X)
+                if rank >= dim:
+                    X.remove_nonpivots()
+                    rank = len(X)
+                del w_new
+                return X, rank
+            def t_packet_2(X, k, m, b, max_dim, prec, verbose = False): #anti-symmetric
+                w_new = self.embiggen(b, m)
+                if max_dim > 3:
+                    z = w_new.cusp_forms_basis(k - sage_three_half, prec, echelonize = False, verbose = verbose, dim = max_dim).theta(weilrep = self, odd = True)
+                    if z:
+                        X.extend(z)
+                        if verbose:
+                            print('I computed a packet of %d cusp forms using the index %s.'%(len(z), (b, m)))
+                X.append(self.pssd(k, b, m, prec, weilrep = w_new))
+                if verbose:
+                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k))
+                if m <= 1:
+                    j = 1
+                    k_j = k - 12
+                    while k_j > sage_seven_half:
+                        try:
+                            delta_j = deltasmf[j - 1]
+                        except IndexError:
+                            deltasmf.append(deltasmf[-1] * deltasmf[0])
+                            delta_j = deltasmf[-1]
+                            X.append(delta_j * self.pssd(k_j, b, m, prec - j, weilrep = w_new))
+                            if verbose:
+                                 print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
+                        j += 1
+                        k_j -= 12
+                rank = len(X)
+                if rank >= dim:
+                    X.remove_nonpivots()
+                    rank = len(X)
+                del w_new
+                return X, rank
             while rank < dim:
-                if True:
-                    for b_tuple in G:
-                        old_rank = rank
-                        b = vector(b_tuple)
-                        if symm or b.denominator() > 2:
-                            m = m0 + _norm_dict[b_tuple]
-                            if dim > 0:
-                                dim_rank = dim - len(X)
-                                if symm:
-                                    if k in ZZ:
-                                        w_new = self.embiggen(b, m)
-                                        if k > 3 and dim + dim > 3 * rank:
-                                            if verbose:
-                                                print('-'*40)
-                                            if m != failed_exponent:
-                                                y = w_new.cusp_forms_basis(k - sage_one_half, prec, verbose = verbose, dim = min(dim_rank, ceil(sage_three_half*dim / 2))).theta(weilrep = self)
-                                                if y:
-                                                    X.extend(y)
-                                                    if verbose and (len(X) > rank):
-                                                        print('-'*40)
-                                                        print('I found %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
-                                                        print('I am returning to the Gram matrix\n%s'%S)
-                                                else:
-                                                    failed_exponent = m
-                                        rank = X.rank()
-                                        if rank < dim:
-                                            Y = copy(X)
-                                            Y.append(E - self.pss(k, b, m, prec, weilrep = w_new))
-                                            if verbose:
-                                                print('I computed a Poincare square series of index %s.'%([b, m]))
-                                            j = 1
-                                            k_j = k - 12
-                                            while k_j > sage_five_half:
-                                                try:
-                                                    delta_j = deltasmf[j - 1]
-                                                except IndexError:
-                                                    deltasmf.append(deltasmf[-1] * deltasmf[0])
-                                                    delta_j = deltasmf[-1]
-                                                Y.append(delta_j * (self.eisenstein_series(k_j, prec-j) - self.pss(k_j, b, m, prec - j, weilrep = w_new)))
-                                                if verbose:
-                                                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
-                                                j += 1
-                                                k_j -= 12
-                                            new_rank = Y.rank()
-                                            if new_rank > rank:
-                                                rank = new_rank
-                                                X = Y
-                                    else:
-                                        w_new = self.embiggen(b, m)
-                                        if dim_rank > 1 and k > sage_nine_half:
-                                            _, x = w_new._eisenstein_packet(k - sage_one_half, prec, dim = dim_rank)
-                                            X.extend(x.theta(weilrep = self))
-                                            if x and verbose:
-                                                print('I computed a packet of %d cusp forms using the index %s.'%(len(x), (b, m)))
-                                        rank = X.rank()
-                                        if rank < dim:
-                                            Y = copy(X)
-                                            Y.append(E - self.pss(k, b, m, prec, weilrep = w_new))
-                                            if verbose:
-                                                print('I computed a Poincare square series of index %s.'%([b, m]))
-                                            j = 1
-                                            k_j = k - 12
-                                            while k_j > sage_five_half:
-                                                try:
-                                                    delta_j = deltasmf[j - 1]
-                                                except IndexError:
-                                                    deltasmf.append(deltasmf[-1] * deltasmf[0])
-                                                    delta_j = deltasmf[-1]
-                                                Y.append(delta_j * (self.eisenstein_series(k_j, prec-j) - self.pss(k_j, b, m, prec - j, weilrep = w_new)))
-                                                if verbose:
-                                                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
-                                                j += 1
-                                                k_j -= 12
-                                            new_rank = Y.rank()
-                                            if new_rank > rank:
-                                                rank = new_rank
-                                                X = Y
-                                else:
-                                    if k in ZZ:
-                                        w_new = self.embiggen(b, m)
-                                        if dim_rank > 1 and k > 4:
-                                            if verbose:
-                                                print('-'*40)
-                                            if m != failed_exponent:
-                                                y = w_new.cusp_forms_basis(k - sage_three_half, prec, verbose = verbose, dim = dim - Integer(len(X))).theta(odd = True, weilrep = self)
-                                                if y:
-                                                    X.extend(y)
-                                                    if verbose:
-                                                        print('-'*40)
-                                                        print('I computed %d cusp forms using a basis of cusp forms from the index %s.'%(len(y), (b, m)))
-                                                        print('I am returning to the Gram matrix\n%s'%S)
-                                                else:
-                                                    failed_exponent = m
-                                        rank = X.rank()
-                                        if rank < dim:
-                                            Y = copy(X)
-                                            Y.append(self.pssd(k, b, m, prec, weilrep = w_new))
-                                            if verbose:
-                                                print('I computed a Poincare square series of index %s.'%([b, m]))
-                                            new_rank = Y.rank()
-                                            if new_rank > rank:
-                                                rank = new_rank
-                                                X = Y
-                                    else:
-                                        dim_rank = dim - rank
-                                        w_new = self.embiggen(b, m)
-                                        if dim_rank > 1 and k > 6:
-                                            Y = copy(X)
-                                            y = w_new._eisenstein_packet(k - sage_three_half, prec, dim = dim_rank, include_E = True).theta(odd = True, weilrep = self)
-                                            Y.extend(y)
-                                            if verbose:
-                                                print('I computed a packet of %d cusp forms using the index %s.'%(len(y), (b, m)))
-                                        elif dim_rank:
-                                            Y = copy(X)
-                                            Y.append(self.pssd(k, b, m, prec, weilrep = w_new))
-                                            if verbose:
-                                                print('I computed a Poincare square series of index %s.'%([b, m]))
-                                            j = 1
-                                            k_j = k - 12
-                                            while k_j > sage_seven_half:
-                                                try:
-                                                    delta_j = deltasmf[j - 1]
-                                                except IndexError:
-                                                    deltasmf.append(deltasmf[-1] * deltasmf[0])
-                                                    delta_j = deltasmf[-1]
-                                                Y.append(delta_j * self.pssd(k_j, b, m, prec - j, weilrep = w_new))
-                                                if verbose:
-                                                    print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
-                                                j += 1
-                                                k_j -= 12
-                                        new_rank = Y.rank()
-                                        if new_rank > rank:
-                                            rank = new_rank
-                                            X = Y
-                                    if rank >= dim:
-                                        if verbose:
-                                            print('I found enough cusp forms!')
-                                        if echelonize:
-                                            pivots = X.echelonize(save_pivots = save_pivots)
-                                            self.__cusp_forms_basis[k] = prec, X
-                                        return return_pivots()
-                                del w_new
-                            else:
+                for b_tuple in G:
+                    b = vector(b_tuple)
+                    if symm or b.denominator() > 2:
+                        m = m0 + _norm_dict[b_tuple]
+                        dim_rank = dim - rank
+                        if dim_rank <= 0:
+                            X.remove_nonpivots()
+                            rank = len(X)
+                            dim_rank = dim - rank
+                        if symm:
+                            if dim_rank > 2:
+                                X, rank = t_packet_1(X, k, m, b, dim_rank, prec, verbose = verbose)
+                            elif dim_rank:
+                                X.append(E - self.pss(k, b, m, prec))
                                 if verbose:
-                                    print('I will skip the index %s.'%([b,m]))
-                                skipped_indices.append([b, m])
-                    m0 += 1
-                    if m0 > prec and rank < dim:#this will probably never happen but lets be safe
-                        raise RuntimeError('Something went horribly wrong!')
-                if verbose and rank < dim:
-                    print('I have found %d out of %d cusp forms.'%(rank, dim))
-            if verbose:
-                print('Done!')
+                                    print('I computed a Poincare square series of index %s.'%([b, m]))
+                                rank += 1
+                        else:
+                            if dim_rank > 2:
+                                X, rank = t_packet_2(X, k, m, b, dim_rank, prec, verbose = verbose)
+                            elif dim_rank:
+                                X.append(self.pssd(k, b, m, prec))
+                                if verbose:
+                                    print('I computed a Poincare square series of index %s.'%([b, m]))
+                                rank += 1
+                        if rank >= dim:
+                            X.remove_nonpivots()
+                            rank = len(X)
+                            if verbose:
+                                print('I have found %d out of %d cusp forms.'%(rank, dim))
+                        if rank >= dim:
+                            if echelonize:
+                                if verbose:
+                                    print('I am computing an echelon form.')
+                                pivots = X.echelonize(save_pivots = save_pivots)
+                                self.__cusp_forms_basis[k] = prec, X
+                            return return_pivots()
+                m0 += 1
+                if m0 > prec and rank < dim:#this will probably never happen but lets be safe
+                    raise RuntimeError('Something went horribly wrong!')
             if echelonize:
+                if verbose:
+                    print('I am computing an echelon form.')
                 pivots = X.echelonize(save_pivots = save_pivots)
                 self.__cusp_forms_basis[k] = prec, X
             return return_pivots()
@@ -2162,7 +2128,7 @@ class WeilRep(object):
                 if verbose:
                     print('The discriminant is prime so I can construct cusp forms via the Bruinier--Bundschuh lift.')
                 chi = DirichletGroup(p)[(p-1)//2]
-                cusp_forms = CuspForms(chi, k, prec = p*prec).echelon_basis()
+                cusp_forms = CuspForms(chi, k, prec = ceil(p*prec)).echelon_basis()
                 mod_sturm_bound = ceil(p * k / 12)
                 sig = self.signature()
                 eps = sig == 0 or sig == 6
@@ -2184,7 +2150,7 @@ class WeilRep(object):
             X1 = self.cusp_forms_basis(k + 4, prec, verbose = verbose)
             X2 = self.cusp_forms_basis(k + 6, prec, verbose = verbose)
             if verbose:
-                print('I am now going to compute S_%s by intersecting the spaces E_4^(-1) * S_%s and E_6^(-1) * S_%s.' %(k, k +4, k +6))
+                print('I will intersect the spaces E_4^(-1) * S_%s and E_6^(-1) * S_%s.' %(k, k +4, k +6))
             try:
                 V1 = span((x * e4).coefficient_vector() for x in X1)
                 V2 = span((x * e6).coefficient_vector() for x in X2)
@@ -2571,7 +2537,7 @@ class WeilRep(object):
             if verbose:
                 print('I computed the Eisenstein series and will now compute cusp forms.')
             L = [E]
-            L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose))
+            L.extend(self.cusp_forms_basis(weight, prec, E = E, verbose = verbose))
             return WeilRepModularFormsBasis(weight, L, self)
         elif weight == 0:
             if d == 1:
