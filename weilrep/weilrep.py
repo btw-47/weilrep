@@ -1958,6 +1958,7 @@ class WeilRep(object):
             X = self._weight_one_half_basis(prec)
             return WeilRepModularFormsBasis(sage_one_half, [x for x in X if x.valuation(exact = True)], self)
         X = WeilRepModularFormsBasis(k, [], self)
+        rank = 0
         if k >= sage_seven_half or (k >= sage_five_half and symm):
             try:
                 oldprec, Y = self.__cusp_forms_basis[k - 2]

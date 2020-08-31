@@ -347,7 +347,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                 new_scale = lcm(self.scale(), other.scale())
                 X1 = self.rescale(new_scale // self_scale)
                 X2 = other.rescale(new_scale // other_scale)
-                return HilbertModularForm(self.weight(), self.base_field(), X1.true_fourier_expansion() * X2.true_fourier_expansion(), scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector())
+                return HilbertModularForm(self.weight() + other.weight(), self.base_field(), X1.true_fourier_expansion() * X2.true_fourier_expansion(), scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector())
             return HilbertModularForm(self.weight() + other.weight(), self.base_field(), self.true_fourier_expansion() * other.true_fourier_expansion(), scale = 1, weylvec = self.weyl_vector() + other.weyl_vector())
         elif other in QQ:
             return HilbertModularForm(self.weight(), self.base_field(), self.true_fourier_expansion() * other, scale = self.scale(), weylvec = self.weyl_vector())
