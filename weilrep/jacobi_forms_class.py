@@ -41,6 +41,7 @@ from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 
+from .weilrep import WeilRep
 from .weilrep_modular_forms_class import smf, WeilRepModularForm, WeilRepModularFormsBasis
 
 sage_one_half = Integer(1) / Integer(2)
@@ -62,7 +63,12 @@ class JacobiForms:
         if index_matrix in ZZ:
             self.__index_matrix = matrix([[2 * index_matrix]])
         elif index_matrix:
-            self.__index_matrix = index_matrix
+            if isinstance(index_matrix, WeilRep):
+                if not index_matrix.is_positive_definite():
+                    raise ValueError('This index is not positive definite.')
+                self.__index_matrix = index_matrix.gram_matrix()
+            else:
+                self.__index_matrix = index_matrix
         else:
             self.__index_matrix = matrix([])
         if weilrep:
