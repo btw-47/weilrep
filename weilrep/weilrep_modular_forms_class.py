@@ -78,11 +78,11 @@ class WeilRepModularForm(object):
             weilrep = WeilRep(gram_matrix)
         self.__weilrep = weilrep
         if weilrep.is_positive_definite():
-            from .lifts import WeilRepModularFormPositiveDefinite
-            self.__class__ = WeilRepModularFormPositiveDefinite #in the 'lifts.sage' file.
+            from .positive_definite import WeilRepModularFormPositiveDefinite
+            self.__class__ = WeilRepModularFormPositiveDefinite
         elif weilrep.is_lorentzian() or weilrep.is_lorentzian_plus_II():
             from .lorentz import WeilRepModularFormLorentzian
-            self.__class__ = WeilRepModularFormLorentzian #in the 'lorentz.sage' file.
+            self.__class__ = WeilRepModularFormLorentzian
 
     def __repr__(self): #represent as a list of pairs (g, f) where g is in the discriminant group and f is a q-series with fractional exponents
         try:
@@ -1491,6 +1491,7 @@ class WeilRepModularFormsBasis:
         self.__basis.reverse()
 
     __rmul__ = __mul__
+
 
 
     def theta(self, odd = False, weilrep = None):

@@ -1043,7 +1043,7 @@ class JacobiForm:
         except AttributeError:
             from .lifts import OrthogonalModularForms
             fj = [self.hecke_V(N) for N in range(self.precision())]
-            return OrthogonalModularForms(self.index_matrix()).modular_form_from_fourier_jacobi_expansion(self.weight(), fj)
+            return OrthogonalModularForms(self.weilrep()).modular_form_from_fourier_jacobi_expansion(self.weight(), fj)
 
     def hecke_T(self, N):
         r"""

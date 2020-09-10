@@ -23,6 +23,7 @@ from sage.arith.misc import bernoulli
 from sage.functions.other import ceil, floor, frac, sqrt
 from sage.matrix.constructor import matrix
 from sage.misc.functional import denominator, isqrt
+from sage.modules.free_module_element import vector
 from sage.rings.big_oh import O
 from sage.rings.infinity import Infinity
 from sage.rings.integer_ring import ZZ
@@ -77,7 +78,7 @@ class HMFCharacter:
     def __pow__(self,n):
         return HMFCharacter(self.base_field, n * self.sl2_val, n * self.t_val)
 
-def hmf_inputs(K, N = 1):
+def hmf_inputs(K, level = 1):
     r"""
     Constructs a WeilRep instance whose lifts are Hilbert modular forms.
 
@@ -89,13 +90,12 @@ def hmf_inputs(K, N = 1):
     from .weilrep import WeilRep
     if not (K.is_totally_real() and K.degree() == 2):
         raise ValueError('HMF only accepts real-quadratic number fields.')
-    d = K.discriminant()
-    a, b = d.quo_rem(2)
+    a, b = K.discriminant().quo_rem(2)
     S = matrix([[-2, b], [b, a]])
     w = WeilRep(S)
-    if N > 1:
-        w += II(N)
-    w.lift_qexp_representation = 'hilbert', K
+    if level > 1:
+        w += II(level)
+    w.lift_qexp_representation = 'hilbert', K, level
     return w
 
 
@@ -114,13 +114,13 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
 
     Optional parameter:
 
-    - ``N`` -- positive integer (default 1); this represents Hilbert modular forms for the subgroup \Gamma_1(N)
+    - ``level`` -- positive integer (default 1); this represents Hilbert modular forms for the subgroup \Gamma_1(N)
     """
-    def __init__(self, K, N = 1):
+    def __init__(self, K, level = 1):
         self.__base_field = K
-        w = hmf_inputs(K, N = N)
-        self._OrthogonalModularFormsLorentzian__weilrep = w
-        self._OrthogonalModularFormsLorentzian__gram_matrix = w.gram_matrix()
+        w = hmf_inputs(K, level = level)
+        self._OrthogonalModularForms__weilrep = w
+        self._OrthogonalModularForms__gram_matrix = w.gram_matrix()
         d = K.discriminant()
         sqrtd = K(d).sqrt()
         if d % 4:
@@ -199,24 +199,9 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
     r"""
     This class represents Hilbert modular forms for the full modular group in real-quadratic number fields.
     """
-    def __init__(self, weight, base_field, fourier_expansion, scale = 1, weylvec = None, hmf = None):
+    def __init__(self, base_field, level):
         self.__base_field = base_field
-        self._OrthogonalModularFormLorentzian__fourier_expansion = fourier_expansion
-        self._OrthogonalModularFormLorentzian__weight = weight
-        self._OrthogonalModularFormLorentzian__scale = scale
-        d = base_field.discriminant()
-        self._OrthogonalModularFormLorentzian__qexp_representation = 'hilbert', base_field
-        if d % 4:
-            S = matrix([[(d - 1)//2, 1], [1, -2]])
-        else:
-            S = matrix([[d//2, 0], [0, -2]])
-        self._OrthogonalModularFormLorentzian__gram_matrix = S
-        if weylvec is None:
-            self._OrthogonalModularFormLorentzian__weylvec = vector([0, 0])
-        else:
-            self._OrthogonalModularFormLorentzian__weylvec = weylvec
-        if hmf:
-            self.__hmf = hmf
+        self.__level = level
 
     def __repr__(self):
         r"""
@@ -240,19 +225,28 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                     if c:
                         q2exp = (i - n/sqrtD)/(d + d)
                         q1exp = i / d - q2exp
+                        coef = True
                         if sign:
                             if c > 0 and c!= 1:
                                 s += ' + ' + str(c)
-                            elif c != 1:
+                            elif c + 1 and c != 1:
                                 s += ' - ' + str(-c)
-                            else:
+                            elif c + 1:
                                 s += ' + '
+                                coef = False
+                            elif c - 1:
+                                s += ' - '
+                                coef = False
                         else:
-                            if c != 1 or not (q1exp or q2exp):
+                            if abs(c) != 1 or not q1exp:
                                 s += str(c)
+                            else:
+                                coef = False
+                                if c == -1:
+                                    s += '-'
                             sign = True
                         if q1exp:
-                            if c != 1:
+                            if coef:
                                   s += '*'
                             if q1exp != q2exp or q1exp not in ZZ:
                                   s += 'q1^(%s)*q2^(%s)'%(q1exp, q2exp)
@@ -260,6 +254,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                                   s += 'q1^%s*q2^%s'%(q1exp, q2exp)
                             else:
                                   s += 'q1*q2'
+                        sign = True
             if hprec % d:
                 self.__string = s + ' + O(q1, q2)^(%s)'%(hprec/d)
             else:
@@ -277,108 +272,6 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         """
         return self.__base_field
 
-    def fourier_expansion(self):
-        r"""
-        Return self's Fourier expansion (as a power series in 't' over a Laurent polynomial ring in 'x').
-        """
-        return self.true_fourier_expansion()
-
-    def __add__(self, other):
-        r"""
-        Add modular forms, rescaling if necessary.
-        """
-        if not other:
-            return self
-        if not self.base_field() == other.base_field():
-            raise ValueError('Incompatible base fields')
-        if not self.weight() == other.weight():
-            raise ValueError('Incompatible weights')
-        self_v = self.weyl_vector()
-        other_v = other.weyl_vector()
-        if self_v or other_v:
-            if not denominator(self_v - other_v) == 1:
-                raise ValueError('Incompatible characters')
-        self_scale = self.scale()
-        other_scale = other.scale()
-        if not self_scale == other_scale:
-            new_scale = lcm(self_scale, other_scale)
-            X1 = self.rescale(new_scale // self_scale)
-            X2 = other.rescale(new_scale // other_scale)
-            return HilbertModularForm(self.weight(), self.base_field(), X1.true_fourier_expansion() + X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v)
-        return HilbertModularForm(self.weight(), self.base_field(), self.true_fourier_expansion() + other.true_fourier_expansion(), scale = self_scale, weylvec = self_v)
-
-    def __sub__(self, other):
-        r"""
-        Subtract modular forms, rescaling if necessary.
-        """
-        if not other:
-            return self
-        if not self.base_field() == other.base_field():
-            raise ValueError('Incompatible base fields')
-        if not self.weight() == other.weight():
-            raise ValueError('Incompatible weights')
-        self_v = self.weyl_vector()
-        other_v = other.weyl_vector()
-        if self_v or other_v:
-            if not denominator(self_v - other_v) == 1:
-                raise ValueError('Incompatible characters')
-        self_scale = self.scale()
-        other_scale = other.scale()
-        if not self_scale == other_scale:
-            new_scale = lcm(self_scale, other_scale)
-            X1 = self.rescale(new_scale // self_scale)
-            X2 = other.rescale(new_scale // other_scale)
-            return HilbertModularForm(self.weight(), self.base_field(), X1.true_fourier_expansion() - X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v)
-        return HilbertModularForm(self.weight(), self.base_field(), self.true_fourier_expansion() - other.true_fourier_expansion(), scale = self_scale, weylvec = self_v)
-
-    def __neg__(self):
-        return HilbertModularForm(self.weight(), self.base_field(), -self.fourier_expansion(), scale = self.scale(), weylvec = self.weyl_vector())
-
-    def __mul__(self, other):
-        r"""
-        Multiply modular forms, rescaling if necessary.
-        """
-        if isinstance(other, HilbertModularForm):
-            if self.base_field() != other.base_field():
-                raise ValueError('Incompatible base fields')
-            self_scale = self.scale()
-            other_scale = other.scale()
-            if self_scale != 1 or other_scale != 1:
-                new_scale = lcm(self.scale(), other.scale())
-                X1 = self.rescale(new_scale // self_scale)
-                X2 = other.rescale(new_scale // other_scale)
-                return HilbertModularForm(self.weight() + other.weight(), self.base_field(), X1.true_fourier_expansion() * X2.true_fourier_expansion(), scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector())
-            return HilbertModularForm(self.weight() + other.weight(), self.base_field(), self.true_fourier_expansion() * other.true_fourier_expansion(), scale = 1, weylvec = self.weyl_vector() + other.weyl_vector())
-        elif other in QQ:
-            return HilbertModularForm(self.weight(), self.base_field(), self.true_fourier_expansion() * other, scale = self.scale(), weylvec = self.weyl_vector())
-
-    __rmul__ = __mul__
-
-    def __div__(self, other):
-        r"""
-        Divide modular forms, rescaling if necessary.
-        """
-        if isinstance(other, HilbertModularForm):
-            if self.base_field() != other.base_field():
-                raise ValueError('Incompatible base_field')
-            self_scale = self.scale()
-            other_scale = other.scale()
-            if self_scale != 1 or other_scale != 1:
-                new_scale = lcm(self.scale(), other.scale())
-                X1 = self.rescale(new_scale // self_scale)
-                X2 = other.rescale(new_scale // other_scale)
-                return HilbertModularForm(self.weight(), self.base_field(), X1.true_fourier_expansion() / X2.true_fourier_expansion(), scale = new_scale, weylvec = self.weyl_vector() - other.weyl_vector())
-            return HilbertModularForm(self.weight() - other.weight(), self.base_field(), self.true_fourier_expansion() / other.true_fourier_expansion(), scale = 1, weylvec = self.weyl_vector() - other.weyl_vector())
-        elif other in QQ:
-            return HilbertModularForm(self.weight(), self.base_field(), self.true_fourier_expansion() / other, scale = self.scale(), weylvec = self.weyl_vector())
-
-    __truediv__ = __div__
-
-    def __pow__(self, other):
-        if not other in ZZ:
-            raise ValueError('Not a valid exponent')
-        return HilbertModularForm(other * self.weight(), self.base_field(), self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector())
-
     def character(self):
         r"""
         Compute self's character.
@@ -391,9 +284,6 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         if d % 4:
             return HMFCharacter(self.base_field(), (24 * val)/scale, (12 * (val + r))/scale)
         return HMFCharacter(self.base_field(), (24 * val)/scale, (24 * r)/scale)
-
-    def qexp_representation(self):
-        return 'hilbert', self.base_field()
 
     def nvars(self):
         return 2
@@ -461,6 +351,8 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
 
         OUTPUT: an OrthogonalModularForm for a signature (2, 1) lattice
 
+        WARNING: the output's weyl vector is not implemented
+
         EXAMPLES::
 
             sage: from weilrep import *
@@ -485,4 +377,4 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             f = sum([p[n] * t ** ((i*tt + n * a)/2) for i, p in enumerate(h.list()) for n in p.exponents()]) + O(t**prec)
         else:
             f = sum([p[n] * t ** ((i*tt + 2 * n * a)/2) for i, p in enumerate(h.list()) for n in p.exponents()]) + O(t**prec)
-        return OrthogonalModularFormLorentzian(self.weight(), matrix([[-2 * nn]]), f, scale = self.scale(), qexp_representation = 'shimura')
+        return OrthogonalModularFormLorentzian(self.weight(), WeilRep(matrix([[-2 * nn]])), f, scale = self.scale(), weylvec = vector([0]), qexp_representation = 'shimura')

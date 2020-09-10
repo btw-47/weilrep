@@ -96,7 +96,7 @@ class WeilRep(object):
         self.__cusp_forms_basis = {}
         self.__modular_forms_basis = {}
         if self.is_positive_definite():
-            from .lifts import WeilRepPositiveDefinite
+            from .positive_definite import WeilRepPositiveDefinite
             self.__class__ = WeilRepPositiveDefinite
         if self.is_lorentzian():
             if S.nrows() > 1:
@@ -1975,7 +1975,7 @@ class WeilRep(object):
                 if k - 6 >= sage_seven_half or (k - 6 >= sage_five_half and symm):
                     e4 = smf(4, eisenstein_series_qexp(4, prec, normalization = 'constant'))
                     e6 = smf(6, eisenstein_series_qexp(6, prec, normalization = 'constant'))
-                    X6 = self.cusp_forms_basis(k - 6, prec, verbose = verbose)
+                    X6 = self.cusp_forms_basis(k - 6, prec, verbose = verbose, echelonize=False)
                     X4 = [x.serre_derivative() for x in X6]
                     if verbose:
                         print('-'*80)
