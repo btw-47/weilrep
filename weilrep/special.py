@@ -137,7 +137,7 @@ class HermitianModularForm(OrthogonalModularForm):
         r"""
         Represent self's Fourier expansion as a power series c(a,b,c) q^a r1^v r2^(v') s^c, where v runs through elements in the dual of the ring of integers.
         """
-        K = self.__base_field
+        K = self.base_field()
         h = self.fourier_expansion()
         S = self.gram_matrix()
         if self.level() != 1:

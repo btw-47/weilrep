@@ -2134,7 +2134,7 @@ class WeilRep(object):
                 sig = self.signature()
                 eps = sig == 0 or sig == 6
                 eps = 1 - 2 * eps
-                m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in cusp_forms])
+                m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker_symbol(i + 1, p) == eps] for x in cusp_forms])
                 v_basis = m.kernel().basis()
                 L = [sum([mf * v[i] for i, mf in enumerate(cusp_forms)]) for v in v_basis]
                 L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
