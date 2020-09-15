@@ -503,9 +503,9 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         R = PowerSeriesRing(QQ, 't')
         prec = f.prec()
         f = R([f[j][j] for j in range(prec)]).O(prec)
-        from .lorentz import OrthogonalModularFormLorentzian
+        from .lorentz import WeilRepLorentzian, OrthogonalModularFormLorentzian
         S = matrix([[-2]])
-        return OrthogonalModularFormLorentzian(self.weight() / 2, self.weilrep(), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
+        return OrthogonalModularFormLorentzian(self.weight() / 2, WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
 
     def witt(self):
         r"""
@@ -533,9 +533,9 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             u, v = x.polynomial_construction()
             return u.map_coefficients(a) * (x.parent().gens()[0]**v)
         f = self.true_fourier_expansion().map_coefficients(b)
-        from .lorentz import OrthogonalModularFormLorentzian
+        from .lorentz import WeilRepLorentzian, OrthogonalModularFormLorentzian
         S = matrix([[-2, 1], [1, 0]])
-        return OrthogonalModularFormLorentzian(self.weight(), self.weilrep(), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0], self.weyl_vector()[-1]]), qexp_representation = 'PD+II')
+        return OrthogonalModularFormLorentzian(self.weight(), WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0], self.weyl_vector()[-1]]), qexp_representation = 'PD+II')
 
 class WeilRepPositiveDefinite(WeilRep):
     def __init__(self):

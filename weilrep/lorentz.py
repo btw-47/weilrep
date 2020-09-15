@@ -255,7 +255,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             prec = f.prec()
             f = R([f[j][-j] for j in range(prec)]).O(prec)
             S = matrix([[N]])
-            return OrthogonalModularFormLorentzian(self.weight() / 2, self.weilrep(), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
+            return OrthogonalModularFormLorentzian(self.weight() / 2, WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
         return NotImplemented
 
     def witt(self):
@@ -289,7 +289,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             f = self.true_fourier_expansion().map_coefficients(b)
             N = self.gram_matrix()[0, -1]
             S = matrix([[-(N + N), N], [N, 0]])
-            return OrthogonalModularFormLorentzian(self.weight(), self.weilrep(), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0], self.weyl_vector()[-1]]), qexp_representation = 'PD+II')
+            return OrthogonalModularFormLorentzian(self.weight(), WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0], self.weyl_vector()[-1]]), qexp_representation = 'PD+II')
         return NotImplemented
 
 
@@ -514,10 +514,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 A[-2, 1] = -1
                 N = w._N()
                 S = A.transpose() * S * A
-                w = WeilRepLorentzianPlusII(S, S[1:-1, 1:-1], N, lift_qexp_representation = s)
+                w = WeilRepLorentzianPlusII(S, S[1:-1, 1:-1], N)
             else:
                 A[-1, 0] = -1
-                w = WeilRepLorentzian(A.transpose() * S * A, lift_qexp_representation = s)
+                w = WeilRepLorentzian(A.transpose() * S * A)
+            w.lift_qexp_representation = s
             X = self.conjugate(A, w=w)
         else:
             X = self
@@ -916,10 +917,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 A[-2, 1] = -1
                 N = w._N()
                 S = A.transpose() * S * A
-                w = WeilRepLorentzianPlusII(S, S[1:-1, 1:-1], N, lift_qexp_representation = s)
+                w = WeilRepLorentzianPlusII(S, S[1:-1, 1:-1], N)
             else:
                 A[-1, 0] = -1
-                w = WeilRepLorentzian(A.transpose() * S * A, lift_qexp_representation = s)
+                w = WeilRepLorentzian(A.transpose() * S * A)
+            w.lift_qexp_representation = s
             X = self.conjugate(A, w=w)
         else:
             X = self

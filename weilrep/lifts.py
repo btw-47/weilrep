@@ -395,6 +395,11 @@ class OrthogonalModularForm(object):
         if w.is_lorentzian() or w.is_lorentzian_plus_II():
             from .lorentz import OrthogonalModularFormLorentzian
             self.__class__ = OrthogonalModularFormLorentzian
+        elif w.is_positive_definite():
+            from .positive_definite import OrthogonalModularFormPositiveDefinite
+            self.__class__ = OrthogonalModularFormPositiveDefinite
+            if s is None:
+                self.__qexp_representation = 'PD+II'
         if s:
             if len(s) == 3:
                 if s[0] == 'hermite':
@@ -408,11 +413,6 @@ class OrthogonalModularForm(object):
             elif s == 'siegel':
                 from .special import ParamodularForm
                 self.__class__ = ParamodularForm
-        elif w.is_positive_definite():
-            from .positive_definite import OrthogonalModularFormPositiveDefinite
-            self.__class__ = OrthogonalModularFormPositiveDefinite
-            if self.__qexp_representation is None:
-                self.__qexp_representation = 'PD+II'
 
 
     ## basic attributes
@@ -436,6 +436,15 @@ class OrthogonalModularForm(object):
         Return our Gram matrix.
         """
         return self.weilrep().gram_matrix()
+
+    def inverse(self):
+        r"""
+        Return the Fourier expansion of 1 / self
+        """
+        try:
+            return self.__inverse
+        except AttributeError:#probably will not work
+            return ~self.__fourier_expansion
 
     def precision(self):
         r"""
@@ -632,8 +641,8 @@ class OrthogonalModularForm(object):
                 new_scale = lcm(self.scale(), other.scale())
                 X1 = self.rescale(new_scale // self_scale)
                 X2 = other.rescale(new_scale // other_scale)
-                return OrthogonalModularForm(self.__weight - other.weight(), self.__weilrep, X1.true_fourier_expansion() / X2.true_fourier_expansion(), scale = new_scale, weylvec = self.weyl_vector() - other.weyl_vector(), qexp_representation = self.qexp_representation())
-            return OrthogonalModularForm(self.weight() - other.weight(), self.__weilrep, self.true_fourier_expansion() / other.true_fourier_expansion(), scale = 1, weylvec = self.weyl_vector() - other.weyl_vector(), qexp_representation = self.qexp_representation())
+                return OrthogonalModularForm(self.__weight - other.weight(), self.__weilrep, X1.true_fourier_expansion() * X2.inverse(), scale = new_scale, weylvec = self.weyl_vector() - other.weyl_vector(), qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.weight() - other.weight(), self.__weilrep, self.true_fourier_expansion() * other.inverse(), scale = 1, weylvec = self.weyl_vector() - other.weyl_vector(), qexp_representation = self.qexp_representation())
         else:
             return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() / other, scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
 

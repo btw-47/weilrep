@@ -2134,7 +2134,7 @@ class WeilRep(object):
                 sig = self.signature()
                 eps = sig == 0 or sig == 6
                 eps = 1 - 2 * eps
-                m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker_symbol(i + 1, p) == eps] for x in cusp_forms])
+                m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in cusp_forms])
                 v_basis = m.kernel().basis()
                 L = [sum([mf * v[i] for i, mf in enumerate(cusp_forms)]) for v in v_basis]
                 L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
@@ -2460,7 +2460,7 @@ class WeilRep(object):
             [(1/4), q^(-1/8) + 243*q^(7/8) + 2889*q^(15/8) + 15382*q^(23/8) + 62451*q^(31/8) + 203148*q^(39/8) + 593021*q^(47/8) + 1551069*q^(55/8) + O(q^(63/8))]
             [(1/2), O(q^(15/2))]
             [(3/4), -q^(-1/8) - 243*q^(7/8) - 2889*q^(15/8) - 15382*q^(23/8) - 62451*q^(31/8) - 203148*q^(39/8) - 593021*q^(47/8) - 1551069*q^(55/8) + O(q^(63/8))]
-            
+
             sage: from weilrep import WeilRep
             sage: w = WeilRep(matrix([[-2]]))
             sage: w.nearly_holomorphic_modular_forms_basis(1/2, 3, 10)
