@@ -645,6 +645,7 @@ class WeilRepModularForm(object):
 
         This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
         """
+        from weilrep import WeilRep
         S = self.gram_matrix()
         S_new = matrix(ZZ, S / (N * N))
         nrows = S.nrows()
