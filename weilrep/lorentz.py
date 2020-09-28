@@ -192,7 +192,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 self.__q_s_scale = 1
                 self.__q_s_prec = h.prec()
                 return self.__q_s_exp
-            hval = h.valuation()
+            hval = min(0, h.valuation())
             hprec = h.prec()
             if not h:
                 q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
@@ -203,13 +203,14 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             try:
                 try:
                     q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-                    self.__q_s_exp = sum([(q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
+                    self.__q_s_exp = sum([(q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
                 except ValueError:
                     mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
                     hprec += hprec
                     d += d
-                    self.__q_s_exp = sum([(q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
-            except NotImplementedError:
+                    self.__q_s_exp = sum([(q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
+            except (AttributeError, NotImplementedError):
+                hval = h.valuation()
                 rs, s = LaurentSeriesRing(self.base_ring(), 's').objgen()
                 q, = LaurentSeriesRing(rs, 'q').gens()
                 try:
@@ -1198,4 +1199,4 @@ class WeilRepLorentzianPlusII(WeilRepLorentzian):
         return False
 
     def is_lorentzian_plus_II(self):
-        return Trues
+        return True
