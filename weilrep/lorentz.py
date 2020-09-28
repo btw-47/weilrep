@@ -192,7 +192,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 self.__q_s_scale = 1
                 self.__q_s_prec = h.prec()
                 return self.__q_s_exp
-            hval = h.valuation()
+            hval = min(0, h.valuation())
             hprec = h.prec()
             if not h:
                 q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
@@ -203,12 +203,12 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             try:
                 try:
                     q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-                    self.__q_s_exp = sum([(q ** (ZZ(i - n) / 2)) * (s ** (ZZ(i + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
+                    self.__q_s_exp = sum([(q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
                 except ValueError:
                     mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
                     hprec += hprec
                     d += d
-                    self.__q_s_exp = sum([(q ** ((i - n))) * (s ** ((i + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
+                    self.__q_s_exp = sum([(q ** ((i + hval - n))) * (s ** ((i + hval - n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
             except NotImplementedError:
                 rs, s = LaurentSeriesRing(self.base_ring(), 's').objgen()
                 q, = LaurentSeriesRing(rs, 'q').gens()
@@ -884,7 +884,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         rho_z_prime = -((XK &Theta_K) * e2)[0]
         return vector([rho_z_prime] + list(rho/2) + [N * rho_z])
 
-    def borcherds_lift(self, prec = None):
+    def borcherds_lift(self, prec = None, omit_weyl_vector = False):
         r"""
         Compute the Borcherds lift.
 
@@ -904,6 +904,12 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             sage: K.<sqrt5> = NumberField(x * x - 5)
             sage: HMF(K).borcherds_input_Qbasis(1, 5)[0].borcherds_lift()
             -q1^(-1/10*sqrt5 + 1/2)*q2^(1/10*sqrt5 + 1/2) + q1^(1/10*sqrt5 + 1/2)*q2^(-1/10*sqrt5 + 1/2) + q1^(-2/5*sqrt5 + 1)*q2^(2/5*sqrt5 + 1) + 10*q1^(-1/5*sqrt5 + 1)*q2^(1/5*sqrt5 + 1) - 10*q1^(1/5*sqrt5 + 1)*q2^(-1/5*sqrt5 + 1) - q1^(2/5*sqrt5 + 1)*q2^(-2/5*sqrt5 + 1) - 120*q1^(-3/10*sqrt5 + 3/2)*q2^(3/10*sqrt5 + 3/2) + 108*q1^(-1/10*sqrt5 + 3/2)*q2^(1/10*sqrt5 + 3/2) - 108*q1^(1/10*sqrt5 + 3/2)*q2^(-1/10*sqrt5 + 3/2) + 120*q1^(3/10*sqrt5 + 3/2)*q2^(-3/10*sqrt5 + 3/2) - 10*q1^(-4/5*sqrt5 + 2)*q2^(4/5*sqrt5 + 2) + 108*q1^(-3/5*sqrt5 + 2)*q2^(3/5*sqrt5 + 2) + 156*q1^(-2/5*sqrt5 + 2)*q2^(2/5*sqrt5 + 2) + 140*q1^(-1/5*sqrt5 + 2)*q2^(1/5*sqrt5 + 2) - 140*q1^(1/5*sqrt5 + 2)*q2^(-1/5*sqrt5 + 2) - 156*q1^(2/5*sqrt5 + 2)*q2^(-2/5*sqrt5 + 2) - 108*q1^(3/5*sqrt5 + 2)*q2^(-3/5*sqrt5 + 2) + 10*q1^(4/5*sqrt5 + 2)*q2^(-4/5*sqrt5 + 2) - q1^(-11/10*sqrt5 + 5/2)*q2^(11/10*sqrt5 + 5/2) - 108*q1^(-9/10*sqrt5 + 5/2)*q2^(9/10*sqrt5 + 5/2) + 140*q1^(-7/10*sqrt5 + 5/2)*q2^(7/10*sqrt5 + 5/2) - 625*q1^(-1/2*sqrt5 + 5/2)*q2^(1/2*sqrt5 + 5/2) - 810*q1^(-3/10*sqrt5 + 5/2)*q2^(3/10*sqrt5 + 5/2) + 728*q1^(-1/10*sqrt5 + 5/2)*q2^(1/10*sqrt5 + 5/2) - 728*q1^(1/10*sqrt5 + 5/2)*q2^(-1/10*sqrt5 + 5/2) + 810*q1^(3/10*sqrt5 + 5/2)*q2^(-3/10*sqrt5 + 5/2) + 625*q1^(1/2*sqrt5 + 5/2)*q2^(-1/2*sqrt5 + 5/2) - 140*q1^(7/10*sqrt5 + 5/2)*q2^(-7/10*sqrt5 + 5/2) + 108*q1^(9/10*sqrt5 + 5/2)*q2^(-9/10*sqrt5 + 5/2) + q1^(11/10*sqrt5 + 5/2)*q2^(-11/10*sqrt5 + 5/2) + O(q1, q2)^6
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(II(1))
+            sage: X = m.borcherds_input_Qbasis(1, 15)
+            sage: X[1].borcherds_lift()
+            q^-1 + (-s^-1 - 196884*s - 21493760*s^2 - 864299970*s^3 - 20245856256*s^4 - 333202640600*s^5 - 4252023300096*s^6) + 196884*q + 21493760*q^2 + 864299970*q^3 + 20245856256*q^4 + 333202640600*q^5 + 4252023300096*q^6 + O(q, s)^7
 
 
         """
@@ -965,7 +971,9 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             rb_x = K
             x = 1
         r, t = PowerSeriesRing(rb_x, 't').objgen()
-        if extra_plane:
+        if omit_weyl_vector:
+            weyl_vector = vector([0] * nrows)
+        elif extra_plane:
             weyl_vector = X.reduce_lattice(z = vector([1] + [0] * (nrows + 1))).weyl_vector()
         else:
             weyl_vector = X.weyl_vector()
@@ -1190,4 +1198,4 @@ class WeilRepLorentzianPlusII(WeilRepLorentzian):
         return False
 
     def is_lorentzian_plus_II(self):
-        return True
+        return Trues
