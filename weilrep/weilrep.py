@@ -1765,10 +1765,10 @@ class WeilRep(object):
             raise ValueError('Not yet implemented')
         elif weight == 0:
             return self._invariants_dim()
-        elif weight == sage_three_half:
-            wdual = self.dual()
-            s = wdual.cusp_forms_dimension(sage_one_half, force_Riemann_Roch = True, do_not_round = do_not_round)
-            return len(wdual.cusp_forms_basis(sage_one_half, 1)) - s
+        #elif weight == sage_three_half:
+        #    wdual = self.dual()
+        #    s = wdual.cusp_forms_dimension(sage_one_half, force_Riemann_Roch = True, do_not_round = do_not_round)
+        #    return len(wdual.cusp_forms_basis(sage_one_half, 1)) - s
         else:
             return len(self.modular_forms_basis(weight))
 
@@ -1954,9 +1954,9 @@ class WeilRep(object):
             prec = ceil(sturm_bound)
         else:
             prec = ceil(max(prec, sturm_bound))
-        if k == sage_one_half:
-            X = self._weight_one_half_basis(prec)
-            return WeilRepModularFormsBasis(sage_one_half, [x for x in X if x.valuation(exact = True)], self)
+        #if k == sage_one_half:
+        #    X = self._weight_one_half_basis(prec)
+        #    return WeilRepModularFormsBasis(sage_one_half, [x for x in X if x.valuation(exact = True)], self)
         X = WeilRepModularFormsBasis(k, [], self)
         rank = 0
         if k >= sage_seven_half or (k >= sage_five_half and symm):
@@ -2151,7 +2151,7 @@ class WeilRep(object):
             X1 = self.cusp_forms_basis(k + 4, prec, verbose = verbose)
             X2 = self.cusp_forms_basis(k + 6, prec, verbose = verbose)
             if verbose:
-                print('I will intersect the spaces E_4^(-1) * S_%s and E_6^(-1) * S_%s.' %(k, k +4, k +6))
+                print('I will intersect the spaces E_4^(-1) * S_%s and E_6^(-1) * S_%s.' %(k +4, k +6))
             try:
                 V1 = span((x * e4).coefficient_vector() for x in X1)
                 V2 = span((x * e6).coefficient_vector() for x in X2)
@@ -2228,7 +2228,8 @@ class WeilRep(object):
         if weight == 0:
             return self._invariants(prec)
         elif weight == sage_one_half:
-            return self._weight_one_half_basis(prec)
+            pass #fix this!!
+            #return self._weight_one_half_basis(prec)
         b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and (self.__ds_denominators_list[i] < 5 or self.__ds_denominators_list[i] == 6)]
         if weight > 3 or (symm and weight > 2):
             dim1 = self.modular_forms_dimension(weight)
@@ -2763,6 +2764,7 @@ class WeilRep(object):
 
     def _weight_one_half_basis(self, prec = 1):
         r"""
+        Warning: this does not seem to work in general! We are no longer using it! The diagonal matrix (-6, -6, 8) is a counterexample.
         Compute weight one half modular forms.
 
         This computes a basis of the space of weight 1/2 modular forms. It is called from self.modular_forms_basis(k, prec) when k = 1/2.
