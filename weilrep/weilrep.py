@@ -31,6 +31,7 @@ from re import sub
 from sage.arith.functions import lcm
 from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, kronecker_symbol, moebius, prime_divisors, valuation
 from sage.arith.srange import srange
+from sage.functions.generalized import sgn
 from sage.functions.log import log
 from sage.functions.other import ceil, floor, frac, sqrt
 from sage.functions.transcendental import zeta
@@ -1234,7 +1235,7 @@ class WeilRep(object):
         return WeilRepModularForm(0, S, X, weilrep = self)
 
 
-    def pss(self, weight, b, m, prec, weilrep = None):
+    def pss(self, weight, b, m, prec, weilrep = None, fix = True):
         r"""
         Compute Poincare square series.
 
@@ -1245,6 +1246,8 @@ class WeilRep(object):
         - ``b`` -- a vector for which b*S is integral (where S is our Gram matrix)
         - ``m`` -- a rational number for which m + b*S*b/2 is a positive integer
         - ``prec`` -- precision (natural number)
+        - ``weilrep`` -- WeilRep (optional) the result of self.embiggen(b, m) if known
+        - ``fix`` -- boolean (default True) if false then do not fix the result in weight 2 or 5/2
 
         OUTPUT: WeilRepModularForm
 
@@ -1258,7 +1261,7 @@ class WeilRep(object):
             [(1/2, 1/2), -7616/31*q - 8448*q^2 - 1876736/31*q^3 - 270336*q^4 + O(q^5)]
 
         """
-        if weight < sage_five_half:
+        if weight < 2:
             raise NotImplementedError
         S = self.gram_matrix()
         if not weilrep:
@@ -1275,7 +1278,7 @@ class WeilRep(object):
         new_k = weight - sage_one_half
         _components = [self.ds(), self.rds(indices = True)]
         X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(components = _components)
-        if weight > sage_five_half:
+        if weight > sage_five_half or not fix:
             return X
         elif weight == sage_five_half:#result might be wrong so lets fix it
             dets = w.discriminant()
@@ -1292,9 +1295,12 @@ class WeilRep(object):
                 theta_f = list(theta[i][2])
                 Z[i] = Y[i][0], Y[i][1], Y[i][2] - epsilon * sum((n + offset) * theta_f[n] * (q ** n) for n in range(1, len(theta_f)) if theta_f[n])
             return WeilRepModularForm(weight, S, Z, weilrep = self)
+        elif weight == 2:
+            from .weilrep_misc import weight_two_pss_fix
+            return X + weight_two_pss_fix(self, b, m, prec, w)
 
 
-    def pssd(self, weight, b, m, prec, weilrep = None):
+    def pssd(self, weight, b, m, prec, weilrep = None, fix = True):
         r"""
         Compute antisymmetric modular forms.
 
@@ -1305,6 +1311,8 @@ class WeilRep(object):
         - ``b`` -- a vector for which b*S is integral (where S is our Gram matrix)
         - ``m`` -- a rational number for which m + b*S*b/2 is a positive integer
         - ``prec`` -- precision (natural number)
+        - ``weilrep`` -- WeilRep (default None) should be the result of self.embiggen(b, m)
+        - ``fix`` -- boolean (default True) if false then we do not fix the result in weights 3 or 7/2
 
         NOTE: if b has order 2 in our discriminant group then this is zero!
 
@@ -1334,7 +1342,7 @@ class WeilRep(object):
             [(2/3, 1/2, 2/3), O(q^(71/12))]
 
         """
-        if weight < sage_seven_half:
+        if weight < 3:
             raise NotImplementedError
         if not weilrep:
             S = self.gram_matrix()
@@ -1352,13 +1360,13 @@ class WeilRep(object):
         X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(odd = True, weilrep = self)
         if weight > sage_seven_half:
             return X
-        else:#result might be wrong so lets fix it
+        elif weight == sage_seven_half:
             try:
-                epsilon = QQ(Integer(8) * (-1)**((1 + self.signature())/4) / sqrt(self.discriminant()))#factor has to be 8 here, not 24 like in pss()
+                epsilon = QQ(Integer(8) * (-1)**((1 + self.signature())/4) / sqrt(self.discriminant()))
             except TypeError:
-                return X#result was ok
+                return X
             q, = PowerSeriesRing(QQ, 'q').gens()
-            theta = w.eisenstein_series_shadow(prec+1).theta_contraction(odd = True).fourier_expansion()#this is a weight 3/2 theta
+            theta = w.eisenstein_series_shadow(prec+1).theta_contraction(odd = True).fourier_expansion()
             Y = X.fourier_expansion()
             Z = [None] * len(theta)
             for i in range(len(theta)):
@@ -1366,6 +1374,9 @@ class WeilRep(object):
                 theta_f = list(theta[i][2])
                 Z[i] = Y[i][0], Y[i][1], Y[i][2] - epsilon * sum((n + offset) * theta_f[n] * (q ** n) for n in range(1, len(theta_f)) if theta_f[n])
             return WeilRepModularForm(weight, self.gram_matrix(), Z, weilrep = self)
+        elif weight == 3:
+            from .weilrep_misc import weight_three_pssd_fix
+            return X + weight_three_pssd_fix(self, b, m, prec, w)
 
     def pss_double(self, weight, b, m, prec):#to be used when weight is even and >= 3??
         r"""
@@ -1765,10 +1776,10 @@ class WeilRep(object):
             raise ValueError('Not yet implemented')
         elif weight == 0:
             return self._invariants_dim()
-        #elif weight == sage_three_half:
-        #    wdual = self.dual()
-        #    s = wdual.cusp_forms_dimension(sage_one_half, force_Riemann_Roch = True, do_not_round = do_not_round)
-        #    return len(wdual.cusp_forms_basis(sage_one_half, 1)) - s
+        elif weight == sage_three_half:
+            wdual = self.dual()
+            s = wdual.cusp_forms_dimension(sage_one_half, force_Riemann_Roch = True, do_not_round = do_not_round)
+            return len(wdual.cusp_forms_basis(sage_one_half, 1)) - s
         else:
             return len(self.modular_forms_basis(weight))
 
@@ -1954,9 +1965,9 @@ class WeilRep(object):
             prec = ceil(sturm_bound)
         else:
             prec = ceil(max(prec, sturm_bound))
-        #if k == sage_one_half:
-        #    X = self._weight_one_half_basis(prec)
-        #    return WeilRepModularFormsBasis(sage_one_half, [x for x in X if x.valuation(exact = True)], self)
+        if k == sage_one_half:
+            X = self._weight_one_half_basis(prec)
+            return WeilRepModularFormsBasis(sage_one_half, [x for x in X if x.valuation(exact = True)], self)
         X = WeilRepModularFormsBasis(k, [], self)
         rank = 0
         if k >= sage_seven_half or (k >= sage_five_half and symm):
@@ -2228,8 +2239,7 @@ class WeilRep(object):
         if weight == 0:
             return self._invariants(prec)
         elif weight == sage_one_half:
-            pass #fix this!!
-            #return self._weight_one_half_basis(prec)
+            return self._weight_one_half_basis(prec)
         b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and (self.__ds_denominators_list[i] < 5 or self.__ds_denominators_list[i] == 6)]
         if weight > 3 or (symm and weight > 2):
             dim1 = self.modular_forms_dimension(weight)
@@ -2607,33 +2617,56 @@ class WeilRep(object):
             return self.__s_matrix
         except AttributeError:
             pass
+        @cached_function
+        def local_moebius(n):
+            return moebius(n)
+        @cached_function
+        def local_phi(n):
+            return euler_phi(n)
+        def tr_sqrt_f_zeta_N(f, N, n):
+            if f == 1:
+                d = N // GCD(N, n)
+                return local_moebius(d) * (phi // local_phi(d))
+            h, r = N.quo_rem(4 * f)
+            if r:
+                return 0
+            s = 0
+            if f % 4 == 1:
+                N4 = 0
+            else:
+                N4 = N // 4
+            if f % 2:
+                for ell in range(abs(f)):
+                    u = GCD(n - N4 + 4 * h * ell* ell, N)
+                    d = N//u
+                    s += local_moebius(d) * (phi // local_phi(d))
+                return s * sgn(f)
+            else:
+                for ell in range(abs(4 * f)):
+                    u1, u2 = GCD(n + h * ell * ell, N), GCD(n - N4 + h * ell * ell, N)
+                    d1, d2 = N//u1, N//u2
+                    s += (local_moebius(d1) * (phi // local_phi(d1)) + local_moebius(d2) * (phi // local_phi(d2)))
+                return s * sgn(f) // 4
         n = self.norm_list()
         s = self.signature()
-        eps = 1 - (s % 4)
+        eps = 1
         j = 1
-        if 2 <= s <= 4:
+        if s == 4 or s == 6:
             j = -1
         S = self.gram_matrix()
         indices = self.rds(indices = True)
         isotropic_vectors = [x for x in enumerate(self.ds()) if not n[x[0]] and indices[x[0]] is None]
         m = len(isotropic_vectors)
         N = denominator(S.inverse())
+        while N % 4:
+            N += N
+        if s % 4:
+            eps = -1
         D = self.discriminant()
         f = D.squarefree_part()
-        if f % 4 == 2:
-            f *= 4
-            D /= 4
-            while N % 8:
-                N *= 2
-        u0 = 0
-        p = eps == -1 and not(f % 4 == 3)
-        if p:
-            while N % 4:
-                N *= 2
-            u0 = N // 4
-        phi = euler_phi(N)
+        Dsqr, f = j*isqrt(D // f), f * eps
+        phi = local_phi(N)
         M = []
-        Dsqr = j * isqrt(D * f)
         for i, b in isotropic_vectors:
             Sb = N * (S * b)
             L = [[0]*m for _ in range(phi)]
@@ -2643,26 +2676,18 @@ class WeilRep(object):
                 for k in srange(phi):
                     kg = k - gSb
                     u = GCD(kg, N)
-                    ell, h = kg // u, N // u
-                    z = (phi // euler_phi(h))
-                    z1 = z * moebius(h)
+                    h = N // u
+                    z = (phi // local_phi(h))
+                    z1 = z * local_moebius(h)
                     L[k][j] += z1
-                    if i == jj and (h.is_squarefree() or not(h%4) and (h//4).is_squarefree()) and not(h%f):
-                        if p:
-                            kg -= u0
-                            u = GCD(kg, N)
-                            ell, h = kg // u, N // u
-                            z = (phi // euler_phi(h))
-                            z1 = z * moebius(h)
-                        if f == 1:
-                            L[k][j] -= Dsqr * z1
-                        elif f % 2:
-                            L[k][j] -= Dsqr * z * kronecker_symbol(ell, f)
-                        else:
-                            L[k][j] -= Dsqr * z * kronecker_symbol(f, ell)
+                    if i == jj:
+                        L[k][j] -= Dsqr * tr_sqrt_f_zeta_N(f, N, kg)
                     if d:
-                        h = N // GCD(k + gSb, N)
-                        L[k][j] += eps * moebius(h)  * (phi // euler_phi(h))
+                        kg = k + gSb
+                        h = N // GCD(kg, N)
+                        z = (phi // local_phi(h))
+                        z1 = z * local_moebius(h)
+                        L[k][j] += eps * z1
             M.extend(filter(any, L))
         self.__s_matrix = matrix(M), isotropic_vectors
         return self.__s_matrix
@@ -2764,7 +2789,6 @@ class WeilRep(object):
 
     def _weight_one_half_basis(self, prec = 1):
         r"""
-        Warning: this does not seem to work in general! We are no longer using it! The diagonal matrix (-6, -6, 8) is a counterexample.
         Compute weight one half modular forms.
 
         This computes a basis of the space of weight 1/2 modular forms. It is called from self.modular_forms_basis(k, prec) when k = 1/2.
