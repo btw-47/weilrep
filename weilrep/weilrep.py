@@ -1667,7 +1667,7 @@ class WeilRep(object):
         symm = self.is_symmetric_weight(weight - eta_twist/2)
         if weight <= 0 or symm is None:
             return 0
-        elif weight >= 2 or force_Riemann_Roch:
+        elif weight >= sage_three_half or force_Riemann_Roch:
             eps = 1 if symm else -1
             modforms_rank = self.rank(symm)
             pi_i = complex(0.0, math.pi)
@@ -2658,13 +2658,13 @@ class WeilRep(object):
         isotropic_vectors = [x for x in enumerate(self.ds()) if not n[x[0]] and indices[x[0]] is None]
         m = len(isotropic_vectors)
         N = denominator(S.inverse())
-        while N % 4:
-            N += N
         if s % 4:
             eps = -1
         D = self.discriminant()
         f = D.squarefree_part()
         Dsqr, f = j*isqrt(D // f), f * eps
+        while N % (4 * f):
+            N += N
         phi = local_phi(N)
         M = []
         for i, b in isotropic_vectors:
