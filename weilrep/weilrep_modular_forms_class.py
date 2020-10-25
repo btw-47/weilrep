@@ -645,7 +645,6 @@ class WeilRepModularForm(object):
 
         This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
         """
-        from weilrep import WeilRep
         S = self.gram_matrix()
         S_new = matrix(ZZ, S / (N * N))
         nrows = S.nrows()
@@ -887,7 +886,7 @@ class WeilRepModularForm(object):
                 Y[j] = [g, big_offset, eps * Y[i][2]]
         return WeilRepModularForm(self.weight(), N*S, Y )
 
-    def reduce_lattice(self, z = None, z_prime = None, zeta = None):
+    def reduce_lattice(self, z = None, z_prime = None, zeta = None, return_vectors = False):
         r"""
         Compute self's image under lattice reduction.
 
@@ -899,6 +898,7 @@ class WeilRepModularForm(object):
         - ``z`` -- a primitive norm-zero vector. If this is not given then we try to compute such a vector using PARI qfsolve(), and raise a ValueError if this does not exist (i.e. the lattice is anisotropic; this can only happen if the lattice is definite, or indefinite of rank less than 5).
         - ``z_prime`` -- a vector in the dual lattice with <z, z_prime> = 1. If this is not given then we compute it.
         - ``zeta`` -- a lattice vector for which <z, zeta> = N is minimal among all <z, x> for x in the lattice. If this is not given then we compute it.
+        - ``return_vectors`` -- boolean (default False) if True then the output is the tuple (self.reduce_lattice(), z, z_prime, zeta, k) where k is an embedding of K into M
 
         OUTPUT: WeilRepModularForm
 
@@ -983,7 +983,10 @@ class WeilRepModularForm(object):
             if Y[j] is None:
                 o = -frac(g * k_k * g / 2)
                 Y[j] = g, o, O(q^(prec - floor(o)))
-        return WeilRepModularForm(self.weight(), k_k, Y, w_k)
+        X = WeilRepModularForm(self.weight(), k_k, Y, w_k)
+        if return_vectors:
+            return X, z, z_prime, zeta, k
+        return X
 
     def serre_derivative(self, normalize_constant_term = False):
         r"""
@@ -1060,7 +1063,7 @@ class WeilRepModularForm(object):
         d_b = denominator(b)
         if d_b == 1:
             return self
-        q, = self.fourier_expansion()[0][2].parent().gens()
+        r, q = self.fourier_expansion()[0][2].parent().objgen()
         S = self.__gram_matrix
         X = self.components()
         w = self.weilrep()
@@ -1223,6 +1226,49 @@ def smf(weight, f):
     """
     return WeilRepModularForm(weight, matrix([]), [[vector([]), 0, f]])
 
+
+class WeilRepMockModularForm(WeilRepModularForm):
+    r"""
+    Class for mock modular forms.
+    """
+
+    def __init__(self, k, S, X, shadow, weilrep = None):
+        WeilRepModularForm.__init__(self, k, S, X, weilrep = weilrep)
+        self.__class__ = WeilRepMockModularForm
+        self.__shadow = shadow
+
+
+    def shadow(self):
+        return self.__shadow
+
+    def __add__(self, other):
+        f = super().__add__(other)
+        s = self.shadow()
+        if isinstance(other, WeilRepMockModularForm):
+            s += other.shadow()
+        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), s, weilrep = self.weilrep())
+
+    def __sub__(self, other):
+        f = super().__sub__(other)
+        s = self.shadow()
+        if isinstance(other, WeilRepMockModularForm):
+            s -= other.shadow()
+        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), s, weilrep = self.weilrep())
+
+    def __neg__(self):
+        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), super().__neg__().fourier_expansion(), -self.shadow(), weilrep = self.weilrep())
+
+    def __mul__(self, other):
+        if other in QQ:
+            f = super().__mul__(other)
+            return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), self.shadow() * other, weilrep = self.weilrep())
+        return NotImplemented
+
+    def __truediv__(self, other):
+        return self.__mul__(~other)
+    __div__ = __truediv__
+
+
 class WeilRepModularFormsBasis:
     r"""
     The WeilRepModularFormsBasis class represents bases of vector-valued modular forms.
@@ -1285,7 +1331,7 @@ class WeilRepModularFormsBasis:
         m = matrix([v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False) for v in self.__basis])
         return m.solve_left(X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False))
 
-    def echelonize(self, save_pivots = False, starting_from = 0, ending_with = None, integer = False):
+    def echelonize(self, save_pivots = False, starting_from = None, ending_with = None, integer = False):
         r"""
         Reduce self to echelon form in place.
 
@@ -1295,6 +1341,8 @@ class WeilRepModularFormsBasis:
         - ``ending_with`` -- (default None) if given then it should be the index at which we stop looking at Fourier coefficients.
         - ``integer`` -- (default False) if True then we assume all Fourier coefficients are integers. This is faster.
         """
+        if starting_from is None:
+            starting_from = self.valuation()
         if ending_with is None:
             ending_with = self.__weight / 12
         if integer:
@@ -1732,3 +1780,31 @@ class WeilRepModularFormPrincipalPart:
 
     def weilrep(self):
         return self.__weilrep
+
+# special mock modular forms
+
+def bfo_theta(N, prec):
+    r"""
+    The mock theta function \sum_{a} M_{a, b}^+ e_b from Bringmann, Folsom, Ono -- q-series and weight 3/2 maass forms, compositio math 145:541--552
+
+    This is a mock modular form of weight 3/2 for the rank one WeilRep matrix([[2 * N]]). Its shadow is the standard theta function.
+    """
+    from .weilrep import WeilRep
+    r, q = PowerSeriesRing(QQ, 'q').objgen()
+    twoN = N + N
+    theta0 = -~((1 + 2 * sum(q**(n * n) for n in range(1, isqrt(prec) + 1)) + O(q ** prec)) * twoN).V(N)
+    w = WeilRep(matrix([[twoN]]))
+    nl = w.norm_list()
+    ds = w.ds()
+    rds = w.rds(indices = True)
+    X = [[ds[i], n, O(q ** (prec - floor(n)))] for i, n in enumerate(nl)]
+    bound = isqrt((twoN + twoN) * prec) + 1
+    bound = 4 * bound
+    #for n in srange(-bound, bound):
+    for n in srange(bound):
+        a = n % twoN
+        if a:
+            #X[a][2] += n * q ** ceil(n * (1 + (n - a - a) / (twoN + twoN) )) * ~(1 - q ** n) * theta0
+            X[a][2] += n * q ** ceil((n * n)/ (twoN + twoN) + n * (1 - a / twoN)) * ~(1 - q ** n) * theta0
+    X[0][2] = r(list(map(pari.qfbhclassno, srange(prec // N)))).V(N)
+    return WeilRepMockModularForm(Integer(3) / 2, w.gram_matrix(), X, w(-1).theta_series(prec), w)

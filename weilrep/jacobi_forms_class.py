@@ -31,6 +31,7 @@ from sage.misc.latex import latex
 from sage.misc.misc_c import prod
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import is_ModularFormElement
+from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
@@ -81,6 +82,17 @@ class JacobiForms:
             return 'Jacobi forms of index \n%s' % S
         else:
             return 'Jacobi forms of index %d' % self.index()
+
+    def __call__(self, N):
+        r"""
+        Rescale the index by N.
+
+        INPUT:
+        - ``N`` -- a natural number
+
+        OUTPUT: a JacobiForms
+        """
+        return JacobiForms(self.__index_matrix * N)
 
     def index(self):
         r"""
@@ -402,7 +414,7 @@ class JacobiForms:
 
     basis = jacobi_forms_basis
 
-    def weak_forms_basis(self, weight, prec=0, verbose=False, convert_to_Jacobi_forms=True):
+    def weak_forms_basis(self, weight, prec=0, verbose=False, convert_to_Jacobi_forms=True, debug = False):
         r"""
         Compute a basis of weak Jacobi forms.
 
@@ -434,6 +446,7 @@ class JacobiForms:
         S = self.index_matrix()
         w = self.weilrep()
         indices = w.rds(indices=True)
+        dsdict = w.ds_dict()
         if verbose:
             print('I am looking for weak Jacobi forms of weight %d.' % weight)
         svn = self.short_vector_norms_by_component()
@@ -447,7 +460,16 @@ class JacobiForms:
         L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose)
         if not L:
             return []
-        X = WeilRepModularFormsBasis(k, [x for x in L if all(f[2].valuation() + f[1] >= -svn[i] for i, f in enumerate(x.fourier_expansion()) if indices[i] is None)], w)
+        if debug:
+            return L
+        v_list = w.coefficient_vector_exponents(prec, 1 - (weight % 2), starting_from = -N, include_vectors = True)
+        n = len(v_list) - 1
+        e = lambda i: vector([0] * i + [1] + [0] * (n - i))
+        Z = [e(j) for j, (v, i) in enumerate(v_list) if i + svn[dsdict[tuple(v)]] >= 0]
+        V = span([x.coefficient_vector(starting_from = -N, ending_with = prec) for x in L])
+        V = V.intersection(span(Z)).basis()
+        X = WeilRepModularFormsBasis(k, [w.recover_modular_form_from_coefficient_vector(k, v, prec, starting_from = -N) for v in V], w)
+        X.reverse()
         if not convert_to_Jacobi_forms:
             return X
         if verbose:

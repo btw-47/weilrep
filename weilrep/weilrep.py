@@ -29,7 +29,7 @@ from itertools import product
 from re import sub
 
 from sage.arith.functions import lcm
-from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, kronecker_symbol, moebius, prime_divisors, valuation
+from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, is_square, kronecker_symbol, moebius, prime_divisors, valuation
 from sage.arith.srange import srange
 from sage.functions.generalized import sgn
 from sage.functions.log import log
@@ -62,7 +62,7 @@ from sage.rings.rational_field import QQ
 from sage.rings.real_mpfr import RealField
 
 from .eisenstein_series import *
-from .weilrep_modular_forms_class import smf, WeilRepModularForm, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import smf, WeilRepMockModularForm, WeilRepModularForm, WeilRepModularFormsBasis
 
 sage_one_half = Integer(1) / Integer(2)
 sage_three_half = Integer(3) / Integer(2)
@@ -627,19 +627,25 @@ class WeilRep(object):
         if not k_is_list:
             if prec <= 0:
                 raise ValueError('Precision must be at least 0')
-            if k <= 2 and not allow_small_weight:
-                d = self.discriminant()
-                if k < 2 or not ((d%4 and d.is_squarefree()) or (d//4).is_squarefree()):
-                    raise ValueError('Weight must be at least 5/2. To disable this error set "allow_small_weight = True".')
             if not self.is_symmetric_weight(k):
                 raise ValueError('Invalid weight in Eisenstein series')
             try:#did we do this already?
                 old_prec, e = self.__eisenstein[k]
                 if old_prec >= prec:
                     return e.reduce_precision(prec, in_place = False)
-                assert False
-            except:
+                raise RuntimeError
+            except (KeyError, RuntimeError):
                 pass
+            if 1 < k <= 2 and not allow_small_weight:
+                if k == 2:
+                    s = self.eisenstein_series_shadow(prec)
+                else:
+                    s = self.eisenstein_series_shadow_wt_three_half(prec)
+                if s:
+                    self.__eisenstein[k] = WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True).fourier_expansion(), s, weilrep = self)
+                else:
+                    self.__eisenstein[k] = self.eisenstein_series(k, prec, allow_small_weight = True)
+                return self.__eisenstein[k]
         elif not k:
             return []
         #setup
@@ -1207,13 +1213,12 @@ class WeilRep(object):
         _indices = self.rds(indices = True)
         _dets = self.discriminant()
         n_list = self.norm_list()
-        q, = PowerSeriesRing(QQ, 'q').gens()
-        o_q_prec = O(q ** prec)
-        o_q_prec_plus_one = O(q ** (prec + 1))
+        q,= PowerSeriesRing(QQ, 'q').gens()
+        o_q_prec, o_q_prec_plus_one = O(q**prec), O(q**(prec + 1))
         try:
             A_sqrt = Integer(sqrt(_dets))
         except:
-            return self.zero(0)
+            return self.zero(prec)
         S = self.gram_matrix()
         _nrows = S.nrows()
         bad_primes = (2*_dets).prime_divisors()
@@ -1233,6 +1238,50 @@ class WeilRep(object):
                 else:
                     X[i] = g, 0, o_q_prec + prod(L_values(L, [-c], -S, p, 2)[0] / (1 + 1/p) for p in bad_primes)
         return WeilRepModularForm(0, S, X, weilrep = self)
+
+    def eisenstein_series_shadow_wt_three_half(self, prec):
+        r"""
+        Compute the shadow of the weight 3/2 Eisenstein series (if it exists).
+
+        INPUT:
+        - ``prec`` -- precision
+
+        OUTPUT: a WeilRepModularForm of weight 1/2, which is sqrt(|det S| / 2) * the shadow of the weight 3/2 Eisenstein series for the weilrep 'self'. (This factor makes the result have rational Fourier coefficients.) This transforms with the dual representation (its WeilRep is self.dual())
+        """
+        prec = ceil(prec)
+        s = self.signature()
+        if not self.is_symmetric_weight(sage_three_half):
+            raise NotImplementedError
+        dets = self.discriminant()
+        wdual = self(-1)
+        ds = wdual.ds()
+        indices = wdual.rds(indices = True)
+        n_list = wdual.norm_list()
+        q, = PowerSeriesRing(QQ, 'q').gens()
+        o_q_prec, o_q_prec_plus_one = O(q**prec), O(q**(prec + 1))
+        S = wdual.gram_matrix()
+        X = [None] * len(ds)
+        for i, g in enumerate(ds):
+            if indices[i]:
+                x = X[indices[i]]
+                X[i] = g, x[1], x[2]
+            else:
+                dg = denominator(g)
+                dg *= dg
+                L =  g * S
+                c, L = L * g, L + L
+                offset = n_list[i]
+                if offset:
+                    f = o_q_prec_plus_one
+                else:
+                    f = o_q_prec + prod(L_values(L, [c], S, p, sage_three_half)[0] / (1 + ~p) for p in prime_divisors(dets))
+                for n in range(1, prec - floor(offset)):
+                    _n = n + offset
+                    if is_square(2 * _n * dets):
+                        f += (q ** n) * 2 * prod(L_values(L, [_n + _n + c], S, p, sage_three_half)[0] / (1 + ~p) for p in prime_divisors(dets * _n * dg))
+                X[i] = g, offset, 24 * f
+        return WeilRepModularForm(sage_one_half, S, X, weilrep = wdual)
+
 
 
     def pss(self, weight, b, m, prec, weilrep = None, fix = True):
@@ -1500,7 +1549,7 @@ class WeilRep(object):
         - ``P`` -- a polynomial which is homogeneous and is harmonic with respect to the underlying quadratic form
         - ``test_P`` -- a boolean (default True). If False then we do not test whether P is homogeneous and harmonic. (If P is not harmonic then the theta series is only a quasi-modular form!)
 
-        OUTPUT: VVMF
+        OUTPUT: WeilRepModularForm
 
         EXAMPLES::
 
@@ -1971,6 +2020,7 @@ class WeilRep(object):
         X = WeilRepModularFormsBasis(k, [], self)
         rank = 0
         if k >= sage_seven_half or (k >= sage_five_half and symm):
+            deltasmf = [smf(12, delta_qexp(prec))]
             try:
                 oldprec, Y = self.__cusp_forms_basis[k - 2]
                 if oldprec >= prec:
@@ -1993,8 +2043,6 @@ class WeilRep(object):
                     X = WeilRepModularFormsBasis(k, [x*e4 for x in X4], self) + WeilRepModularFormsBasis(k, [x*e6 for x in X6], self) + WeilRepModularFormsBasis(k, [x.serre_derivative().serre_derivative() for x in X4], self)
                     X.remove_nonpivots()
                     rank = len(X)
-                    if k >= ZZ(31)/2 or (k >= ZZ(29)/2 and symm):
-                        deltasmf = [smf(12, delta_qexp(prec))]
                 else:
                     rank = 0
             if symm and k >= sage_nine_half:
@@ -2594,7 +2642,7 @@ class WeilRep(object):
                 V1 = span([(x * e4).coefficient_vector() for x in X1])
                 V2 = span([(x * e6).coefficient_vector() for x in X2])
                 V = (V1.intersection(V2)).echelonized_basis()
-                Y = [reconstruct_VVMF_from_coefficient_vector(weight, S, v, 0, prec) for v in V]
+                Y = [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V]
                 if reverse:
                     Y.reverse()
                 return WeilRepModularFormsBasis(weight, Y, self)

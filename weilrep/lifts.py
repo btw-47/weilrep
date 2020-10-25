@@ -121,7 +121,7 @@ class OrthogonalModularForms(object):
         return self.__weilrep
 
     ## constructors of modular forms
-    def eisenstein_series(self, k, prec):
+    def eisenstein_series(self, k, prec, allow_small_weight = False):
         r"""
         Compute the Eisenstein series. (i.e. the theta lift of a vector-valued Eisenstein series)
 
@@ -139,10 +139,9 @@ class OrthogonalModularForms(object):
         """
         w = self.__weilrep
         try:
-            return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k + self.input_wt(), ceil(prec * prec / 4) + 1)).theta_lift(prec)
+            return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k + self.input_wt(), ceil(prec * prec / 4) + 1, allow_small_weight = allow_small_weight)).theta_lift(prec)
         except (TypeError, ValueError, ZeroDivisionError):
-            return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k + self.input_wt(), ceil(prec * prec / 4) + 1)).theta_lift(prec)
-            raise ValueError('Invalid weight')
+            raise ValueError('Invalid weight') from None
 
     def spezialschar(self, k, prec, cusp_forms = True):
         r"""
@@ -524,14 +523,17 @@ class OrthogonalModularForm(object):
                         if nrows > 2:
                             if nrows > 3:
                                 for j_r, y in h.dict().items():
-                                    g = tuple([j_x/d] + list(vector(ZZ, j_r) / d) + [j_t / d])
+                                    #g = tuple([j_x/d] + list(vector(ZZ, j_r) / d) + [j_t / d])
+                                    g = tuple([j_t / d, j_x / d] + list(vector(ZZ, j_r) / d))
                                     L[g] = y
                             else:
                                 for j_r, y in h.dict().items():
-                                    g = tuple([j_x/d, j_r/d, j_t / d])
+                                    #g = tuple([j_x/d, j_r/d, j_t / d])
+                                    g = tuple([j_t / d, j_x / d, j_r / d])
                                     L[g] = y
                         else:
-                            g = tuple([j_x/d, j_t /d])
+                            #g = tuple([j_x/d, j_t /d])
+                            g = tuple([j_t / d, j_x / d])
                             L[g] = h
                 else:
                     g = tuple([j_t / d])
