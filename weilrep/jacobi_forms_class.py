@@ -616,10 +616,11 @@ class JacobiForms:
             pass
         w = self.weilrep()
         ds_dict = w.ds_dict()
+        ds = w.ds()
         rds = w.rds()
         indices = w.rds(indices=True)
         S = w.gram_matrix()
-        found_vectors = [g * S * g/2 if (indices[i] is None) else (-indices[i]) for i, g in enumerate(rds)]
+        found_vectors = [g * S * g/2 if (indices[i] is None) else (-indices[i]) for i, g in enumerate(ds)]
         N_triv = max(found_vectors) #a trivial upper bound for longest_short_vector_norm(). next we'll use PARI qfminim() to lower this
         found_vectors[0] = 0
         S_inv = S.inverse()
