@@ -26,7 +26,7 @@ from sage.calculus.var import var
 from sage.functions.other import binomial, ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
-from sage.misc.functional import isqrt
+from sage.misc.functional import denominator, isqrt
 from sage.misc.latex import latex
 from sage.misc.misc_c import prod
 from sage.modular.modform.eis_series import eisenstein_series_qexp
@@ -39,6 +39,7 @@ from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
+from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 
@@ -93,6 +94,16 @@ class JacobiForms:
         OUTPUT: a JacobiForms
         """
         return JacobiForms(self.__index_matrix * N)
+
+    def discriminant(self):
+        r"""
+        Return the discriminant of self's index.
+        """
+        try:
+            return self.__discriminant
+        except AttributeError:
+            self.__discriminant = self.index_matrix().determinant()
+            return self.__discriminant
 
     def index(self):
         r"""
@@ -299,6 +310,102 @@ class JacobiForms:
         """
         return self.index_matrix().determinant()
 
+    def weak_forms_dimension(self, k):
+        r"""
+        Compute the dimension of the space of weak Jacobi forms of weight k.
+
+        INPUT:
+        - ``k`` -- weight
+        """
+        n = self.nvars()
+        svn = self.short_vector_norms_by_component()
+        w = self.weilrep()
+        rds = w.rds()
+        k_dual = 2 - k + n/2
+        if k_dual <= 0:
+            rds = w.rds(indices = True)
+            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None)
+            return self.dimension(k) + d
+        N = max(svn) + 1
+        wdual = w.dual()
+        X = wdual.modular_forms_basis(k_dual, N)
+        v_list = wdual.coefficient_vector_exponents(N, 1 - k % 2, include_vectors = True)
+        len_v_list = len(v_list)
+        Y = [x.coefficient_vector(starting_from = 0)[:len_v_list] for x in X]
+        s = 0
+        e = set([])
+        dsdict = wdual.ds_dict()
+        for j, (g , n) in enumerate(v_list):
+            if n <= svn[dsdict[g]]:
+                try:
+                    i = next(i for i, y in enumerate(Y) if i not in e and y[j])
+                    e.add(i)
+                except StopIteration:
+                    s += 1
+        return s
+
+
+    def hilbert_series(self, polynomial = False):
+        r"""
+        Compute the Hilbert series f = \sum_k dim J_k t^k.
+
+        INPUT:
+
+        - ``polynomial`` -- boolean (default False). If True then output the Hilbert Polynomial f * (1 - t^4) * (1 - t^6) instead.
+
+        """
+        r, t = PolynomialRing(ZZ, 't').objgen()
+        d = []
+        p = []
+        discr = self.discriminant()
+        k, s = 0, 0
+        while s < discr:
+            p.append(self.dimension(k))
+            d.append(p[-1])
+            if len(p) > 4:
+                p[-1] -= d[-5]
+                if len(p) > 6:
+                    p[-1] -= d[-7]
+                    if len(p) > 10:
+                        p[-1] += d[-11]
+            k += 1
+            s += p[-1]
+        if polynomial:
+            return r(p)
+        return r(p) / ((1 - t**4) * (1 - t**6))
+
+    def weak_hilbert_series(self, polynomial = False):
+        r"""
+        Compute the Hilbert series of weak Jacobi forms f = \sum_k dim J_k^w t^k.
+
+        INPUT:
+
+        - ``polynomial`` -- boolean (default False). If True then output the Hilbert Polynomial f * (1 - t^4) * (1 - t^6) instead.
+
+        """
+        r, t = LaurentPolynomialRing(ZZ, 't').objgen()
+        d = []
+        p = []
+        discr = self.discriminant()
+        N = self.longest_short_vector_norm()
+        k_min = floor(-12 * N)
+        _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N) for k in range(k_min)] #compute this then throw it away
+        k, s = k_min, 0
+        while s < discr:
+            p.append(self.weak_forms_dimension(k))
+            d.append(p[-1])
+            if len(p) > 4:
+                p[-1] -= d[-5]
+                if len(p) > 6:
+                    p[-1] -= d[-7]
+                    if len(p) > 10:
+                        p[-1] += d[-11]
+            k += 1
+            s += p[-1]
+        if polynomial:
+            return r(p) * t**k_min
+        return r(p) * (t ** k_min) / ((1 - t**4) * (1 - t**6))
+
     ## bases of spaces associated to this index
 
     def cusp_forms_basis(self, weight, prec=0, try_theta_blocks=None, verbose=False):
@@ -452,9 +559,7 @@ class JacobiForms:
         svn = self.short_vector_norms_by_component()
         N = max(svn)
         if verbose:
-            print(
-                'I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'
-                % N)
+            print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'% N)
             print('-' * 60)
         k = weight - self.nvars() / 2
         L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose)
@@ -463,10 +568,10 @@ class JacobiForms:
         if debug:
             return L
         v_list = w.coefficient_vector_exponents(prec, 1 - (weight % 2), starting_from = -N, include_vectors = True)
-        n = len(v_list) - 1
-        e = lambda i: vector([0] * i + [1] + [0] * (n - i))
+        n = len(v_list)
+        e = lambda i: vector([0] * i + [1] + [0] * (n - 1 - i))
         Z = [e(j) for j, (v, i) in enumerate(v_list) if i + svn[dsdict[tuple(v)]] >= 0]
-        V = span([x.coefficient_vector(starting_from = -N, ending_with = prec) for x in L])
+        V = span([x.coefficient_vector(starting_from = -N, ending_with = prec)[:n] for x in L])
         V = V.intersection(span(Z)).basis()
         X = WeilRepModularFormsBasis(k, [w.recover_modular_form_from_coefficient_vector(k, v, prec, starting_from = -N) for v in V], w)
         X.reverse()
@@ -494,6 +599,10 @@ class JacobiForms:
 
         TODO: is there a better way to do this?? for now we use PARI qfminim() to find some short vectors
 
+        INPUT:
+
+        - ``parity`` -- (default 1) 1 for even weight, 0 for odd weight
+
         EXAMPLES::
 
             sage: from weilrep import *
@@ -510,8 +619,8 @@ class JacobiForms:
         rds = w.rds()
         indices = w.rds(indices=True)
         S = w.gram_matrix()
-        N_triv = max(ceil(g * S * g / 2) for g in rds)  #a trivial upper bound for longest_short_vector_norm(). next we'll use PARI qfminim() to lower this
-        found_vectors = [None if (x is None) else (-x) for x in indices]
+        found_vectors = [g * S * g/2 if (indices[i] is None) else (-indices[i]) for i, g in enumerate(rds)]
+        N_triv = max(found_vectors) #a trivial upper bound for longest_short_vector_norm(). next we'll use PARI qfminim() to lower this
         found_vectors[0] = 0
         S_inv = S.inverse()
         try:

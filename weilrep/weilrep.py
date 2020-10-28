@@ -119,7 +119,7 @@ class WeilRep(object):
 
         This is simply the Weil representation obtained by multiplying the underlying quadratic form by (-1).
 
-        NOTE: w.dual() is the same as w(-1)
+        NOTE: w.dual() is the same as w(-1) except that it is cached.
 
         OUTPUT: a WeilRep instance
 
@@ -132,7 +132,11 @@ class WeilRep(object):
             [-1 -2]
 
         """
-        return WeilRep(-self.gram_matrix())
+        try:
+            return self.__dual
+        except AttributeError:
+            self.__dual = WeilRep(-self.gram_matrix())
+            return self.__dual
 
     def __call__(self, N):
         r"""
@@ -1411,7 +1415,7 @@ class WeilRep(object):
             return X
         elif weight == sage_seven_half:
             try:
-                epsilon = QQ(Integer(8) * (-1)**((1 + self.signature())/4) / sqrt(self.discriminant()))
+                epsilon = QQ(Integer(8) * (-1)**((1 + self.signature())/4) / sqrt(w.discriminant()))
             except TypeError:
                 return X
             q, = PowerSeriesRing(QQ, 'q').gens()
@@ -1832,6 +1836,31 @@ class WeilRep(object):
         else:
             return len(self.modular_forms_basis(weight))
 
+    def hilbert_series(self):
+        r"""
+        Compute the Hilbert series \sum_k dim M_k(rho) t^k.
+        """
+        eps = Integer(self.signature() % 2)
+        r, t = PolynomialRing(ZZ, 't').objgen()
+        d = []
+        p = []
+        h = (1 - t**4) * (1 - t**6)
+        discr = self.discriminant()
+        k = eps / 2
+        s = 0
+        while s < discr:
+            p.append(self.modular_forms_dimension(k))
+            d.append(p[-1])
+            if len(p) > 4:
+                p[-1] -= d[-5]
+                if len(p) > 6:
+                    p[-1] -= d[-7]
+                    if len(p) > 10:
+                        p[-1] += d[-11]
+            k += 1
+            s += p[-1]
+        return r(p) / h
+
     ## bases of spaces associated to this representation
 
     def _eisenstein_packet(self, k, prec, dim = None, include_E = False):#packet of cusp forms that can be computed using only Eisenstein series
@@ -2043,6 +2072,9 @@ class WeilRep(object):
                     X = WeilRepModularFormsBasis(k, [x*e4 for x in X4], self) + WeilRepModularFormsBasis(k, [x*e6 for x in X6], self) + WeilRepModularFormsBasis(k, [x.serre_derivative().serre_derivative() for x in X4], self)
                     X.remove_nonpivots()
                     rank = len(X)
+                    if rank == dim:
+                        X.echelonize()
+                        return X
                 else:
                     rank = 0
             if symm and k >= sage_nine_half:
@@ -2204,7 +2236,7 @@ class WeilRep(object):
                 return return_pivots()
             if verbose:
                 print('I am going to compute the spaces of cusp forms of weights %s and %s.' %(k+4, k+6))
-            prec = max(prec, ceil(sturm_bound + sage_one_half))
+            prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
             e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
             X1 = self.cusp_forms_basis(k + 4, prec, verbose = verbose)
@@ -2322,7 +2354,7 @@ class WeilRep(object):
             if verbose:
                 print('The discriminant is prime so I can construct modular forms via the Bruinier--Bundschuh lift.')
             chi = DirichletGroup(p)[(p-1)//2]
-            mod_forms = ModularForms(chi, weight, prec = p*prec).echelon_basis()
+            mod_forms = ModularForms(chi, weight, prec = ceil(p*prec)).echelon_basis()
             mod_sturm_bound = p * ceil(weight / 12)
             sig = self.signature()
             if (sig == 0 or sig == 6):
@@ -2341,7 +2373,7 @@ class WeilRep(object):
         if symm and (dim1 <= dim2 + len(b_list)):
             if verbose:
                 print('I am going to compute the spaces of modular forms of weights %s and %s.' %(weight+4, weight+6))
-            prec = max(prec, ceil(sturm_bound + sage_one_half))
+            prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
             e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
             X1 = self.modular_forms_basis(weight+4, prec, verbose = verbose)
@@ -2875,9 +2907,10 @@ class WeilRep(object):
             [(1/12), q^(1/24) - q^(25/24) - q^(49/24) + q^(121/24) + q^(169/24) + O(q^(241/24))]
         """
         prec = max(1, ceil(prec))
-        n = self.gram_matrix().nrows()
+        S = self.gram_matrix()
+        n = S.nrows()
         X = WeilRepModularFormsBasis(sage_one_half, [], self)
-        if not(n % 2):
+        if not(n % 2) or not((n + 1) % 8 or len(set([x for x in S.elementary_divisors() if x - 1])) > 1): #skoruppa theorem 10
             return X
         N = self.level() // 4
         b = vector([0] * n)
