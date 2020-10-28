@@ -1836,15 +1836,17 @@ class WeilRep(object):
         else:
             return len(self.modular_forms_basis(weight))
 
-    def hilbert_series(self):
+    def hilbert_series(self, polynomial = False):
         r"""
-        Compute the Hilbert series \sum_k dim M_k(rho) t^k.
+        Compute the Hilbert series \sum_k dim M_{floor k}(rho) t^k.
+
+        INPUT:
+        - ``polynomial`` -- boolean (default False). If True then output the Hilbert Polynomial f * (1 - t^4) * (1 - t^6) instead.
         """
         eps = Integer(self.signature() % 2)
         r, t = PolynomialRing(ZZ, 't').objgen()
         d = []
         p = []
-        h = (1 - t**4) * (1 - t**6)
         discr = self.discriminant()
         k = eps / 2
         s = 0
@@ -1859,7 +1861,9 @@ class WeilRep(object):
                         p[-1] += d[-11]
             k += 1
             s += p[-1]
-        return r(p) / h
+        if polynomial:
+            return r(p)
+        return r(p) / ((1 - t**4) * (1 - t**6))
 
     ## bases of spaces associated to this representation
 
@@ -2294,6 +2298,7 @@ class WeilRep(object):
             [(1/2, 1/2), q^(1/4) + 8*q^(5/4) - 45*q^(9/4) - 8*q^(13/4) + 226*q^(17/4) - 96*q^(21/4) - 335*q^(25/4) + 88*q^(29/4) - 156*q^(33/4) + 456*q^(37/4) + O(q^(41/4))]
             [(1/2, 3/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^(85/8))]
         """
+        prec = ceil(prec)
         if not eisenstein:
             try:
                 old_prec, X = copy(self.__modular_forms_basis[weight])
