@@ -2475,7 +2475,13 @@ class WeilRep(object):
                     print('I am going to find a basis of modular forms of weight %s which vanish to order %s at infinity and multiply them by Delta^%d.' %(computed_weight, frac_N, floor_N))
                 X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose)
                 return WeilRepModularFormsBasis(k, [x * smf_delta_N for x in X], self)
-        cusp_forms, pivots = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True)
+        U = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True)
+        try:
+            cusp_forms, pivots = U
+        except ValueError:
+            if inclusive:
+                return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) > N], self)
+            return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) >= N], self)
         Y = self.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
         try:
             if inclusive:
