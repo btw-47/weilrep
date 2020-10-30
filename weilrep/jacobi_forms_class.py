@@ -374,13 +374,17 @@ class JacobiForms:
             return r(p)
         return r(p) / ((1 - t**4) * (1 - t**6))
 
-    def weak_hilbert_series(self, polynomial = False):
+    def hilbert_polynomial(self):
+        return self.hilbert_series(polynomial = True)
+
+    def weak_hilbert_series(self, polynomial = False, verbose = False):
         r"""
         Compute the Hilbert series of weak Jacobi forms f = \sum_k dim J_k^w t^k.
 
         INPUT:
 
         - ``polynomial`` -- boolean (default False). If True then output the Hilbert Polynomial f * (1 - t^4) * (1 - t^6) instead.
+        - ``verbose`` -- verbosity (default False)
 
         """
         r, t = LaurentPolynomialRing(ZZ, 't').objgen()
@@ -389,7 +393,7 @@ class JacobiForms:
         discr = self.discriminant()
         N = self.longest_short_vector_norm()
         k_min = floor(-12 * N)
-        _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N) for k in range(k_min)] #compute this then throw it away
+        _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)] #compute this then throw it away lol. but we have to do it
         k, s = k_min, 0
         while s < discr:
             p.append(self.weak_forms_dimension(k))
@@ -405,6 +409,9 @@ class JacobiForms:
         if polynomial:
             return r(p) * t**k_min
         return r(p) * (t ** k_min) / ((1 - t**4) * (1 - t**6))
+
+    def weak_hilbert_polynomial(self):
+        return self.weak_hilbert_series(polynomial = True)
 
     ## bases of spaces associated to this index
 
