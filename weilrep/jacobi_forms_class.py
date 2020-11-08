@@ -318,6 +318,14 @@ class JacobiForms:
         - ``k`` -- weight
         """
         n = self.nvars()
+        if n == 1:
+            m = self.index_matrix()[0, 0]
+            k_plus_m = k + m
+            if k_plus_m < 0:
+                return 0
+            r, t = PolynomialRing(ZZ, 't').objgen()
+            f = (r([1,0]+[1]*(m - 1)) * (1 + t**4 + t**8) * (1 + t**6))
+            return sum(f[k_plus_m - 12*n] * (n + 1) for n in range(1 + k_plus_m // 12))
         svn = self.short_vector_norms_by_component()
         w = self.weilrep()
         rds = w.rds()
@@ -331,18 +339,11 @@ class JacobiForms:
         X = wdual.modular_forms_basis(k_dual, N)
         v_list = wdual.coefficient_vector_exponents(N, 1 - k % 2, include_vectors = True)
         len_v_list = len(v_list)
-        Y = [x.coefficient_vector(starting_from = 0)[:len_v_list] for x in X]
-        s = 0
-        e = set([])
         dsdict = wdual.ds_dict()
-        for j, (g , n) in enumerate(v_list):
-            if n <= svn[dsdict[g]]:
-                try:
-                    i = next(i for i, y in enumerate(Y) if i not in e and y[j])
-                    e.add(i)
-                except StopIteration:
-                    s += 1
-        return s
+        I = [i for i, (g, n) in enumerate(v_list) if n <= svn[dsdict[g]]]
+        Y1 = [x.coefficient_vector(starting_from = 0) for x in X]
+        Y = matrix([[y[i] for i in I] for y in Y1])
+        return Y.ncols() - Y.rank()
 
 
     def hilbert_series(self, polynomial = False):
@@ -387,6 +388,12 @@ class JacobiForms:
         - ``verbose`` -- verbosity (default False)
 
         """
+        if self.nvars() == 1:
+            p = self.weak_hilbert_polynomial()
+            if polynomial:
+                return p
+            t, = p.parent().gens()
+            return p/((1 - t**4) * (1 - t**6))
         r, t = LaurentPolynomialRing(ZZ, 't').objgen()
         d = []
         p = []
@@ -411,6 +418,10 @@ class JacobiForms:
         return r(p) * (t ** k_min) / ((1 - t**4) * (1 - t**6))
 
     def weak_hilbert_polynomial(self):
+        if self.nvars() == 1:
+            r, t = LaurentPolynomialRing(ZZ, 't').objgen()
+            m = self.index_matrix()[0, 0]
+            return t**(-m) * r([1,0]+[1]*(m - 1))
         return self.weak_hilbert_series(polynomial = True)
 
     ## bases of spaces associated to this index
