@@ -316,6 +316,12 @@ class JacobiForms:
 
         INPUT:
         - ``k`` -- weight
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: JacobiForms(matrix([[2, 1], [1, 2]])).weak_forms_dimension(-3)
+            1
         """
         n = self.nvars()
         if n == 1:
@@ -337,6 +343,10 @@ class JacobiForms:
         N = max(svn) + 1
         wdual = w.dual()
         X = wdual.modular_forms_basis(k_dual, N)
+        if not X:
+            rds = w.rds(indices = True)
+            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None)
+            return d
         v_list = wdual.coefficient_vector_exponents(N, 1 - k % 2, include_vectors = True)
         len_v_list = len(v_list)
         dsdict = wdual.ds_dict()
