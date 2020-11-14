@@ -718,7 +718,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             M[-1, 0] = 1
             X = self.conjugate(M)
             v = X.__weyl_vector_II()
-            print('Weyl vector:', v)
             return vector([v[0] + v[-1], v[-1] - v[0]] + list(v[1:-1]))
         S = w._lorentz_gram_matrix()
         nrows = Integer(S.nrows())

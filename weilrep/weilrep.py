@@ -2518,7 +2518,6 @@ class WeilRep(object):
                 return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) > N], self)
             return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) >= N], self)
         Y = self.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
-        print(cusp_forms)
         try:
             if inclusive:
                 j = next(i for i in range(ell) if Y[pivots[i]] > N)
