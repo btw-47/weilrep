@@ -24,9 +24,8 @@ import math
 import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
-from copy import copy, deepcopy
+from copy import copy
 from itertools import product
-from re import sub
 
 from sage.arith.functions import lcm
 from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, is_square, kronecker_symbol, moebius, prime_divisors, valuation
@@ -49,6 +48,7 @@ from sage.modular.modform.j_invariant import j_invariant_qexp
 from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
+from sage.modules.torsion_quadratic_module import TorsionQuadraticForm
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
 from sage.rings.fast_arith import prime_range
@@ -62,6 +62,7 @@ from sage.rings.rational_field import QQ
 from sage.rings.real_mpfr import RealField
 
 from .eisenstein_series import *
+from .morphisms import WeilRepAutomorphism
 from .weilrep_modular_forms_class import smf, WeilRepMockModularForm, WeilRepModularForm, WeilRepModularFormsBasis
 
 sage_one_half = Integer(1) / Integer(2)
@@ -86,6 +87,7 @@ class WeilRep(object):
 
     def __init__(self, S):
         if isinstance(S.parent(), MatrixSpace):
+            S = matrix(ZZ, S)
             self.__gram_matrix = S
             self.__quadratic_form = QuadraticForm(S)
         elif isinstance(S, QuadraticForm):
@@ -185,13 +187,33 @@ class WeilRep(object):
                 self.__discriminant = abs(self.gram_matrix().determinant())
                 return self.__discriminant
 
+    def discriminant_form(self):
+        r"""
+        Return the discriminant form as a Torsion Quadratic Module.
+        """
+        try:
+            return self.__discriminant_form
+        except AttributeError:
+            self.__discriminant_form = TorsionQuadraticForm(self.gram_matrix().inverse())
+            return self.__discriminant_form
+
     def __eq__(self, other):
+        r"""
+        Test whether self and other are equal.
+
+        We do not check whether 'other' is actually a WeilRep. (Hopefully this doesn't matter!)
+        """
         return self.gram_matrix() == other.gram_matrix()
 
     def __ne__(self, other):
         return not(self.__eq__(other))
 
     def is_lorentzian(self):
+        r"""
+        Test whether self has signature (n, 1) for some n.
+
+        (Note n=0 is allowed.)
+        """
         try:
             return self.__is_lorentzian
         except AttributeError:
@@ -200,9 +222,17 @@ class WeilRep(object):
             return self.__is_lorentzian
 
     def is_lorentzian_plus_II(self):
+        r"""
+        Test whether self is of the form L + II(n) for some Lorentzian WeilRep L.
+
+        Always returns False. When we construct L+II(n) this method is overwritten to sometimes be True.
+        """
         return False
 
     def is_positive_definite(self):
+        r"""
+        Test whether self has signature (n, 0) for some n.
+        """
         try:
             return self.__is_positive_definite
         except AttributeError:
@@ -315,6 +345,7 @@ class WeilRep(object):
                 self.__ds = [vector([])]
             else:
                 D, _, V = self.gram_matrix().smith_form()
+                self._smith_form = D, V
                 L = [vector(range(n)) / n for n in D.diagonal()]
                 L = (matrix(product(*L)) * V.transpose()).rows()
                 self.__ds = [vector(map(frac, x)) for x in L]
@@ -634,7 +665,10 @@ class WeilRep(object):
             if not self.is_symmetric_weight(k):
                 raise ValueError('Invalid weight in Eisenstein series')
             try:#did we do this already?
-                old_prec, e = self.__eisenstein[k]
+                try:
+                    old_prec, e = self.__eisenstein[k]
+                except ValueError:
+                    old_prec = -1
                 if old_prec >= prec:
                     return e.reduce_precision(prec, in_place = False)
                 raise RuntimeError
@@ -668,7 +702,6 @@ class WeilRep(object):
             _norm_list = self.norm_list()
         dets = self.discriminant()
         eps = (-1) ** (self.signature() in range(3, 7))
-        #S_rows_gcds = [GCD(x) for x in S.rows()]
         S_rows_gcds = list(map(GCD, S.rows()))
         S_rows_sums = sum(S)
         level = self.level()
@@ -698,7 +731,7 @@ class WeilRep(object):
             removable_primes = []
             for p in prime_list_1:
                 if level % p == 0:
-                    if p != 2 and any(L_half[i]%p and not S_rows_gcds[i]%p for i in range(_dim)):# and (p != 2 or any(L_half[i]%2 and not S[i,i]%4 for i in range(_dim))):#???
+                    if p != 2 and any(L_half[i] % p and not S_rows_gcds[i] % p for i in range(_dim)):# and (p != 2 or any(L_half[i]%2 and not S[i,i]%4 for i in range(_dim))):#???
                         removable_primes.append(p)
                     else:
                         prime_list.append(p)
@@ -1836,6 +1869,7 @@ class WeilRep(object):
         else:
             return len(self.modular_forms_basis(weight))
 
+
     def hilbert_series(self, polynomial = False):
         r"""
         Compute the Hilbert series \sum_k dim M_{floor k}(rho) t^k.
@@ -2341,7 +2375,7 @@ class WeilRep(object):
                     L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0]))
                     return L
                 else:
-                    X = deepcopy(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0]))
+                    X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])], self)
                     X.extend(L)
                     X.echelonize()
                     self.__modular_forms_basis[weight] = prec, X
@@ -2478,19 +2512,21 @@ class WeilRep(object):
         U = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True)
         try:
             cusp_forms, pivots = U
-        except ValueError:
+            ell = len(cusp_forms)
+        except (TypeError, ValueError):
             if inclusive:
                 return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) > N], self)
             return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) >= N], self)
         Y = self.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
+        print(cusp_forms)
         try:
             if inclusive:
-                j = next(i for i in range(len(cusp_forms)) if Y[pivots[i]] > N)
+                j = next(i for i in range(ell) if Y[pivots[i]] > N)
             elif inclusive_except_zero_component:
-                j = next(i for i in range(len(cusp_forms)) if (Y[0][pivots[i]] >= N) and (Y[0][pivots[i]] > N or not Y[1][pivots[i]]))
+                j = next(i for i in range(ell) if (Y[0][pivots[i]] >= N) and (Y[0][pivots[i]] > N or not Y[1][pivots[i]]))
             else:
-                j = next(i for i in range(len(cusp_forms)) if Y[pivots[i]] >= N)
-        except:
+                j = next(i for i in range(ell) if Y[pivots[i]] >= N)
+        except StopIteration:
             return []
         Z = WeilRepModularFormsBasis(k, cusp_forms[j:], self)
         if type(Z) is list:
@@ -2691,6 +2727,57 @@ class WeilRep(object):
                 return WeilRepModularFormsBasis(weight, Y, self)
             except AttributeError:
                 return []
+
+    ## automorphisms ##
+
+    def identity_morphism(self):
+        return WeilRepAutomorphism(self, lambda x:x)
+
+    def reflection(self, r):
+        r"""
+        Compute the reflection by a vector r \in L \otimes \QQ as a WeilRepAutomorphism.
+
+        This is the morphism
+        s_r : L'/L --> L'/L,  s_r(x) = x - <r, x> (r / Q(r)).
+        If r has norm Q(r) = 0 or if s_r does not map L' into L' and L into L, then raise a ValueError.
+
+        INPUT:
+        - ``r`` -- a rational vector of length equal to self's lattice rank
+
+        OUTPUT: WeilRepAutomorphism
+        """
+        S = self.gram_matrix()
+        r0 = S * r
+        try:
+            r0 = 2 * r0 / (r * r0)
+        except ZeroDivisionError:
+            raise ValueError('Not a valid reflection') from None
+        try:
+            return WeilRepAutomorphism(self, lambda x: vector(map(frac, x - (r0 * x) * r)))
+        except KeyError:
+            raise ValueError('Not a valid reflection') from None
+
+    def automorphism_group(self):
+        r"""
+        Compute all automorphisms of this WeilRep.
+
+        If (A, Q) is the discriminant form then an automorphism is an isomorphism of groups f : A -> A with Q(f(x)) = Q(x) for all x in A.
+
+        OUTPUT: a list of WeilRepAutomorphism's
+        """
+        try:
+            D, V = self._smith_form
+        except AttributeError:
+            D, _, V = self.gram_matrix().smith_form()
+        V_inv = V.inverse()
+        try:
+            i = next(i for i in range(D.nrows()) if D[i, i] != 1)
+        except StopIteration:
+            return [self.identity_morphism()]
+        def a(g):
+            g = V * block_diagonal_matrix([identity_matrix(i), g.matrix()]) * V_inv
+            return lambda x: vector(map(frac, g * x))
+        return [WeilRepAutomorphism(self, a(g)) for g in self.discriminant_form().orthogonal_group()]
 
     ## low weight ##
 
