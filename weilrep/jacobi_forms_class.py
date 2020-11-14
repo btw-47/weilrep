@@ -335,17 +335,18 @@ class JacobiForms:
         svn = self.short_vector_norms_by_component()
         w = self.weilrep()
         rds = w.rds()
+        ds = w.ds()
         k_dual = 2 - k + n/2
         if k_dual <= 0:
             rds = w.rds(indices = True)
-            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None)
+            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None and (not(k % 2) or 2 % denominator(ds[i])))
             return self.dimension(k) + d
         N = max(svn) + 1
         wdual = w.dual()
         X = wdual.modular_forms_basis(k_dual, N)
         if not X:
             rds = w.rds(indices = True)
-            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None)
+            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None and (not(k % 2) or 2 % denominator(ds[i])))
             return d
         v_list = wdual.coefficient_vector_exponents(N, 1 - k % 2, include_vectors = True)
         len_v_list = len(v_list)
@@ -410,7 +411,7 @@ class JacobiForms:
         discr = self.discriminant()
         N = self.longest_short_vector_norm()
         k_min = floor(-12 * N)
-        _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)] #compute this then throw it away lol. but we have to do it
+        _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)]
         k, s = k_min, 0
         while s < discr:
             p.append(self.weak_forms_dimension(k))
