@@ -1629,7 +1629,10 @@ class WeilRepModularFormsBasis:
         return WeilRepModularFormsBasis(k, [WeilRepModularForm(k, S, y, weilrep = weilrep) for y in Y], weilrep = weilrep)
 
     def valuation(self):
-        return min(x.valuation() for x in self.__basis)
+        try:
+            return min(x.valuation() for x in self.__basis)
+        except ValueError:
+            return 0
 
     def weight(self):
         return self.__weight
@@ -1781,30 +1784,3 @@ class WeilRepModularFormPrincipalPart:
     def weilrep(self):
         return self.__weilrep
 
-# special mock modular forms
-
-def bfo_theta(N, prec):
-    r"""
-    The mock theta function \sum_{a} M_{a, b}^+ e_b from Bringmann, Folsom, Ono -- q-series and weight 3/2 maass forms, compositio math 145:541--552
-
-    This is a mock modular form of weight 3/2 for the rank one WeilRep matrix([[2 * N]]). Its shadow is the standard theta function.
-    """
-    from .weilrep import WeilRep
-    r, q = PowerSeriesRing(QQ, 'q').objgen()
-    twoN = N + N
-    theta0 = -~((1 + 2 * sum(q**(n * n) for n in range(1, isqrt(prec) + 1)) + O(q ** prec)) * twoN).V(N)
-    w = WeilRep(matrix([[twoN]]))
-    nl = w.norm_list()
-    ds = w.ds()
-    rds = w.rds(indices = True)
-    X = [[ds[i], n, O(q ** (prec - floor(n)))] for i, n in enumerate(nl)]
-    bound = isqrt((twoN + twoN) * prec) + 1
-    bound = 4 * bound
-    #for n in srange(-bound, bound):
-    for n in srange(bound):
-        a = n % twoN
-        if a:
-            #X[a][2] += n * q ** ceil(n * (1 + (n - a - a) / (twoN + twoN) )) * ~(1 - q ** n) * theta0
-            X[a][2] += n * q ** ceil((n * n)/ (twoN + twoN) + n * (1 - a / twoN)) * ~(1 - q ** n) * theta0
-    X[0][2] = r(list(map(pari.qfbhclassno, srange(prec // N)))).V(N)
-    return WeilRepMockModularForm(Integer(3) / 2, w.gram_matrix(), X, w(-1).theta_series(prec), w)

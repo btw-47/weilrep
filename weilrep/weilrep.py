@@ -24,6 +24,7 @@ import math
 import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
+
 from copy import copy
 from itertools import product
 
@@ -37,7 +38,7 @@ from sage.functions.transcendental import zeta
 from sage.functions.trig import cos
 from sage.matrix.constructor import matrix
 from sage.matrix.matrix_space import MatrixSpace
-from sage.matrix.special import block_matrix, identity_matrix
+from sage.matrix.special import block_matrix, diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, round, isqrt
 from sage.misc.misc_c import prod
 from sage.modular.dirichlet import DirichletGroup, kronecker_character
@@ -48,6 +49,7 @@ from sage.modular.modform.j_invariant import j_invariant_qexp
 from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
+from sage.modules.free_quadratic_module import FreeQuadraticModule
 from sage.modules.torsion_quadratic_module import TorsionQuadraticForm
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
@@ -62,7 +64,7 @@ from sage.rings.rational_field import QQ
 from sage.rings.real_mpfr import RealField
 
 from .eisenstein_series import *
-from .morphisms import WeilRepAutomorphism
+from .morphisms import WeilRepAutomorphism, WeilRepAutomorphismGroup
 from .weilrep_modular_forms_class import smf, WeilRepMockModularForm, WeilRepModularForm, WeilRepModularFormsBasis
 
 sage_one_half = Integer(1) / Integer(2)
@@ -1852,8 +1854,9 @@ class WeilRep(object):
 
         """
         eta_twist %= 24
-        if weight >= 2 or force_Riemann_Roch:
-            symm = self.is_symmetric_weight(weight - eta_twist / 2)
+        k = weight - eta_twist / 2
+        if k >= 2 or force_Riemann_Roch:
+            symm = self.is_symmetric_weight(k)
             cusp_dim = self.cusp_forms_dimension(weight, eta_twist, force_Riemann_Roch = True, do_not_round = do_not_round)
             return cusp_dim + self.__count_isotropic_vectors[eta_twist] + (symm - 1) * self.__count_isotropic_vectors_of_order_two[eta_twist]
         elif weight < 0:
@@ -1869,6 +1872,99 @@ class WeilRep(object):
         else:
             return len(self.modular_forms_basis(weight))
 
+    def invariant_cusp_forms_dimension(self, weight, G = None, chi = None, force_Riemann_Roch = False, do_not_round = False):
+        return self.invariant_forms_dimension(weight, cusp_forms = True, G = G, chi = chi, force_Riemann_Roch = force_Riemann_Roch, do_not_round = do_not_round)
+
+    def invariant_forms_dimension(self, weight, cusp_forms = False, G = None, chi=None, force_Riemann_Roch = False, do_not_round = False):
+        r"""
+
+        INPUT:
+        - ``weight`` -- the weight
+        - ``cusp_forms`` -- boolean (default False) if True then count only cusp forms
+        - ``G`` -- a group of automorphisms of self (typically constructed via self.automorphism_group()) Default None; if G = None then we assume G is the full automorphism group. WARNING: ``G`` must contain the ``canonical involution`` x -> -x
+        - ``chi`` -- a character chi : G --> C^* (Default None) This should be a list of values [chi(g1),...,chi(g_n)], where G = [g1,...,g_n]. If chi=None then we assume chi is the trivial character. WARNING: we do not check whether chi is actually a character!
+        - ``force_Riemann_Roch`` -- boolean (Default False) If True then use the Riemann--Roch formula even when it does not apply
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = II(5)
+            sage: w.invariant_forms_dimension(8)
+            5
+        """
+        symm = self.is_symmetric_weight(weight)
+        sqrt_d = math.sqrt(self.discriminant())
+        if weight <= 0 or symm is None:
+            return 0
+        if G is None:
+            G = self.automorphism_group()
+        if chi is None:
+            chi = [1]*len(G)
+        try:
+            i = G.index(self.canonical_involution())
+            if (-1)**symm + chi[i]:
+                raise ValueError('This character does not satisfy chi(-1) = (-1)^k.')
+        except AttributeError:
+            raise ValueError('The automorphism group you provided does not contain x --> -x.') from None
+        if weight >= sage_five_half or force_Riemann_Roch:
+            eps = 1 if symm else -1
+            modforms_rank = self.rank(symm)
+            two_pi_i = complex(0.0, 2 * math.pi)
+            sig = self.signature()
+            dsdict = self.ds_dict()
+            ds = self.ds()
+            if not symm:
+                rds = self.rds(indices = True)
+            else:
+                rds = ds
+            d = [[0]*len(ds) for _ in ds]
+            e = set([])
+            s1 = 0
+            s2 = 0
+            s3 = []
+            n = self.norm_list()
+            for j, x in enumerate(ds):
+                sx = self.gram_matrix() * x
+                qx = n[j]
+                if tuple(x) not in e:
+                    new = True
+                    g = frac(qx)
+                    if g < 0:
+                        g += 1
+                    s3.append(-g)
+                else:
+                    new = False
+                    s3.append(0)
+                qx *= two_pi_i
+                for i, g in enumerate(G):
+                    gx = g(x)
+                    u = chi[i]
+                    h = two_pi_i * (gx * sx).n()
+                    gx = tuple(gx)
+                    k = dsdict[gx]
+                    s1 += cmath.exp(h) * u
+                    s2 += cmath.exp(h + qx) * u
+                    if new:
+                        d[j][k] += u
+                    e.add(gx)
+            s3 = sum(x for i, x in enumerate(s3) if any(d[i]))
+            if cusp_forms:
+                s4 = len([i for i, x in enumerate(d) if not n[i] and any(x)])
+            d = sum(1 for _ in filter(any, d))
+            zeta1 = cmath.exp(two_pi_i * (2 * weight + sig) / 8)
+            zeta2 = cmath.exp(two_pi_i * (4 * weight + 3 * sig - 10)/ 24)
+            s = d * (weight + 5) / 12 + zeta1 * s1 / (4 * len(G) * sqrt_d) - (zeta2 * s2 / (len(G) * sqrt_d)).real * (2 / (3 * math.sqrt(3))) + s3
+            s = s.real
+            if cusp_forms:
+                s -= s4
+            if do_not_round:
+                return s
+            return Integer(round(s))
+        else:
+            if cusp_forms:
+                return len(self.invariant_cusp_forms_basis(weight, 1, G = G, chi = chi))
+            return len(self.invariant_forms_basis(weight, 1, G = G, chi = chi))
+
 
     def hilbert_series(self, polynomial = False):
         r"""
@@ -1876,6 +1972,13 @@ class WeilRep(object):
 
         INPUT:
         - ``polynomial`` -- boolean (default False). If True then output the Hilbert Polynomial f * (1 - t^4) * (1 - t^6) instead.
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = WeilRep(CartanMatrix(['D', 4]))
+            sage: w.hilbert_series()
+            (2*t^6 + t^4 + t^2)/(t^10 - t^6 - t^4 + 1)
         """
         eps = Integer(self.signature() % 2)
         r, t = PolynomialRing(ZZ, 't').objgen()
@@ -1898,6 +2001,9 @@ class WeilRep(object):
         if polynomial:
             return r(p)
         return r(p) / ((1 - t**4) * (1 - t**6))
+
+    def hilbert_polynomial(self):
+        return self.hilbert_series(polynomial = True)
 
     ## bases of spaces associated to this representation
 
@@ -1950,7 +2056,7 @@ class WeilRep(object):
             return b
         return E[0], b
 
-    def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False, echelonize = True):#basis of cusp forms
+    def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False, echelonize = True, symmetry_data = None):#basis of cusp forms
         r"""
         Compute a basis of the space of cusp forms.
 
@@ -2034,6 +2140,8 @@ class WeilRep(object):
             [(0, 1/2), -q^(3/4) + 18*q^(7/4) - 135*q^(11/4) + 510*q^(15/4) - 765*q^(19/4) - 1242*q^(23/4) + 7038*q^(27/4) - 8280*q^(31/4) - 9180*q^(35/4) + 27710*q^(39/4) + O(q^(43/4))]
             [(1/2, 1/2), O(q^(21/2))]
          """
+        if symmetry_data is not None:
+            return self.invariant_cusp_forms_basis(k, prec, G = symmetry_data[0], chi = symmetry_data[1], verbose = verbose)
         try:
             k = Integer(k)
         except TypeError:
@@ -2290,10 +2398,11 @@ class WeilRep(object):
                     self.__cusp_forms_basis[k] = prec, X
                 return return_pivots()
             except AttributeError: #we SHOULD only get ``AttributeError: 'Objects_with_category' object has no attribute 'base_ring'`` when X1 or X2 is empty...
-                self.__cusp_forms_basis[k] = prec, []
-                return []
+                X = WeilRepModularFormsBasis(k, [], self)
+                self.__cusp_forms_basis[k] = prec, X
+                return return_pivots()
 
-    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False):
+    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False, symmetry_data = None):
         r"""
         Compute a basis of the space of modular forms.
 
@@ -2332,6 +2441,8 @@ class WeilRep(object):
             [(1/2, 1/2), q^(1/4) + 8*q^(5/4) - 45*q^(9/4) - 8*q^(13/4) + 226*q^(17/4) - 96*q^(21/4) - 335*q^(25/4) + 88*q^(29/4) - 156*q^(33/4) + 456*q^(37/4) + O(q^(41/4))]
             [(1/2, 3/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^(85/8))]
         """
+        if symmetry_data is not None:
+            return self.invariant_forms_basis(weight, prec = prec, G = symmetry_data[0], chi = symmetry_data[1], verbose = verbose)
         prec = ceil(prec)
         if not eisenstein:
             try:
@@ -2438,7 +2549,7 @@ class WeilRep(object):
 
     basis = modular_forms_basis
 
-    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, verbose = False):
+    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, symmetry_data = None, verbose = False):
         r"""
         Compute bases of modular forms that vanish to a specified order at infinity.
 
@@ -2451,6 +2562,8 @@ class WeilRep(object):
         - ``inclusive`` -- boolean (default False); if True then we also exclude modular forms whose order of vanishing is *exactly* N
         - ``inclusive_except_zero_component`` -- boolean (default False); if True then we exclude modular forms any of whose components (except the zero component) has order of vanishing exactly N
         - ``keep_N`` -- boolean (default False); if True then we skip the first step of trying to reduce to lower weight (for internal use)
+        - ``symmetry_data`` -- default None. If not None then it should be a list [G, chi] where G is a group of automorphisms and chi : G --> C^* is a character. (See also invariant_forms_dimension().)
+        - ``verbose`` -- boolean (default False); if True then we add commentary.
 
         OUTPUT: a list of WeilRepModularForms
 
@@ -2491,11 +2604,11 @@ class WeilRep(object):
             if inclusive:
                 if verbose:
                     print('The vanishing condition is trivial so I am looking for all cusp forms.')
-                return self.cusp_forms_basis(k, prec, verbose = verbose)
+                return self.cusp_forms_basis(k, prec, verbose = verbose, symmetry_data = symmetry_data)
             else:
                 if verbose:
                     print('The vanishing condition is trivial so I am looking for all modular forms.')
-                return self.modular_forms_basis(k, prec, eisenstein = False, verbose = verbose)
+                return self.modular_forms_basis(k, prec, eisenstein = False, verbose = verbose, symmetry_data = symmetry_data)
         elif N >= 1 and not keep_N:
             frac_N = frac(N)
             floor_N = floor(N)
@@ -2507,7 +2620,7 @@ class WeilRep(object):
                 smf_delta_N = smf(12*floor_N, delta_qexp(prec)^floor_N)
                 if verbose:
                     print('I am going to find a basis of modular forms of weight %s which vanish to order %s at infinity and multiply them by Delta^%d.' %(computed_weight, frac_N, floor_N))
-                X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose)
+                X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose, symmetry_data = symmetry_data)
                 return WeilRepModularFormsBasis(k, [x * smf_delta_N for x in X], self)
         U = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True)
         try:
@@ -2533,7 +2646,7 @@ class WeilRep(object):
         Z.echelonize()
         return Z
 
-    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, verbose = False):
+    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, symmetry_data = None, verbose = False):
         r"""
         Computes a basis of nearly holomorphic modular forms.
 
@@ -2547,7 +2660,9 @@ class WeilRep(object):
         - ``prec`` -- precision (default 0); will be raised at least to a Sturm bound
         - ``inclusive`` -- boolean (default True); if True then we allow forms with pole order *exactly* pole_order
         - ``reverse`` -- boolean (default True); if True then output forms in reverse echelon order
+        - ``symmetry_data`` -- default None. If not None then it should be a list [G, chi] where G is a group of automorphisms and chi : G --> C^* is a character. (See also invariant_forms_dimension().)
         - ``force_N_positive`` -- boolean (default False); if True then we always divide by Delta at least once in the computation. (for internal use)
+        - ``verbose`` -- boolean (default False); if True then we add commentary.
 
         OUTPUT: a list of WeilRepModularForms
 
@@ -2639,7 +2754,7 @@ class WeilRep(object):
                 print('The pole order is large so I will compute modular forms with a smaller pole order and multiply them by the j-invariant.')
             j_order = floor(pole_order - dual_sturm_bound - 1)
             new_pole_order = pole_order - j_order
-            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, verbose = verbose)
+            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, symmetry_data = symmetry_data, verbose = verbose)
             j = j_invariant_qexp(prec + j_order + 1) - 744
             j = [smf(0, j ** n) for n in range(1, j_order + 1)]
             Y = copy(X)
@@ -2661,7 +2776,7 @@ class WeilRep(object):
             computed_weight += 12
         if verbose:
             print('I will compute modular forms of weight %s which vanish in infinity to order %s and divide them by Delta^%d.' %(computed_weight, N - pole_order, N))
-        X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N + 1, not inclusive, keep_N = True, verbose = verbose)
+        X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N + 1, not inclusive, keep_N = True, symmetry_data = symmetry_data, verbose = verbose)
         delta_power = smf(-12 * N, ~(delta_qexp(max(ceil(prec) + N + 1, 1)) ** N))
         Y = WeilRepModularFormsBasis(k, [(x * delta_power) for x in X], self)
         if verbose:
@@ -2672,6 +2787,265 @@ class WeilRep(object):
         return Y.reduce_precision(prec)
 
     weakly_holomorphic_modular_forms_basis = nearly_holomorphic_modular_forms_basis
+
+    def invariant_cusp_forms_basis(self, k, prec = 0, G = None, chi = None, verbose = False):
+        r"""
+        Compute a basis of cusp forms with specified symmetries.
+
+        Let G be a WeilRepAutomorphismGroup (typically the output of self.automorphism_group()) and chi a 'character' -- a list of +/-1 of length equal to len(G) such that chi[i] * chi[j] = chi[k] whenever G[i] * G[j] = G[k]. This method computes a basis of the space of cusp forms f of weight 'k' for which G[i](f) = chi[i] * f for i = 1,...,|G|.
+
+        NOTE: the character 'chi' must satisfy chi(-1) = (-1)^\kappa, where \kappa = k + signature / 2
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``prec`` -- precision
+        - ``G`` -- a WeilRepAutomorphismGroup. Default 'None'; if 'None' then we use the full automorphism group.
+        - ``chi`` -- a character, i.e. a list of +/-1 for which chi[i] * chi[j] = chi[k] whenever G[i] * G[j] = G[k]. Typically constructed using G.characters() Default: 'None'; if 'None' then we use the trivial character.
+        - ``verbose`` -- boolean (default False) if True then add comments.
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = WeilRep(matrix([[4, 0], [0, 4]]))
+            sage: w.invariant_cusp_forms_basis(7, 5)
+            [(0, 0), 32*q - 128*q^2 - 256*q^3 + 1536*q^4 + O(q^5)]
+            [(1/4, 0), -10*q^(7/8) + 10*q^(15/8) + 338*q^(23/8) - 1352*q^(31/8) + 1466*q^(39/8) + O(q^(47/8))]
+            [(1/2, 0), O(q^(11/2))]
+            [(3/4, 0), -10*q^(7/8) + 10*q^(15/8) + 338*q^(23/8) - 1352*q^(31/8) + 1466*q^(39/8) + O(q^(47/8))]
+            [(0, 1/4), -10*q^(7/8) + 10*q^(15/8) + 338*q^(23/8) - 1352*q^(31/8) + 1466*q^(39/8) + O(q^(47/8))]
+            [(1/4, 1/4), O(q^(23/4))]
+            [(1/2, 1/4), q^(3/8) + 31*q^(11/8) - 243*q^(19/8) + 498*q^(27/8) - 100*q^(35/8) + O(q^(43/8))]
+            [(3/4, 1/4), O(q^(23/4))]
+            [(0, 1/2), O(q^(11/2))]
+            [(1/4, 1/2), q^(3/8) + 31*q^(11/8) - 243*q^(19/8) + 498*q^(27/8) - 100*q^(35/8) + O(q^(43/8))]
+            [(1/2, 1/2), -32*q + 128*q^2 + 256*q^3 - 1536*q^4 + O(q^5)]
+            [(3/4, 1/2), q^(3/8) + 31*q^(11/8) - 243*q^(19/8) + 498*q^(27/8) - 100*q^(35/8) + O(q^(43/8))]
+            [(0, 3/4), -10*q^(7/8) + 10*q^(15/8) + 338*q^(23/8) - 1352*q^(31/8) + 1466*q^(39/8) + O(q^(47/8))]
+            [(1/4, 3/4), O(q^(23/4))]
+            [(1/2, 3/4), q^(3/8) + 31*q^(11/8) - 243*q^(19/8) + 498*q^(27/8) - 100*q^(35/8) + O(q^(43/8))]
+            [(3/4, 3/4), O(q^(23/4))]
+            ------------------------------------------------------------
+            [(0, 0), 4*q - 48*q^2 + 224*q^3 - 448*q^4 + O(q^5)]
+            [(1/4, 0), O(q^(47/8))]
+            [(1/2, 0), q^(1/2) - 8*q^(3/2) + 10*q^(5/2) + 80*q^(7/2) - 231*q^(9/2) + O(q^(11/2))]
+            [(3/4, 0), O(q^(47/8))]
+            [(0, 1/4), O(q^(47/8))]
+            [(1/4, 1/4), -2*q^(3/4) + 20*q^(7/4) - 62*q^(11/4) - 20*q^(15/4) + 486*q^(19/4) + O(q^(23/4))]
+            [(1/2, 1/4), O(q^(43/8))]
+            [(3/4, 1/4), -2*q^(3/4) + 20*q^(7/4) - 62*q^(11/4) - 20*q^(15/4) + 486*q^(19/4) + O(q^(23/4))]
+            [(0, 1/2), q^(1/2) - 8*q^(3/2) + 10*q^(5/2) + 80*q^(7/2) - 231*q^(9/2) + O(q^(11/2))]
+            [(1/4, 1/2), O(q^(43/8))]
+            [(1/2, 1/2), 4*q - 48*q^2 + 224*q^3 - 448*q^4 + O(q^5)]
+            [(3/4, 1/2), O(q^(43/8))]
+            [(0, 3/4), O(q^(47/8))]
+            [(1/4, 3/4), -2*q^(3/4) + 20*q^(7/4) - 62*q^(11/4) - 20*q^(15/4) + 486*q^(19/4) + O(q^(23/4))]
+            [(1/2, 3/4), O(q^(43/8))]
+            [(3/4, 3/4), -2*q^(3/4) + 20*q^(7/4) - 62*q^(11/4) - 20*q^(15/4) + 486*q^(19/4) + O(q^(23/4))]
+
+            sage: from weilrep import *
+            sage: w = WeilRep(matrix([[-12]]))
+            sage: w.invariant_cusp_forms_basis(1/2, 5, chi = w.automorphism_group().characters()[1])
+            [(0), O(q^5)]
+            [(11/12), q^(1/24) - q^(25/24) - q^(49/24) + O(q^(121/24))]
+            [(5/6), O(q^(31/6))]
+            [(3/4), O(q^(43/8))]
+            [(2/3), O(q^(17/3))]
+            [(7/12), -q^(1/24) + q^(25/24) + q^(49/24) + O(q^(121/24))]
+            [(1/2), O(q^(11/2))]
+            [(5/12), -q^(1/24) + q^(25/24) + q^(49/24) + O(q^(121/24))]
+            [(1/3), O(q^(17/3))]
+            [(1/4), O(q^(43/8))]
+            [(1/6), O(q^(31/6))]
+            [(1/12), q^(1/24) - q^(25/24) - q^(49/24) + O(q^(121/24))]
+        """
+        try:
+            k = Integer(k)
+        except TypeError:
+            k = QQ(k)
+        symm = self.is_symmetric_weight(k)
+        sturm_bound = k / 12
+        if not prec:
+            prec = ceil(sturm_bound)
+        else:
+            prec = ceil(max(prec, sturm_bound))
+        if k <= 0:
+            return WeilRepModularFormsBasis(k, [], self)
+        elif k >= sage_seven_half or (symm and k >= sage_five_half):
+            if verbose:
+                print('I am computing the dimension...')
+            dim = self.invariant_forms_dimension(k, cusp_forms = True, G = G, chi = chi)
+            if G is None:
+                G = self.automorphism_group()
+            if chi is None:
+                chi = [1] * len(G)
+            if verbose:
+                print('I need to find %d cusp forms.'%dim)
+            X = WeilRepModularFormsBasis(k, [], self)
+            if not dim:
+                return X
+            dsdict = self.ds_dict()
+            rds = self.sorted_rds()
+            indices = self.rds(indices = True)
+            orbits = []
+            e = set([])
+            n = self.norm_dict()
+            n0 = []
+            for i, b in enumerate(rds):
+                if b not in e:
+                    vb = vector(b)
+                    x = [g(vb) for g in G]
+                    d = {}
+                    for i, s in enumerate(chi):
+                        y = x[i]
+                        if indices[dsdict[tuple(y)]] is None:
+                            eps = 1 + bool(2 % denominator(y))
+                            try:
+                                d[tuple(y)] += s * eps
+                            except KeyError:
+                                d[tuple(y)] = s * eps
+                    for x in x:
+                        e.add(tuple(x))
+                    orbits.append(d)
+                    n0.append(n[b])
+            r = 0
+            m = 1
+            if symm:
+                e = self.eisenstein_series(k, prec)
+            while r < dim:
+                for i, x in enumerate(orbits):
+                    a = n0[i]
+                    f = self.zero(k, prec)
+                    for y, s in x.items():
+                        if s:
+                            if symm:
+                                f += s * (self.pss(k, vector(y), m+a, prec) - e)
+                            else:
+                                f += s * self.pssd(k, vector(y), m+a, prec)
+                    if verbose:
+                        print('I computed several Poincare square series of index %s.'%(m+a))
+                    if f:
+                        X.append(f)
+                    if len(X) >= dim:
+                        r = X.rank()
+                        if r == dim:
+                            break
+                m += 1
+            if verbose:
+                print('I am computing an echelon form.')
+            X.echelonize()
+            return X
+        else:
+            if verbose:
+                print('I am going to compute the spaces of invariant cusp forms of weights %s and %s.' %(k+4, k+6))
+            prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
+            e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
+            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
+            X1 = self.invariant_cusp_forms_basis(k + 4, prec, G=G, chi=chi, verbose = verbose)
+            X2 = self.invariant_cusp_forms_basis(k + 6, prec, G=G, chi=chi, verbose = verbose)
+            if verbose:
+                print('I will intersect the spaces E_4^(-1) * S_%s and E_6^(-1) * S_%s.' %(k +4, k +6))
+            try:
+                V1 = span((x * e4).coefficient_vector() for x in X1)
+                V2 = span((x * e6).coefficient_vector() for x in X2)
+                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self)
+                return X
+            except AttributeError:
+                return WeilRepModularFormsBasis(k, [], self)
+
+    def invariant_forms_basis(self, k, prec = 0, G = None, chi = None, verbose = False):
+        r"""
+        Compute a basis of cusp forms with specified symmetries.
+
+        Let G be a WeilRepAutomorphismGroup (typically the output of self.automorphism_group()) and chi a 'character' -- a list of +/-1 of length equal to len(G) such that chi[i] * chi[j] = chi[k] whenever G[i] * G[j] = G[k]. This method computes a basis of the space of cusp forms f of weight 'k' for which G[i](f) = chi[i] * f for i = 1,...,|G|.
+
+        NOTE: the character 'chi' must satisfy chi(-1) = (-1)^\kappa, where \kappa = k + signature / 2
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``prec`` -- precision
+        - ``G`` -- a WeilRepAutomorphismGroup. Default 'None'; if 'None' then we use the full automorphism group.
+        - ``chi`` -- a character, i.e. a list of +/-1 for which chi[i] * chi[j] = chi[k] whenever G[i] * G[j] = G[k]. Typically constructed using G.characters() Default: 'None'; if 'None' then we use the trivial character.
+        - ``verbose`` -- boolean (default False) if True then add comments.
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = WeilRep(CartanMatrix(['D', 4]))
+            sage: w.invariant_forms_basis(6, 5)
+            [(0, 0, 0, 0), 1 + 264*q + 7944*q^2 + 64416*q^3 + 253704*q^4 + O(q^5)]
+            [(0, 0, 1/2, 1/2), 8*q^(1/2) + 1952*q^(3/2) + 25008*q^(5/2) + 134464*q^(7/2) + 474344*q^(9/2) + O(q^(11/2))]
+            [(1/2, 0, 0, 1/2), 8*q^(1/2) + 1952*q^(3/2) + 25008*q^(5/2) + 134464*q^(7/2) + 474344*q^(9/2) + O(q^(11/2))]
+            [(1/2, 0, 1/2, 0), 8*q^(1/2) + 1952*q^(3/2) + 25008*q^(5/2) + 134464*q^(7/2) + 474344*q^(9/2) + O(q^(11/2))]
+        """
+        try:
+            k = Integer(k)
+        except TypeError:
+            k = QQ(k)
+        prec = ceil(max(prec, k / 12))
+        symm = self.is_symmetric_weight(k)
+        if symm is None:
+            return []
+        elif k < 0:
+            return WeilRepModularFormsBasis(k, [], self)
+        ds = self.ds()
+        dsdict = self.ds_dict()
+        indices = self.rds(indices = True)
+        n = self.norm_list()
+        b = [b for i, b in enumerate(ds) if not n[i] and indices[i] is None]
+        if G is None:
+            G = self.automorphism_group()
+        if chi is None:
+            chi = [1] * len(G)
+        if any(denominator(x) not in [1, 2, 3, 4, 6] for x in b):
+            if verbose:
+                print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.')
+            X = self.nearly_holomorphic_modular_forms_basis(k, 0, prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
+        elif k >= sage_seven_half or (symm and k >= sage_five_half):
+            X = self.invariant_cusp_forms_basis(k, prec = prec, G = G, chi = chi, verbose = verbose)
+            e = set([])
+            orbits = []
+            for i, b in enumerate(b):
+                tb = tuple(b)
+                if tb not in e:
+                    x = [g(b) for g in G]
+                    d = {}
+                    for i, s in enumerate(chi):
+                        y = x[i]
+                        if indices[dsdict[tuple(y)]] is None:
+                            eps = 1 + bool(2 % denominator(y))
+                            try:
+                                d[tuple(y)] += s * eps
+                            except KeyError:
+                                d[tuple(y)] = s * eps
+                    for x in x:
+                        e.add(tuple(x))
+                    orbits.append(d)
+            for x in orbits:
+                f = self.zero(k, prec)
+                for y, s in x.items():
+                    if s:
+                        f += s * self.eisenstein_oldform(k, vector(y), prec)
+                X.append(f)
+            X.echelonize()
+            return X
+        else:
+            prec = max(prec, 2)
+            e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
+            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
+            X1 = self.invariant_forms_basis(k+4, prec, G = G, chi = chi, verbose = verbose)
+            X2 = self.invariant_forms_basis(k+6, prec, G = G, chi = chi, verbose = verbose)
+            if verbose:
+                print('I am now going to compute M_%s by intersecting the spaces E_4^(-1) * M_%s and E_6^(-1) * M_%s.' %(k, k +4, k +6))
+            try:
+                V1 = span([(x * e4).coefficient_vector() for x in X1])
+                V2 = span([(x * e6).coefficient_vector() for x in X2])
+                V = (V1.intersection(V2)).basis()
+                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V], self)
+                X.echelonize()
+                return X
+            except AttributeError:
+                X = WeilRepModularFormsBasis(k, [], self)
+                return X
 
     def borcherds_obstructions(self, weight, prec, reverse = True, verbose = False):
         r"""
@@ -2730,7 +3104,16 @@ class WeilRep(object):
     ## automorphisms ##
 
     def identity_morphism(self):
+        r"""
+        Construct the identity morphism x --> x.
+        """
         return WeilRepAutomorphism(self, lambda x:x)
+
+    def canonical_involution(self):
+        r"""
+        Construct the map x --> -x
+        """
+        return WeilRepAutomorphism(self, lambda x: vector(map(frac, -x)))
 
     def reflection(self, r):
         r"""
@@ -2762,21 +3145,58 @@ class WeilRep(object):
 
         If (A, Q) is the discriminant form then an automorphism is an isomorphism of groups f : A -> A with Q(f(x)) = Q(x) for all x in A.
 
-        OUTPUT: a list of WeilRepAutomorphism's
+        OUTPUT: a WeilRepAutomorphismGroup
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = II(3)
+            sage: list(w.automorphism_group())
+            [Automorphism of Weil representation associated to the Gram matrix
+            [0 3]
+            [3 0]
+            mapping (0, 0)->(0, 0), (0, 1/3)->(0, 1/3), (0, 2/3)->(0, 2/3), (1/3, 0)->(1/3, 0), (1/3, 1/3)->(1/3, 1/3), (1/3, 2/3)->(1/3, 2/3), (2/3, 0)->(2/3, 0), (2/3, 1/3)->(2/3, 1/3), (2/3, 2/3)->(2/3, 2/3), Automorphism of Weil representation associated to the Gram matrix
+            [0 3]
+            [3 0]
+            mapping (0, 0)->(0, 0), (0, 1/3)->(1/3, 0), (0, 2/3)->(2/3, 0), (1/3, 0)->(0, 1/3), (1/3, 1/3)->(1/3, 1/3), (1/3, 2/3)->(2/3, 1/3), (2/3, 0)->(0, 2/3), (2/3, 1/3)->(1/3, 2/3), (2/3, 2/3)->(2/3, 2/3), Automorphism of Weil representation associated to the Gram matrix
+            [0 3]
+            [3 0]
+            mapping (0, 0)->(0, 0), (0, 1/3)->(0, 2/3), (0, 2/3)->(0, 1/3), (1/3, 0)->(2/3, 0), (1/3, 1/3)->(2/3, 2/3), (1/3, 2/3)->(2/3, 1/3), (2/3, 0)->(1/3, 0), (2/3, 1/3)->(1/3, 2/3), (2/3, 2/3)->(1/3, 1/3), Automorphism of Weil representation associated to the Gram matrix
+            [0 3]
+            [3 0]
+            mapping (0, 0)->(0, 0), (0, 1/3)->(2/3, 0), (0, 2/3)->(1/3, 0), (1/3, 0)->(0, 2/3), (1/3, 1/3)->(2/3, 2/3), (1/3, 2/3)->(1/3, 2/3), (2/3, 0)->(0, 1/3), (2/3, 1/3)->(2/3, 1/3), (2/3, 2/3)->(1/3, 1/3)]
         """
         try:
-            D, V = self._smith_form
+            return self.__automorphism_group
         except AttributeError:
-            D, _, V = self.gram_matrix().smith_form()
-        V_inv = V.inverse()
-        try:
-            i = next(i for i in range(D.nrows()) if D[i, i] != 1)
-        except StopIteration:
+            pass
+        S = self.gram_matrix().inverse()
+        S1, d = S._clear_denom()
+        _, U, V = S1.smith_form()
+        D = U * S * V
+        q = FreeQuadraticModule(ZZ, S.nrows(), inner_product_matrix = (d * d) * S)
+        denoms = [x.denominator() for x in D.diagonal()]
+        r = q.span(diagonal_matrix(ZZ, denoms) * U)
+        v = q / r
+        Z = matrix([g.lift() for g in v.gens()])
+        n = S.nrows()
+        i = sum(1 for x in D.diagonal() if x == 1)
+        if i == n:
             return [self.identity_morphism()]
+        I = identity_matrix(i)
+        A = matrix(ZZ, i, n)
+        for j in range(n):
+            if denoms[j] == 1:
+                A[j - i, j] = 1
+        Z = block_matrix([[A * U], [Z]])
+        Z_inv = Z.inverse()
         def a(g):
-            g = V * block_diagonal_matrix([identity_matrix(i), g.matrix()]) * V_inv
+            g = Z_inv * block_diagonal_matrix([I, g.matrix()]) * Z
             return lambda x: vector(map(frac, g * x))
-        return [WeilRepAutomorphism(self, a(g)) for g in self.discriminant_form().orthogonal_group()]
+        G = self.discriminant_form().orthogonal_group()
+        X = G.conjugacy_classes()
+        G = WeilRepAutomorphismGroup(self, [WeilRepAutomorphism(self, a(g)) for x in X for g in x], G)
+        return G
 
     ## low weight ##
 

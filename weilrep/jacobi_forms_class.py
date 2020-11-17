@@ -339,7 +339,7 @@ class JacobiForms:
         k_dual = 2 - k + n/2
         if k_dual <= 0:
             rds = w.rds(indices = True)
-            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None and (not(k % 2) or 2 % denominator(ds[i])))
+            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None )
             return self.dimension(k) + d
         N = max(svn) + 1
         wdual = w.dual()
