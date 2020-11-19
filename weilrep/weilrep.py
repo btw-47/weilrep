@@ -31,6 +31,8 @@ from itertools import product
 from sage.arith.functions import lcm
 from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, is_square, kronecker_symbol, moebius, prime_divisors, valuation
 from sage.arith.srange import srange
+from sage.combinat.root_system.cartan_matrix import CartanMatrix
+from sage.combinat.root_system.weyl_group import WeylGroup
 from sage.functions.generalized import sgn
 from sage.functions.log import log
 from sage.functions.other import ceil, floor, frac, sqrt
@@ -88,6 +90,10 @@ class WeilRep(object):
     """
 
     def __init__(self, S):
+        if isinstance(S, CartanMatrix):
+            self._cartan = S
+        else:
+            self._cartan = None
         if isinstance(S.parent(), MatrixSpace):
             S = matrix(ZZ, S)
             self.__gram_matrix = S
@@ -139,14 +145,18 @@ class WeilRep(object):
         try:
             return self.__dual
         except AttributeError:
-            self.__dual = WeilRep(-self.gram_matrix())
-            return self.__dual
+            w = WeilRep(-self.gram_matrix())
+            w._cartan = self._cartan
+            self.__dual = w
+            return w
 
     def __call__(self, N):
         r"""
         Rescale the underlying lattice.
         """
-        return WeilRep(N * self.gram_matrix())
+        w = WeilRep(N * self.gram_matrix())
+        w._cartan = self._cartan
+        return w
 
     def __add__(self, other):
         if isinstance(other, WeilRep):
@@ -154,6 +164,9 @@ class WeilRep(object):
         return NotImplemented
 
     __radd__ = __add__
+
+    def __hash__(self):
+        return hash(tuple(self.gram_matrix().coefficients()))
 
     ## basic attributes
 
@@ -3165,6 +3178,13 @@ class WeilRep(object):
             [0 3]
             [3 0]
             mapping (0, 0)->(0, 0), (0, 1/3)->(2/3, 0), (0, 2/3)->(1/3, 0), (1/3, 0)->(0, 2/3), (1/3, 1/3)->(2/3, 2/3), (1/3, 2/3)->(1/3, 2/3), (2/3, 0)->(0, 1/3), (2/3, 1/3)->(2/3, 1/3), (2/3, 2/3)->(1/3, 1/3)]
+
+            sage: from weilrep import *
+            sage: w = WeilRep(matrix([[6, 3], [3, 4]]))
+            sage: w.automorphism_group()
+            Automorphism group of Weil representation associated to the Gram matrix
+            [6 3]
+            [3 4]
         """
         try:
             return self.__automorphism_group
@@ -3184,11 +3204,10 @@ class WeilRep(object):
         if i == n:
             return [self.identity_morphism()]
         I = identity_matrix(i)
-        A = matrix(ZZ, i, n)
-        for j in range(n):
-            if denoms[j] == 1:
-                A[j - i, j] = 1
-        Z = block_matrix([[A * U], [Z]])
+        S = self.gram_matrix()
+        if i:
+            A = matrix(ZZ, (S * ((Z * S1).transpose().echelon_form(transformation = True)[1].inverse())).columns()[Z.nrows():])
+            Z = block_matrix([[A], [Z]])
         Z_inv = Z.inverse()
         def a(g):
             g = Z_inv * block_diagonal_matrix([I, g.matrix()]) * Z
@@ -3196,6 +3215,7 @@ class WeilRep(object):
         G = self.discriminant_form().orthogonal_group()
         X = G.conjugacy_classes()
         G = WeilRepAutomorphismGroup(self, [WeilRepAutomorphism(self, a(g)) for x in X for g in x], G)
+        self.__automorphism_group = G
         return G
 
     ## low weight ##
