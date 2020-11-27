@@ -20,6 +20,7 @@ AUTHORS:
 
 import cmath
 import math
+from scipy.special import iv, jv
 
 import cypari2
 pari = cypari2.Pari()
@@ -33,7 +34,6 @@ from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_
 from sage.arith.srange import srange
 from sage.combinat.root_system.cartan_matrix import CartanMatrix
 from sage.combinat.root_system.weyl_group import WeylGroup
-from sage.functions.bessel import bessel_I, bessel_J
 from sage.functions.generalized import sgn
 from sage.functions.log import log
 from sage.functions.other import ceil, floor, frac, sqrt
@@ -883,8 +883,14 @@ class WeilRep(object):
                     else:
                         self.__eisenstein[k] = self.eisenstein_series(k, prec, allow_small_weight = True)
                 return self.__eisenstein[k]
+            elif k <= 1:
+                return NotImplemented
+            elif k == 1:
+                return self.eisenstein_series([k], prec)[0]
         elif not k:
             return []
+        elif k[0] == 1:
+            zeroval = self._eisenstein_weight_one_zero_val()
         #shortcut if unimodular
         dets = self.discriminant()
         S = self.gram_matrix()
@@ -1057,8 +1063,6 @@ class WeilRep(object):
                         for i in range(len_k):
                             X[i][i_g] = g, _norm, E + front_multiplier_list[i] * (prod(1 / (1 - p ** (-two_k_shift_list[i])) for p in removable_primes)) * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
                     else:
-                        if (k == 1) and gSg == 0:
-                            E = E - weight_one_zero_val(g,S)
                         X[i_g] = g, _norm, E + front_multiplier * (prod(1 / (1 - p ** (-two_k_shift)) for p in removable_primes)) * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
                     precomputed_lists[_norm] = D_list, main_term_list
                 else:
@@ -1084,8 +1088,8 @@ class WeilRep(object):
             else:
                 D = ((-1) ** k) * dets
                 littleD = fundamental_discriminant(D)
-                corrector = 1 / quadratic_L_function__corrector(k, D)
-                sqrt_factor = QQ(2/isqrt(abs(littleD * dets)))
+                corrector = ~quadratic_L_function__corrector(k, D)
+                sqrt_factor = QQ(2 / isqrt(abs(littleD * dets)))
                 multiplier = QQ(eps * corrector * (littleD ** k) * sqrt_factor / quadratic_L_function__cached(1 - k, littleD))
             for i_g, g in enumerate(_ds):
                 _norm = _norm_list[i_g]
@@ -1144,10 +1148,10 @@ class WeilRep(object):
                     E = (old_modulus == dets + dets) + O(q ** modified_prec)
                     if k_is_list:
                         for i in range(len_k):
+                            #if (k[i] == 1) and not _norm:
+                            #    E = E - zeroval[isotropic_count]
                             X[i][i_g] = g, _norm, E + multiplier_list[i] * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
                     else:
-                        if (k == 1) and _norm == 0:
-                            E = E - weight_one_zero_val(g,S)
                         X[i_g] = g, _norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
                     precomputed_lists[_norm] = main_term_list
                 else:
@@ -1549,22 +1553,20 @@ class WeilRep(object):
         j = dsdict[tuple(map(frac, b))]
         j1 = dsdict[tuple(map(frac, -b))]
         nl = self.norm_list()
-        if _flag or nl[j] + m not in ZZ:
+        if _flag or nl[j] - m not in ZZ:
             raise ValueError('Invalid index.')
         two_pi_i, four_pi = complex(0.0, 2 * math.pi), 4 * math.pi
         e = cmath.exp
         if m > 0:
-            J = lambda x: bessel_J(k - 1, x)
+            J = lambda x: jv(k - 1, x)
         elif m < 0:
-            J = lambda x: bessel_I(k - 1, x)
+            J = lambda x: iv(k - 1, x)
         else:
             gamma_k = math.gamma(k)
         r, q = PowerSeriesRing(RR, 'q').objgen()
         X = [vector(RR, [0]*(prec - floor(u))) for u in nl]
         s1 = e(-two_pi_i * k / 4)
         exponent = k - 1
-        #if _flag == 'mock':
-        #    exponent *= -1
         for c in range(1, nterms):
             two_pi_i_c = two_pi_i / c
             four_pi_c = four_pi / c
@@ -1594,7 +1596,7 @@ class WeilRep(object):
                 X[i] = [eps*x for x in X[rds[i]]]
         X = [[ds[i], nl[i],  r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
         X[j][2] += 0.5 * q**ceil(m)
-        X[j1][2] += 0.5 * q**ceil(m)
+        X[j1][2] += eps * 0.5 * q**ceil(m)
         return WeilRepModularForm(k, self.gram_matrix(), X, weilrep = self)
 
 
