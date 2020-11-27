@@ -33,7 +33,7 @@ from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.combinat.combinat import bernoulli_polynomial
 from sage.functions.log import exp, log
-from sage.functions.other import ceil, floor, frac, sqrt
+from sage.functions.other import binomial, ceil, floor, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
@@ -45,6 +45,7 @@ from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
+from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
@@ -142,7 +143,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
                 eisenstein_bound = (2*math.pi)**l * (2 - (1 - 2^(1-l))*RR(l - 1.0).zeta()) / (math.sqrt(d) * math.gamma(l) * quadratic_L_function__correct(l, D).n())
                 for p in (2 * d).prime_factors():
                     eisenstein_bound *= (1 - p**(-1))
-            pole_order = (2 * k / eisenstein_bound) ** (1 / (1 - wt))
+            pole_order = (2 * k / abs(eisenstein_bound)) ** (1 / (1 - wt))
         if verbose:
             print('I will compute an obstruction Eisenstein series to precision %d.'%ceil(pole_order))
         w = self.weilrep()
@@ -620,10 +621,11 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         prec = self.precision()
         val = self.valuation()
         e = Integer(S.nrows())
+        K = self.base_ring()
         if e:
-            Rb = LaurentPolynomialRing(QQ,list(var('w_%d' % i) for i in range(e) ))
+            Rb = LaurentPolynomialRing(K,list(var('w_%d' % i) for i in range(e) ))
         else:
-            Rb = QQ
+            Rb = K
         R, q = PowerSeriesRing(Rb, 'q', prec).objgen()
         if e > 1:
             _ds_dict = self.weilrep().ds_dict()
@@ -795,6 +797,106 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
     additive_lift = theta_lift
     gritsenko_lift = theta_lift
     maass_lift = theta_lift
+
+    def _singular_theta_lift(self, prec = None):
+        S = self.gram_matrix()
+        nrows = Integer(S.nrows())
+        k = self.weight() + nrows/2
+        if k < 2:
+            return NotImplemented
+        #eulerian polynomials
+        def a(n, m):
+            return sum((-1)**k * binomial(n + 1, k) * (m + 1 - k)**n for k in range(m + 1))
+        rpoly, t = PolynomialRing(QQ, 't').objgen()
+        def A(n) :
+            if n == 0:
+                return 1
+            return rpoly([a(n, k) for k in range(n)])
+        E = t * A(k - 1)
+        det_S = S.determinant()
+        prec0 = self.precision()
+        val = self.valuation()
+        eps = self.is_symmetric()
+        if eps == 0:
+            eps = -1
+        prec0val = prec0 - val
+        if prec is None:
+            prec = isqrt(4 * (prec0+val))
+        else:
+            prec = min(prec, isqrt(4 * (prec0+val)))
+        S_inv = self.inverse_gram_matrix()
+        coeffs = self.coefficients()
+        rb = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(nrows)) )
+        frb = FractionField(rb)
+        rb_x, x = LaurentPolynomialRing(frb, 'x').objgen()
+        r, t = PowerSeriesRing(rb_x, 't', prec).objgen()
+        rpoly, t0 = PolynomialRing(QQ, 't0').objgen()
+        ds_dict = self.weilrep().ds_dict()
+        if nrows > 1:
+            _, _, vs_matrix = pari(S_inv).qfminim(prec0val + prec0val + 1, flag = 2)
+            vs_list = vs_matrix.sage().columns()
+        else:
+            vs_list = [vector([n]) for n in range(1, isqrt(2*prec0*S[0, 0]) + 1)]
+        vs_list.append(vector([0]*nrows))
+        F = self.fourier_expansion()
+        h = O(t ** prec)
+        f = h
+        if k % 2 == 0:
+            try:
+                f -= coeffs[tuple([0]*(nrows + 1))] *  bernoulli(k) / (2 * k)
+            except KeyError:
+                pass
+        if nrows == 1:
+            rb_zero = rb.gens()[0]
+        for v in vs_list:
+            g = S_inv * v
+            v_norm = g * v / 2
+            g_frac = map(frac, g)
+            a_plus_c = -1
+            while a_plus_c <= prec:
+                a_plus_c += 1
+                for c in srange(val, a_plus_c + 1):
+                    a = a_plus_c - c
+                    a_times_c = a * c
+                    n = a_times_c - v_norm
+                    if val <= n < prec0:
+                        big_v = vector([a] + list(v) + [c])
+                        #if GCD(big_v) == 1:
+                        if True:
+                            if v and not (a or c):
+                                j = next(j for j, v_j in enumerate(v) if v_j)
+                                if v[j] > 0:
+                                    v = -v
+                            big_tuple = tuple(list(g_frac) + [n])
+                            try:
+                                C = coeffs[big_tuple]
+                                if C:
+                                    if nrows > 1:
+                                        m = rb.monomial(*v)
+                                    else:
+                                        m = rb_zero ** v[0]
+                                    if (a or c) and c >= 0:
+                                        u = t**a_plus_c * x**(c - a)
+                                        if v:
+                                            #f += C * ((1 - u * (m + ~m - u) + h)**(-k) - 1)
+                                            f += C * (E.subs({t : u*m}) * (1 - u * m + h)**(-k) + eps * E.subs({t : u * ~m}) * (1 - u * ~m + h)**(-k))
+                                        else:
+                                            f += C  * E.subs({t : u}) * (1 - u + h)**(-k)
+                                    elif n and v:
+                                        print(a, c, v, m, C)
+                                        #u = x**(c - a) * m
+                                        f += C * E.subs({t : m}) * frb(1 - m)**(-k)
+                            except KeyError:
+                                if n > prec:
+                                    prec = a_plus_c
+                                    h = O(t ** prec)
+                                    f += h
+                                pass
+        try:
+            h = self.weilrep().lift_qexp_representation
+        except(AttributeError, IndexError, TypeError):
+            h = None
+        return OrthogonalModularForm(k, self.weilrep(), f, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h)
 
     def weyl_vector(self):
         r"""
@@ -970,13 +1072,21 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                                 pass
         if nrows > 1:
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb.monomial(*weyl_v[1:-1])
+            weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1])) * rb.monomial(*(-weyl_v[1:-1]))
         else:
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb_zero ** weyl_v[1]
+            weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1])) * rb_zero ** -weyl_v[1]
         try:
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError, TypeError):
             h = None
         try:
-            return OrthogonalModularForm(weight, self.weilrep(), exp(log_f) * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h)
+            f = exp(log_f)
+            X = OrthogonalModularForm(weight, self.weilrep(), exp(log_f) * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h)
+            try:
+                X._OrthogonalModularForm__inverse = f**(-1) * weyl_vector_term_inverse / FractionField(rb)(rb(corrector))
+            except (TypeError, ValueError):
+                pass
+            return X
         except TypeError:
             raise RuntimeError('I caught a TypeError. This probably means you are trying to compute a Borcherds product that is not holomorphic.')

@@ -22,8 +22,9 @@ import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
 
-from copy import copy
+from copy import copy, deepcopy
 from re import sub
+
 from sage.arith.misc import divisors, GCD, kronecker, XGCD
 from sage.arith.srange import srange
 from sage.calculus.var import var
@@ -42,6 +43,7 @@ from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
+from sage.rings.real_mpfr import RealField, RR
 from sage.structure.element import is_Matrix
 
 sage_one_half = Integer(1) / Integer(2)
@@ -99,8 +101,9 @@ class WeilRepModularForm(object):
                     except TypeError:
                         return 'q^(%s)'%(1 + x)
                 return b
-            self.__qexp_string = '\n'.join(['[%s, %s]'%(x[0], sub(r'(q(\^-?\d+)?)|((?<!\^)\d+\s)', a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
-            return self.__qexp_string
+            s = '\n'.join(['[%s, %s]'%(x[0], sub(r'(q(\^-?\d+)?)|((?<!\^)\d+\s)', a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
+            self.__qexp_string = s
+            return s
 
     def _latex_(self):
         X = self.fourier_expansion()
@@ -121,6 +124,9 @@ class WeilRepModularForm(object):
         return '&' + ' + &'.join(['\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r'q(\^-?\d+)?|\*|((?<!\^)\d+\s)', a(x[1]), str(x[2])), x[0]) for x in X])[:-2]
 
     ## basic attributes
+
+    def base_ring(self):
+        return self.fourier_expansion()[0][2].base_ring()
 
     def denominator(self):
         r"""
@@ -183,6 +189,14 @@ class WeilRepModularForm(object):
         except AttributeError:
             self.__weilrep = WeilRep(self.gram_matrix())
             return self.__weilrep
+
+    def n(self):
+        r"""
+        Replace self's Fourier coefficients by numerical approximations.
+        """
+        r, q = PowerSeriesRing(RR, 'q').objgen()
+        prec = self.precision()
+        return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], r([y.n() for y in x[2].list()]).add_bigoh(ceil(prec - x[1]))) for x in self.fourier_expansion()], weilrep = self.weilrep())
 
     def precision(self):
         r"""
@@ -247,6 +261,15 @@ class WeilRepModularForm(object):
             if exact:
                 return self.__exact_valuation
             return self.__valuation
+
+    def depth(self):
+        return 0
+
+    def _terms(self):
+        return [self]
+
+    def completion(self):
+        return self
 
     def is_cusp_form(self):
         return self.valuation(exact = True) > 0
@@ -363,11 +386,14 @@ class WeilRepModularForm(object):
     ## arithmetic operations
 
     def __add__(self, other):
+        from .mock import WeilRepQuasiModularForm
         if not other:
             return self
-        if not self.gram_matrix() == other.gram_matrix():
+        elif isinstance(other, WeilRepQuasiModularForm):
+            return other.__add__(self)
+        elif not self.gram_matrix() == other.gram_matrix():
             raise ValueError('Incompatible Gram matrices')
-        if not self.weight() == other.weight():
+        elif not self.weight() == other.weight():
             raise ValueError('Incompatible weights')
         X = self.fourier_expansion()
         Y = other.fourier_expansion()
@@ -390,11 +416,14 @@ class WeilRepModularForm(object):
             return neg_X
 
     def __sub__(self, other):
+        from .mock import WeilRepQuasiModularForm
         if not other:
             return self
-        if not self.gram_matrix() == other.gram_matrix():
+        elif isinstance(other, WeilRepQuasiModularForm):
+            return other.__sub__(self).__neg__()
+        elif not self.gram_matrix() == other.gram_matrix():
             raise ValueError('Incompatible Gram matrices')
-        if not self.weight() == other.weight():
+        elif not self.weight() == other.weight():
             raise ValueError('Incompatible weights')
         X = self.fourier_expansion()
         Y = other.fourier_expansion()
@@ -435,7 +464,10 @@ class WeilRepModularForm(object):
 
         """
 
-        if isinstance(other, WeilRepModularForm):
+        from .mock import WeilRepQuasiModularForm
+        if isinstance(other, WeilRepQuasiModularForm):
+            return other.__mul__(self)
+        elif isinstance(other, WeilRepModularForm):
             S1 = self.gram_matrix()
             S2 = other.gram_matrix()
             if not S2:
@@ -468,7 +500,7 @@ class WeilRepModularForm(object):
                 raise NotImplementedError
             X = self.fourier_expansion()
             return WeilRepModularForm(self.__weight + other.weight(), self.gram_matrix(), [(x[0], x[1], x[2]*other.qexp()) for x in X], weilrep = self.weilrep())
-        elif other in QQ:
+        else:
             X = self.fourier_expansion()
             X_times_other = WeilRepModularForm(self.__weight, self.gram_matrix(), [(x[0], x[1], x[2]*other) for x in X], weilrep = self.weilrep())
             try:
@@ -476,8 +508,8 @@ class WeilRepModularForm(object):
                 X_times_other.coefficient_vector(set_v = v * other)
             finally:
                 return X_times_other
-        else:
-            raise TypeError('Cannot multiply these objects')
+        #else:
+        #    raise TypeError('Cannot multiply these objects')
 
     __rmul__ = __mul__
 
@@ -487,15 +519,16 @@ class WeilRepModularForm(object):
             if not other.level() == 1:
                 raise NotImplementedError
             return WeilRepModularForm(self.weight() - other.weight(), self.gram_matrix(), [(x[0], x[1], x[2]/other.qexp()) for x in X], weilrep = self.weilrep())
-        elif other in QQ:
+        #elif other in QQ:
+        else:
             X_div_other = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], x[2]/other) for x in X], weilrep = self.weilrep())
             try:
                 v = self.__coefficient_vector
                 X_div_other.coefficient_vector(set_v = v / other)
             finally:
                 return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]/other) for x in X], weilrep = self.weilrep())
-        else:
-            raise TypeError('Cannot divide these objects')
+        #else:
+        #    raise TypeError('Cannot divide these objects')
 
     __div__ = __truediv__
 
@@ -638,6 +671,27 @@ class WeilRepModularForm(object):
                 prec_g = prec - floor(offset)
                 Y[j] = g, offset, O(q ** prec_g)
         return WeilRepModularForm(self.weight(), S_conj, Y, weilrep = w)
+
+    def derivative(self):
+        r"""
+        Compute the derivative of self as a quasimodular form.
+        """
+        from .mock import WeilRepQuasiModularForm
+        S = self.gram_matrix()
+        w = self.weilrep()
+        R, q = self.fourier_expansion()[0][2].parent().objgen()
+        def a(offset, f):
+            if not f:
+                return O(q ** f.prec())
+            val = f.valuation()
+            prec = f.prec()
+            return (q**val * R([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
+        def d(X):
+            k = X.weight()
+            Y = [(x[0], x[1], a(x[1], x[2])) for x in X.fourier_expansion()]
+            return WeilRepModularForm(k + 2, S, Y, w)
+        k = self.weight()
+        return WeilRepQuasiModularForm(k + 2, S, [-k * self, d(self)], weilrep = self.weilrep())
 
     def hecke_P(self, N):
         r"""
@@ -1227,46 +1281,7 @@ def smf(weight, f):
     return WeilRepModularForm(weight, matrix([]), [[vector([]), 0, f]])
 
 
-class WeilRepMockModularForm(WeilRepModularForm):
-    r"""
-    Class for mock modular forms.
-    """
 
-    def __init__(self, k, S, X, shadow, weilrep = None):
-        WeilRepModularForm.__init__(self, k, S, X, weilrep = weilrep)
-        self.__class__ = WeilRepMockModularForm
-        self.__shadow = shadow
-
-
-    def shadow(self):
-        return self.__shadow
-
-    def __add__(self, other):
-        f = super().__add__(other)
-        s = self.shadow()
-        if isinstance(other, WeilRepMockModularForm):
-            s += other.shadow()
-        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), s, weilrep = self.weilrep())
-
-    def __sub__(self, other):
-        f = super().__sub__(other)
-        s = self.shadow()
-        if isinstance(other, WeilRepMockModularForm):
-            s -= other.shadow()
-        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), s, weilrep = self.weilrep())
-
-    def __neg__(self):
-        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), super().__neg__().fourier_expansion(), -self.shadow(), weilrep = self.weilrep())
-
-    def __mul__(self, other):
-        if other in QQ:
-            f = super().__mul__(other)
-            return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), self.shadow() * other, weilrep = self.weilrep())
-        return NotImplemented
-
-    def __truediv__(self, other):
-        return self.__mul__(~other)
-    __div__ = __truediv__
 
 
 class WeilRepModularFormsBasis:
@@ -1274,10 +1289,15 @@ class WeilRepModularFormsBasis:
     The WeilRepModularFormsBasis class represents bases of vector-valued modular forms.
     """
 
-    def __init__(self, weight, basis, weilrep):
+    def __init__(self, weight, basis, weilrep, flag = None):
         self.__weight = weight
         self.__basis = basis
         self.__weilrep = weilrep
+        self.__flag = flag
+        if flag == 'quasimodular':
+            self.__bound = self.__weight
+        else:
+            self.__bound = self.__weight / 12
 
     def __repr__(self):
         r"""
@@ -1290,11 +1310,14 @@ class WeilRepModularFormsBasis:
         return '[]'
 
     def __add__(self, other):
-        if not other:
-            return self
-        X = copy(self)
-        X.extend(other)
-        return X
+        if self.weilrep() == other.weilrep() and self.weight() == other.weight():
+            X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
+            if self._flag() == 'quasimodular' or other._flag() == 'quasimodular':
+                X._WeilRepModularFormsBasis__flag = 'quasimodular'
+                X._WeilRepModularFormsBasis__bound = self.__weight
+            return X
+        return NotImplemented
+
 
     def __radd__(self, other):
         if not other:
@@ -1344,7 +1367,7 @@ class WeilRepModularFormsBasis:
         if starting_from is None:
             starting_from = self.valuation()
         if ending_with is None:
-            ending_with = self.__weight / 12
+            ending_with = self.__bound
         if integer:
             m = matrix(ZZ, [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis])
             a, b = m.echelon_form(transformation = True)
@@ -1370,12 +1393,18 @@ class WeilRepModularFormsBasis:
         Extend self by another WeilRepModularFormsBasis
         """
         if self.weilrep() == other.weilrep() and self.weight() == other.weight():
+            if other._flag() == 'quasimodular':
+                self.__flag = 'quasimodular'
+                self.__bound = self.__weight
             try:
                 self.__basis.extend(other.list())
             except:
                 self.__basis.extend(other)
         else:
             return NotImplemented
+
+    def _flag(self):
+        return self.__flag
 
     def __getitem__(self, n):
         if isinstance(n, slice):
@@ -1520,7 +1549,7 @@ class WeilRepModularFormsBasis:
         r"""
         Compute the dimension of the modular forms spanned by self.
         """
-        ending_with = self.__weight / 12
+        ending_with = self.__bound
         m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
         return m.rank()
 
@@ -1532,7 +1561,7 @@ class WeilRepModularFormsBasis:
         Delete modular forms until we are left with a linearly independent list.
         """
         if ending_with is None:
-            ending_with = self.__weight / 12
+            ending_with = self.__bound
         m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
         self.__basis = [self[j] for j in m.pivot_rows()]
 

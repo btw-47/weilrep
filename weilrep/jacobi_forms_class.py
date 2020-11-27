@@ -242,6 +242,24 @@ class JacobiForms:
             b = vector([b / f0])
         return self.weilrep().eisenstein_oldform(k - self.nvars() / 2, b, prec, allow_small_weight=allow_small_weight).jacobi_form()
 
+    def poincare_series(self, k, n, r, prec, nterms = 10):
+        r"""
+        Compute a numerical approximation to the Jacobi Poincare series of index (n, r).
+
+        This is (up to a constant multiple) the Jacobi form that extracts the Fourier coefficient of e^(2*pi*i * (n * \tau + r * z)) with respect to the Petersson inner product.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``n`` -- an integer
+        - ``r`` -- an integral vector of length equal to self's number of elliptic variables. (If that number is 1 then r may be given as an integer.)
+        - ``prec`` -- the precision of the Fourier expansion
+        """
+        if r in ZZ:
+            r = vector([r])
+        m = self.index_matrix()
+        mr = m.inverse() * r
+        return self.weilrep().poincare_series(k - self.nvars() / 2, mr, n - r * mr / 2, prec, nterms = nterms).jacobi_form()
+
     ## dimensions associated to this index
 
     def cusp_forms_dimension(self, weight):
@@ -748,7 +766,7 @@ class JacobiForm:
             sage: jacobi_eisenstein_series(4, 1, 5).base_ring()
             Univariate Laurent Polynomial Ring in w_0 over Rational Field
         """
-        return LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(self.index_matrix().nrows())))
+        return self.fourier_expansion().parent()
 
     def coefficient_vector(self, starting_from=None, ending_with=None, correct=True):
         r"""
@@ -1091,12 +1109,6 @@ class JacobiForm:
             except AttributeError:
                 modform = None
             return JacobiForm(self.weight() + other.weight(), self.index_matrix(), self.qexp() * other.qexp(), modform=modform)
-        elif other in QQ:
-            try:
-                modform = self.modform() * other
-            except AttributeError:
-                modform = None
-            return JacobiForm(self.weight(), self.index_matrix(),self.fourier_expansion() * other, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms())
         elif isinstance(other, WeilRepModularForm):
             if other.weilrep().gram_matrix().nrows() == 0:
                 try:
@@ -1105,7 +1117,11 @@ class JacobiForm:
                     modform = None
                 return JacobiForm(self.weight() + other.weight(), self.index_matrix(), self.qexp() * other.fourier_expansion()[0][2], modform = modform)
         else:
-            return NotImplemented
+            try:
+                modform = self.modform() * other
+            except AttributeError:
+                modform = None
+            return JacobiForm(self.weight(), self.index_matrix(),self.fourier_expansion() * other, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms())
 
     __rmul__ = __mul__
 
@@ -1127,14 +1143,12 @@ class JacobiForm:
             except AttributeError:
                 modform = None
             return JacobiForm(self.weight() - other.weight(), self.index_matrix(), self.fourier_expansion() / other, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms())
-        elif other in QQ:
+        else:
             try:
                 modform = self.modform() / other
             except AttributeError:
                 modform = None
             return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() / other, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms())
-        else:
-            raise TypeError('Cannot divide these objects')
 
     __div__ = __truediv__
 
@@ -1169,7 +1183,8 @@ class JacobiForm:
         S1 = self.index_matrix()
         S2 = other.index_matrix()
         bigS = block_diagonal_matrix([S1, S2])
-        rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(bigS.nrows())))
+        K = self.base_ring().base_ring()
+        rb = LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(bigS.nrows())))
         r, q = PowerSeriesRing(rb, 'q').objgen()
         e1 = S1.nrows()
         e2 = S2.nrows()
