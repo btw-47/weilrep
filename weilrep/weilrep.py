@@ -895,6 +895,8 @@ class WeilRep(object):
         dets = self.discriminant()
         S = self.gram_matrix()
         if dets == 1:
+            if k_is_list:
+                return [WeilRepModularForm(k, self.gram_matrix(), [(vector([0] * S.nrows()), 0, eisenstein_series_qexp(k, prec, normalization = 'constant'))], weilrep=self) for k in k]
             X = WeilRepModularForm(k, self.gram_matrix(), [(vector([0] * S.nrows()), 0, eisenstein_series_qexp(k, prec, normalization = 'constant'))], weilrep=self)
             self.__eisenstein[k] = X
             return X
