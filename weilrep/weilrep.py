@@ -340,7 +340,7 @@ class WeilRep(object):
                 self.__vals[A] = X
                 return X
             elif c:
-                if abs(a) > abs(c):
+                if abs(a) >= abs(c):
                     q, r = Integer(a).quo_rem(c)
                     X1 = self._evaluate(1, 1, 0, 1)
                     X2 = self._evaluate(r, b - q * d, c, d)
@@ -414,7 +414,7 @@ class WeilRep(object):
                 self.__valsm[A] = X
                 return X
             elif c:
-                if abs(a) > abs(c):
+                if abs(a) >= abs(c):
                     q, r = Integer(a).quo_rem(c)
                     X1, _ = self._evaluate_metaplectic(1, 1, 0, 1)
                     X2, f2 = self._evaluate_metaplectic(r, b - q * d, c, d)
