@@ -164,7 +164,7 @@ class WeilRep(object):
         try:
             N = Integer(N)
             w = WeilRep(N * self.gram_matrix())
-            w._cartan = self._cartan
+            #w._cartan = self._cartan
             return w
         except TypeError:
             a, b, c, d = tuple(ZZ(x) for x in N.list())
