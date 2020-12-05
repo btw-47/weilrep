@@ -95,10 +95,10 @@ class WeilRep(object):
     def __init__(self, S):
         if not S:
             S = matrix([])
-        if isinstance(S, CartanMatrix):
-            self._cartan = S
-        else:
-            self._cartan = None
+        #if isinstance(S, CartanMatrix):
+        #    self._cartan = S
+        #else:
+        #    self._cartan = None
         if isinstance(S.parent(), MatrixSpace):
             S = matrix(ZZ, S)
             self.__gram_matrix = S
@@ -153,7 +153,6 @@ class WeilRep(object):
             return self.__dual
         except AttributeError:
             w = WeilRep(-self.gram_matrix())
-            w._cartan = self._cartan
             self.__dual = w
             return w
 
@@ -298,6 +297,10 @@ class WeilRep(object):
         A = (a, b, c, d)
         try:
             return self.__vals[A]
+        except KeyError:
+            pass
+        try:
+            return self.__valsm[A]
         except KeyError:
             exp = cmath.exp
             if A == (0, -1, 1, 0):
@@ -885,14 +888,10 @@ class WeilRep(object):
                 return self.__eisenstein[k]
             elif k <= 1:
                 return NotImplemented
-            elif k == 1:
-                return self.eisenstein_series([k], prec)[0]
         elif not k:
             return []
-        elif k[0] == 1:
-            zeroval = self._eisenstein_weight_one_zero_val()
-        #shortcut if unimodular
         dets = self.discriminant()
+        #shortcut if unimodular
         S = self.gram_matrix()
         if dets == 1:
             if k_is_list:
@@ -913,6 +912,9 @@ class WeilRep(object):
             _ds = self.ds()
             _indices = self.rds(indices = True)
             _norm_list = self.norm_list()
+        if k == 1 or (k_is_list and 1 in k):
+            f = dets.squarefree_part()
+            zeroval = -isqrt(dets // f) * vector([product(L_values(2 * S * g, [g * S * g], S, p, 1, t = None)[0] for p in set(dets.prime_divisors() + [2])) for i, g in enumerate(_ds) if not _norm_list[i]])
         eps = (-1) ** (self.signature() in range(3, 7))
         S_rows_gcds = list(map(GCD, S.rows()))
         S_rows_sums = sum(S)
@@ -925,6 +927,7 @@ class WeilRep(object):
         if k_is_list:
             len_k = len(k)
             X = [copy(X) for _ in range(len_k)]
+        local_kronecker_symbol = kronecker_symbol
         #guess which Lvalues we have to look at. (this is always enough but sometimes its too many)
         def eisenstein_series_create_lists(g):
             d_gamma = denominator(g)
@@ -967,7 +970,7 @@ class WeilRep(object):
                                 n_list_p.append(N)
                                 index_list_p.append(i-1)
                             i += p
-                        except:
+                        except IndexError:
                             break
                     if n_list_p or n_list_p_ii:
                         prime_list.append(p)
@@ -1047,7 +1050,7 @@ class WeilRep(object):
                                 for j in range(len(n_lists[i][0])):
                                     index_n = n_lists[i][1][j] + 1
                                     D = D_list[index_n]
-                                    local_factor_list[index_k][index_n] *= Lvalue_list[i][j](p_pow) * p_tuple[kronecker_symbol(D, p) + 1]
+                                    local_factor_list[index_k][index_n] *= Lvalue_list[i][j](p_pow) * p_tuple[local_kronecker_symbol(D, p) + 1]
                     else:
                         for i, p in enumerate(prime_list):
                             p = prime_list[i]
@@ -1059,7 +1062,7 @@ class WeilRep(object):
                             for j in range(len(n_lists[i][0])):
                                 index_n = n_lists[i][1][j] + 1
                                 D = D_list[index_n]
-                                local_factor_list[index_n] *= Lvalue_list[i][j] * p_tuple[kronecker_symbol(D, p) + 1]
+                                local_factor_list[index_n] *= Lvalue_list[i][j] * p_tuple[local_kronecker_symbol(D, p) + 1]
                     E = (old_modulus == dets + dets) + O(q ** modified_prec)
                     if k_is_list:
                         for i in range(len_k):
@@ -1082,6 +1085,7 @@ class WeilRep(object):
                 return e
         #even rank
         else:
+            isotropic_count = 0
             if k_is_list:
                 D = ((-1) ** k[0]) * dets
                 littleD = fundamental_discriminant(D)
@@ -1121,7 +1125,7 @@ class WeilRep(object):
                     if k_is_list:
                         local_factor_list = [copy(local_factor_list) for _ in range(len_k)]
                         for i, p in enumerate(prime_list):
-                            kron = kronecker_symbol(D, p)
+                            kron = local_kronecker_symbol(D, p)
                             p_pow_e = p ** (1 + _dim//2)
                             for index_k, k_i in enumerate(k):
                                 p_k = p ** (-k_i)
@@ -1138,7 +1142,7 @@ class WeilRep(object):
                     else:
                         local_factor_list = [1] * (modified_prec)
                         for i, p in enumerate(prime_list):
-                            kron_p = kronecker_symbol(D, p) * (p ** (-k))
+                            kron_p = local_kronecker_symbol(D, p) * (p ** (-k))
                             p_factor = 1 + (p * kron_p)
                             quot = 1 / (1 - kron_p)
                             for j in range(len(n_lists[i][0])):
@@ -1150,8 +1154,8 @@ class WeilRep(object):
                     E = (old_modulus == dets + dets) + O(q ** modified_prec)
                     if k_is_list:
                         for i in range(len_k):
-                            #if (k[i] == 1) and not _norm:
-                            #    E = E - zeroval[isotropic_count]
+                            if (k[i] == 1) and not _norm:
+                                E = E - zeroval[isotropic_count]
                             X[i][i_g] = g, _norm, E + multiplier_list[i] * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
                     else:
                         X[i_g] = g, _norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
