@@ -10,13 +10,14 @@ AUTHORS:
 
 # ****************************************************************************
 #       Copyright (C) 2020 Brandon Williams
-#
+#                                    MN
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 2 of the License, or
 # (at your option) any later version.
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
+
 import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
@@ -766,7 +767,7 @@ class JacobiForm:
             sage: jacobi_eisenstein_series(4, 1, 5).base_ring()
             Univariate Laurent Polynomial Ring in w_0 over Rational Field
         """
-        return self.fourier_expansion().parent()
+        return self.fourier_expansion().base_ring()
 
     def coefficient_vector(self, starting_from=None, ending_with=None, correct=True):
         r"""
@@ -1186,11 +1187,12 @@ class JacobiForm:
         K = self.base_ring().base_ring()
         rb = LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(bigS.nrows())))
         r, q = PowerSeriesRing(rb, 'q').objgen()
+        g = rb.gens()
         e1 = S1.nrows()
         e2 = S2.nrows()
-        f = r(other.q_coefficients()).O(other.prec())
+        f = other.fourier_expansion()
         val = other.valuation()
-        jf = [rb(f[i]).subs({rb('w_%d' % j): rb('w_%d' % (j + e1)) for j in range(e2)}) for i in range(f.valuation(), f.prec())]
+        jf = [rb(f[i]).subs({g[j]:g[j+e1] for j in range(e2)}) for i in range(f.valuation(), f.prec())]
         return JacobiForm(self.weight() + other.weight(), bigS, q**val * r(self.q_coefficients()) * r(jf) + O(q**other.precision()))
 
     def __eq__(self, other):

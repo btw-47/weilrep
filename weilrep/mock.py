@@ -59,6 +59,9 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             self.__depth = l - j
 
     def __add__(self, other):
+        r"""
+        Add quasimodular forms.
+        """
         if not other:
             return self
         S1 = self.gram_matrix()
@@ -82,6 +85,9 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
     __radd__ = __add__
 
     def __sub__(self, other):
+        r"""
+        Subtract quasimodular forms.
+        """
         if not other:
             return self
         S1 = self.gram_matrix()
@@ -103,9 +109,15 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         return WeilRepQuasiModularForm(self.weight(), S1, X, weilrep = self.weilrep())
 
     def __neg__(self):
+        r"""
+        Negative of quasimodular form
+        """
         return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [-x for x in self._terms()], weilrep=self.weilrep())
 
     def __mul__(self, other):
+        r"""
+        (Tensor) Product of quasimodular forms
+        """
         if other in QQ:
             return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [other*x for x in self._terms()], weilrep=self.weilrep())
         w1 = self.weilrep()
@@ -128,11 +140,17 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
     __rmul__ = __mul__
 
     def __div__(self, other):
+        r"""
+        Division of quasimodular forms by scalars.
+        """
         return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x/other for x in self._terms()], weilrep=self.weilrep())
 
     __truediv__ = __div__
 
     def __pow__(self, N):
+        r"""
+        Tensor power of quasimodular form with itself.
+        """
         if N == 1:
             return self
         elif N > 1:
@@ -141,12 +159,20 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         raise ValueError('Invalid exponent')
 
     def depth(self):
+        r"""
+        Computes the "depth" of the quasimodular form. 
+        """
         try:
             return self.__depth
         except AttributeError:
             return 0
 
     def _terms(self):
+        r"""
+        Returns self's Taylor expansion in (4pi y)^(-1) as a list of WeilRepModularForm's.
+
+        This should not be called directly because the terms in self's Taylor expansion are not modular forms (although we treat them as if they were).
+        """
         try:
             return self.__terms
         except AttributeError:
@@ -154,6 +180,39 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             return [self]
 
     def completion(self):
+        r"""
+        Return self's completion to an almost-holomorphic modular form.
+
+        EXAMPLES::
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep([])
+            sage: e2 = w.eisenstein_series(2, 5)
+            sage: e2.completion()
+            Almost holomorphic modular form f_0 + f_1 * (4 pi y)^(-1), where:
+            f_0 =
+            [(), 1 - 24*q - 72*q^2 - 96*q^3 - 168*q^4 + O(q^5)]
+            --------------------------------------------------------------------------------
+            f_1 =
+            [(), -12 + O(q^5)]
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(matrix([[-2, 0], [0, -2]]))
+            sage: r.<x, y> = PolynomialRing(ZZ)
+            sage: f = w.theta_series(5, P = x^2)
+            sage: f.completion()
+            Almost holomorphic modular form f_0 + f_1 * (4 pi y)^(-1), where:
+            f_0 =
+            [(0, 0), 2*q + 4*q^2 + 8*q^4 + O(q^5)]
+            [(1/2, 0), 1/2*q^(1/4) + q^(5/4) + 9/2*q^(9/4) + 9*q^(13/4) + q^(17/4) + O(q^(21/4))]
+            [(0, 1/2), 4*q^(5/4) + 4*q^(13/4) + 16*q^(17/4) + O(q^(21/4))]
+            [(1/2, 1/2), q^(1/2) + 10*q^(5/2) + 9*q^(9/2) + O(q^(11/2))]
+            --------------------------------------------------------------------------------
+            f_1 =
+            [(0, 0), -1/2 - 2*q - 2*q^2 - 2*q^4 + O(q^5)]
+            [(1/2, 0), -q^(1/4) - 2*q^(5/4) - q^(9/4) - 2*q^(13/4) - 2*q^(17/4) + O(q^(21/4))]
+            [(0, 1/2), -q^(1/4) - 2*q^(5/4) - q^(9/4) - 2*q^(13/4) - 2*q^(17/4) + O(q^(21/4))]
+            [(1/2, 1/2), -2*q^(1/2) - 4*q^(5/2) - 2*q^(9/2) + O(q^(11/2))]
+        """
         X = [self]
         r = self.depth()
         j = 1
@@ -163,6 +222,16 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         return WeilRepAlmostHolomorphicModularForm(self.weight(), self.gram_matrix(), X, weilrep = self.weilrep())
 
     def derivative(self):
+        r"""
+        Compute self's derivative. This is a quasimodular form whose depth is (usually) one greater than self.
+
+        EXAMPLES::
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep([])
+            sage: e2 = w.eisenstein_series(2, 5)
+            sage: e2.derivative()
+            [(), -24*q - 144*q^2 - 288*q^3 - 672*q^4 + O(q^5)]
+        """
         t = self._terms()
         S = self.gram_matrix()
         w = self.weilrep()
@@ -183,6 +252,16 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         return WeilRepQuasiModularForm(k + 2, self.gram_matrix(), X, weilrep = self.weilrep())
 
     def shift(self):
+        r"""
+        Apply the "shift operator" on quasimodular forms. This is a quasimodular form whose depth is one less than self.
+
+        EXAMPLES::
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep([])
+            sage: e2 = w.eisenstein_series(2, 5)
+            sage: e2.shift()
+            [(), -12 + O(q^5)]
+        """
         r = self.depth()
         f = [1]*(r + 1)
         k = r - 1
@@ -194,7 +273,9 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
 
 class WeilRepAlmostHolomorphicModularForm:
     r"""
-    Provide a custom string representation for the 'completion' of a quasimodular form.
+    Provide a custom string representation for the 'completion' of a quasimodular form. Also implements arithmetic operations and the Maass raising operator.
+
+    Currently the only way to construct a WeilRepAlmostHolomorphicModularForm is as the modular completion of a quasimodular form.
     """
     def __init__(self, k, S, X, weilrep=None):
         self.__weight = k
@@ -205,15 +286,20 @@ class WeilRepAlmostHolomorphicModularForm:
         self.__depth = X[0].depth()
 
     def __repr__(self):
-        r = self.__depth
-        X = self.__list
-        s = 'Almost holomorphic modular form f_0'
-        t = str(X[0])
-        h = '\n'+'-'*80
-        for i, x in enumerate(X):
-            if i >= 1:
-                s, t = s + ' + f_%d * (4 pi y)^(-%d)'%(i, i), t + h + '\nf_%d =\n%s'%(i, str(x))
-        return s + ', where:\nf_0 =\n' + t
+        try:
+            return self.__string
+        except AttributeError:
+            r = self.__depth
+            X = self.__list
+            s = 'Almost holomorphic modular form f_0'
+            t = str(X[0])
+            h = '\n'+'-'*80
+            for i, x in enumerate(X):
+                if i >= 1:
+                    s, t = s + ' + f_%d * (4 pi y)^(-%d)'%(i, i), t + h + '\nf_%d =\n%s'%(i, str(x))
+            x = s + ', where:\nf_0 =\n' + t
+            self.__string = x
+            return x
 
     def __getitem__(self, n):
         return self.__list[n]
@@ -311,3 +397,6 @@ class WeilRepMockModularForm(WeilRepModularForm):
     def __truediv__(self, other):
         return self.__mul__(~other)
     __div__ = __truediv__
+
+    def derivative(self):
+        return NotImplemented

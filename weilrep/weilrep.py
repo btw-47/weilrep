@@ -164,7 +164,6 @@ class WeilRep(object):
         try:
             N = Integer(N)
             w = WeilRep(N * self.gram_matrix())
-            #w._cartan = self._cartan
             return w
         except TypeError:
             a, b, c, d = tuple(ZZ(x) for x in N.list())
@@ -1497,7 +1496,7 @@ class WeilRep(object):
         INPUT:
         - ``prec`` -- precision
 
-        OUTPUT: a WeilRepModularForm of weight 1/2, which is sqrt(|det S| / 2) * the shadow of the weight 3/2 Eisenstein series for the weilrep 'self'. (This factor makes the result have rational Fourier coefficients.) This transforms with the dual representation (its WeilRep is self.dual())
+        OUTPUT: a WeilRepModularForm of weight 1/2, which is the shadow of the weight 3/2 Eisenstein series for the weilrep 'self'. This transforms with the dual representation (its WeilRep is self.dual())
         """
         prec = ceil(prec)
         s = self.signature()
@@ -1533,7 +1532,21 @@ class WeilRep(object):
                 X[i] = g, offset, 24 * f
         return WeilRepModularForm(sage_one_half, S, X, weilrep = wdual)
 
-    def poincare_series(self, k, b, m, prec, nterms = 10, _flag = None):
+    def maass_poincare_series(self, k, b, m, prec, nterms = 10):
+        r"""
+        Compute Maass Poincare series.
+
+        This computes a numerical approximation to the Maass Poincare series of weight k (which is < 0) and index (b, m) up to precision 'prec'.
+        """
+        X = self.poincare_series(2 - k, b, m, prec, nterms = nterms, _flag = 'maass').fourier_expansion()
+        cm = ceil(-m)
+        for i, x in enumerate(X):
+            if not x[1]:
+                e = self.poincare_series(2 - k, x[0], 0, prec, nterms = nterms, component = i)
+                X[i][2] -= e[2][cm]
+        return WeilRepMockModularForm(k, self.gram_matrix(), X, self.dual().poincare_series(2 - k, b, -m, prec, nterms = nterms), self)
+
+    def poincare_series(self, k, b, m, prec, nterms = 10, _flag = None, component = None):
         r"""
         Compute Poincare series.
 
@@ -1559,8 +1572,14 @@ class WeilRep(object):
         j = dsdict[tuple(map(frac, b))]
         j1 = dsdict[tuple(map(frac, -b))]
         nl = self.norm_list()
-        if _flag or nl[j] - m not in ZZ:
+        if nl[j] - m not in ZZ:
             raise ValueError('Invalid index.')
+        if component is not None:
+            if rds[component] is not None:
+                component = rds[component]
+            nl = [nl[component]]
+            ds = [ds[component]]
+            rds = [None]
         two_pi_i, four_pi = complex(0.0, 2 * math.pi), 4 * math.pi
         e = cmath.exp
         if m > 0:
@@ -1573,6 +1592,11 @@ class WeilRep(object):
         X = [vector(RR, [0]*(prec - floor(u))) for u in nl]
         s1 = e(-two_pi_i * k / 4)
         exponent = k - 1
+        sgn = 1
+        abs_m = abs(m)
+        if _flag == 'maass':
+            exponent *= -1
+            sgn = -1
         for c in range(1, nterms):
             two_pi_i_c = two_pi_i / c
             four_pi_c = four_pi / c
@@ -1594,13 +1618,19 @@ class WeilRep(object):
                     u = nl[i]
                     for n in range(1, len(Y[i])):
                         if m:
-                            X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs(m))**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs(m) * (n + u))) / c
+                            X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs_m)**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs_m * (n + u))) / c
                         else:
                             X[i][n] += (four_pi_c * (n + u) / 2.0)**k  * Y[i][n] / (gamma_k * (n + u))
         for i, x in enumerate(X):
             if rds[i]:
                 X[i] = [eps*x for x in X[rds[i]]]
-        X = [[ds[i], nl[i],  r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
+        X = [[ds[i], nl[i],  sgn * r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
+        if component is not None:
+            if component == j:
+                X[0][2] += 0.5 * q**ceil(m)
+            if component == j1:
+                X[0][2] += 0.5 * q**ceil(m)
+            return X[0]
         X[j][2] += 0.5 * q**ceil(m)
         X[j1][2] += eps * 0.5 * q**ceil(m)
         return WeilRepModularForm(k, self.gram_matrix(), X, weilrep = self)
@@ -1913,20 +1943,19 @@ class WeilRep(object):
             return self.zero(prec = prec)
         S_inv = -self.gram_matrix().inverse()
         deg_P = 0
-        if P:#test whether P is OK
-            variables = P.parent().gens()
+        if P:
             deg_P = P.degree()
-            if len(variables) != Q.dim():
+            if len(P.parent().gens()) != Q.dim():
                 raise ValueError('The number of variables in P does not equal the lattice rank')
             if not P.is_homogeneous():
                 raise ValueError('Not a homogeneous polynomial')
             u = vector(P.gradient())*S_inv
+            variables = u[0].parent().gens()
             P1 = sum(x.derivative(variables[i]) for i, x in enumerate(u))
             if P1:
                 t = self.theta_series(prec, P = -P1/2, _list = True)
             else:
                 t = []
-                #raise ValueError('Not a harmonic polynomial')
         else:
             P = lambda x: 1
             t = []
@@ -2931,7 +2960,7 @@ class WeilRep(object):
                     print('I am going to find a basis of modular forms of weight %s which vanish to order %s at infinity and multiply them by Delta^%d.' %(computed_weight, frac_N, floor_N))
                 X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose, symmetry_data = symmetry_data)
                 return WeilRepModularFormsBasis(k, [x * smf_delta_N for x in X], self)
-        U = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True)
+        U = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True, symmetry_data = symmetry_data)
         try:
             cusp_forms, pivots = U
             ell = len(cusp_forms)
@@ -3065,9 +3094,13 @@ class WeilRep(object):
             new_pole_order = pole_order - j_order
             X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, symmetry_data = symmetry_data, verbose = verbose)
             j = j_invariant_qexp(prec + j_order + 1) - 744
-            j = [smf(0, j ** n) for n in range(1, j_order + 1)]
+            j0 = j
+            jl = [None]*j_order
+            for n in range(j_order):
+                jl[n] = j0
+                j0 *= j
             Y = copy(X)
-            Y.extend(WeilRepModularFormsBasis(k, [x * j[n] for n in range(j_order) for x in X], self))
+            Y.extend(WeilRepModularFormsBasis(k, [x * y for y in jl for x in X], self))
             for y in Y:
                 y.reduce_precision(prec)
             Y.echelonize(starting_from = -pole_order)
@@ -3543,10 +3576,8 @@ class WeilRep(object):
             return self.__s_matrix
         except AttributeError:
             pass
-        @cached_function
         def local_moebius(n):
             return moebius(n)
-        @cached_function
         def local_phi(n):
             return euler_phi(n)
         def tr_sqrt_f_zeta_N(f, N, n): #trace of sqrt(f) * zeta_N
@@ -3569,7 +3600,8 @@ class WeilRep(object):
                 return s * sgn(f)
             else:
                 for ell in range(abs(4 * f)):
-                    u1, u2 = GCD(n + h * ell * ell, N), GCD(n - N4 + h * ell * ell, N)
+                    x = n + h * ell * ell
+                    u1, u2 = GCD(x, N), GCD(x - N4, N)
                     d1, d2 = N//u1, N//u2
                     s += (local_moebius(d1) * (phi // local_phi(d1)) + local_moebius(d2) * (phi // local_phi(d2)))
                 return s * sgn(f) // 4

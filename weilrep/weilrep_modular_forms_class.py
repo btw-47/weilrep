@@ -22,6 +22,7 @@ import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
 
+from collections import defaultdict
 from copy import copy, deepcopy
 from re import sub
 
@@ -150,8 +151,24 @@ class WeilRepModularForm(object):
 
         This is called by
         x[a]
-        where x is self. It tries to accept a few types of input and guess what is meant.
+        where x is self. 'a' can be either the index (a natural number) of the component or a vector in self's dual lattice. The result is a dictionary of coefficients.
         """
+        w = self.weilrep()
+        X = self.fourier_expansion()
+        nl = w.norm_list()
+        def f():
+            return 0
+        if a in ZZ:
+            j = a
+        else:
+            dsdict = w.ds_dict()
+            try:
+                b = vector(map(frac, a))
+                j = dsdict[b]
+            except TypeError:
+                j = 0
+        val = min(0, X[j][2].valuation())
+        return defaultdict(f, {n - nl[j] + val : x for n, x in enumerate(X[j][2].list())})
 
     def gram_matrix(self):
         r"""
@@ -1282,8 +1299,6 @@ def smf(weight, f):
 
 
 
-
-
 class WeilRepModularFormsBasis:
     r"""
     The WeilRepModularFormsBasis class represents bases of vector-valued modular forms.
@@ -1570,7 +1585,8 @@ class WeilRepModularFormsBasis:
 
     __rmul__ = __mul__
 
-
+    def sort(self, **kwargs):
+        self.__basis.sort(**kwargs)
 
     def theta(self, odd = False, weilrep = None):
         r"""
