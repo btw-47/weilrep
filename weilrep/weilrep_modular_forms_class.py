@@ -376,7 +376,9 @@ class WeilRepModularForm(object):
         return v
 
     def coefficients(self):#returns a dictionary of self's Fourier coefficients
-        return {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents()}
+        def f():
+            return 0
+        return defaultdict(f, {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents()})
 
     def components(self):
         r"""
@@ -398,7 +400,9 @@ class WeilRepModularForm(object):
         r"""
         Return the coefficients of self corresponding to nonpositive exponents as a dictionary.
         """
-        return {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents() if n <= 0}
+        def f():
+            return 0
+        return defaultdict(f, {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents() if n <= 0})
 
     ## arithmetic operations
 
@@ -525,8 +529,6 @@ class WeilRepModularForm(object):
                 X_times_other.coefficient_vector(set_v = v * other)
             finally:
                 return X_times_other
-        #else:
-        #    raise TypeError('Cannot multiply these objects')
 
     __rmul__ = __mul__
 
@@ -536,7 +538,6 @@ class WeilRepModularForm(object):
             if not other.level() == 1:
                 raise NotImplementedError
             return WeilRepModularForm(self.weight() - other.weight(), self.gram_matrix(), [(x[0], x[1], x[2]/other.qexp()) for x in X], weilrep = self.weilrep())
-        #elif other in QQ:
         else:
             X_div_other = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], x[2]/other) for x in X], weilrep = self.weilrep())
             try:
@@ -544,8 +545,6 @@ class WeilRepModularForm(object):
                 X_div_other.coefficient_vector(set_v = v / other)
             finally:
                 return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]/other) for x in X], weilrep = self.weilrep())
-        #else:
-        #    raise TypeError('Cannot divide these objects')
 
     __div__ = __truediv__
 
@@ -984,6 +983,8 @@ class WeilRepModularForm(object):
         from weilrep import WeilRep
         w = self.weilrep()
         s = w.gram_matrix()
+        if s.nrows() == 0:
+            raise ValueError('This lattice is anisotropic!') from None
         if z is None:
             z = pari(s).qfsolve().sage()
         try:
@@ -994,7 +995,7 @@ class WeilRepModularForm(object):
             _ = len(z)
             z = vector(z)
         except TypeError:
-            raise ValueError('This lattice is anisotropic!')
+            raise ValueError('This lattice is anisotropic!') from None
         sz = s * z
         if z_prime is None or zeta is None:
             def xgcd_v(x): #xgcd for more than two arguments
@@ -1757,6 +1758,30 @@ def rankin_cohen(N, X, Y):
         k, ell = k-1, ell-1
     return sum( (-1)**r * binom1[r] * binom2[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w = w) for r in range(N + 1))
 
+def theta_product(f, g, _check = True):
+    r"""
+    Computes the theta-product of f and g.
+
+    Suppose f and g are vector-valued modular forms for a WeilRep of signature (p, q) and Witt index q. The theta-product (cf [Ma]) f *_I g (with respect to a maximal isotropic lattice I) is defined by
+    1) lattice reduction of f
+    2) theta contraction of f
+    (after which the result is a scalar modular form)
+    3) multiply the result to g
+
+    NOTE: we pick a lattice 'I' as above if it exists and raise a TypeError if it does not. It is not possible to choose your own lattice I for now.
+    """
+    if _check and f.weilrep() != g.weilrep():
+        raise ValueError('These modular forms do not come from the same lattice.')
+    try:
+        return theta_product(f.reduce_lattice(), g, _check=False)
+    except ValueError:
+        try:
+            return theta_product(f.theta_contraction(), g, _check = False)
+        except IndexError:
+            return f * g
+        except ZeroDivisionError:
+            raise TypeError('This lattice does not have the correct Witt index.') from None
+
 class WeilRepModularFormPrincipalPart:
 
     r"""
@@ -1797,12 +1822,13 @@ class WeilRepModularFormPrincipalPart:
                     if j or n:
                         try:
                             C = coeffs[tuple(list(g) + [j - n])]
-                            if C != 1:
-                                s += ' + %s*q^(%s)e_%s'%(C, (j - n), g)
-                                l += ' + %sq^{%s}\\mathfrak{e}_{%s}'%(C, (j - n), g)
-                            else:
-                                s += ' + q^(%s)e_%s'%((j - n), g)
-                                l += ' + q^{%s}\\mathfrak{e}_{%s}'%((j - n), g)
+                            if C:
+                                if C != 1:
+                                    s += ' + %s*q^(%s)e_%s'%(C, (j - n), g)
+                                    l += ' + %sq^{%s}\\mathfrak{e}_{%s}'%(C, (j - n), g)
+                                else:
+                                    s += ' + q^(%s)e_%s'%((j - n), g)
+                                    l += ' + q^{%s}\\mathfrak{e}_{%s}'%((j - n), g)
                         except KeyError:
                             pass
             self.__string = s
