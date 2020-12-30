@@ -20,16 +20,19 @@ AUTHORS:
 
 
 
-from sage.misc.functional import denominator
 from sage.matrix.constructor import matrix
+from sage.misc.functional import denominator
+from sage.modular.arithgroup.congroup_gamma0 import is_Gamma0
 from sage.modules.free_module_element import vector
-from sage.rings.integer_ring import ZZ
+from sage.rings.integer import Integer
 from sage.rings.polynomial.polydict import ETuple
 
 from .lifts import OrthogonalModularForm, OrthogonalModularForms
 from .lorentz import II, OrthogonalModularFormLorentzian, OrthogonalModularFormsLorentzian
 from .positive_definite import OrthogonalModularFormPositiveDefinite, OrthogonalModularFormsPositiveDefinite
 from .weilrep import WeilRep
+
+sage_one_half = Integer(1) / Integer(2)
 
 
 class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
@@ -80,7 +83,7 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
         s = self.scale()
         N = self.level()
         try:
-            return f[ZZ(a * s)][ZZ(d * s) / N][ZZ(b * s)]
+            return f[Integer(a * s)][Integer(d * s) / N][Integer(b * s)]
         except KeyError:
             return 0
 
@@ -94,10 +97,11 @@ class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
         d = K.discriminant()
         self.__base_field = K
         self.__discriminant = d
+        self.__level = level
         if d % 2:
-            S = matrix([[2, 1], [1, ZZ((1 - d) / 2)]])
+            S = matrix([[2, 1], [1, Integer((1 - d) // 2)]])
         else:
-            S = matrix([[2, 0], [0, ZZ(-d / 2)]])
+            S = matrix([[2, 0], [0, Integer(-d // 2)]])
         w = WeilRep(S)
         if level != 1:
             w += II(level)
@@ -110,10 +114,16 @@ class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
     def __repr__(self):
         return 'Hermitian modular forms of degree two over %s'%str(self.__base_field)
 
-class HermitianModularFormsWithLevel(OrthogonalModularFormsLorentzian):
+    def base_field(self):
+        return self.__base_field
+
+    def level(self):
+        return self.__level
+
+class HermitianModularFormsWithLevel(OrthogonalModularFormsLorentzian, HermitianModularForms):
 
     def __repr__(self):
-        return 'Hermitian modular forms of degree two over %s for the congruence subgroup Gamma1(%d)'%str(self.__base_field, self.__level)
+        return 'Hermitian modular forms of degree two over %s for the congruence subgroup Gamma1(%d)'%(str(self.base_field()), self.level())
 
 class HermitianModularForm(OrthogonalModularForm):
 
@@ -137,7 +147,7 @@ class HermitianModularForm(OrthogonalModularForm):
         r"""
         Represent self's Fourier expansion as a power series c(a,b,c) q^a r1^v r2^(v') s^c, where v runs through elements in the dual of the ring of integers.
         """
-        K = self.base_field()
+        K = self.__base_field
         h = self.fourier_expansion()
         S = self.gram_matrix()
         if self.level() != 1:
@@ -159,11 +169,11 @@ class HermitianModularForm(OrthogonalModularForm):
             hdict = h.dict()
             for i in h.exponents():
                 p = hdict[i]
-                a = ZZ(i[0])/d
-                c = ZZ(i[1])/d
+                a = Integer(i[0])/d
+                c = Integer(i[1])/d
                 if a:
                     if a != 1:
-                        if a in ZZ:
+                        if a.is_integer():
                             q_power = 'q^%s'%a
                         else:
                             q_power = 'q^(%s)'%a
@@ -173,7 +183,7 @@ class HermitianModularForm(OrthogonalModularForm):
                     q_power = ''
                 if c:
                     if c != 1:
-                        if c in ZZ:
+                        if c.is_integer():
                             s_power = 's^%s'%c
                         else:
                             s_power = 's^(%s)'%c
@@ -210,7 +220,7 @@ class HermitianModularForm(OrthogonalModularForm):
                         if r1exp:
                             if coef:
                                   s += '*'
-                            if r1exp != r2exp or r1exp not in ZZ:
+                            if r1exp != r2exp or not r1exp.is_integer():
                                   s += q_power+'*r1^(%s)*r2^(%s)*'%(r1exp, r2exp)+s_power
                             elif r1exp != 1:
                                   s += q_power+'*r1^%s*r2^%s*'%(r1exp, r2exp)+s_power
@@ -284,7 +294,7 @@ class HermitianModularForm(OrthogonalModularForm):
         f = self.true_fourier_expansion()
         s = self.scale()
         try:
-            return f[ZZ((a + d) * s)][ZZ((a - d) * s)].dict()[ETuple([ZZ(b * s), ZZ(c * s)])]
+            return f[Integer((a + d) * s)][Integer((a - d) * s)].dict()[ETuple([Integer(b * s), Integer(c * s)])]
         except KeyError:
             return 0
 
@@ -293,3 +303,82 @@ class HermitianModularFormPositiveDefinite(HermitianModularForm, OrthogonalModul
 
 class HermitianModularFormWithLevel(HermitianModularForm, OrthogonalModularFormLorentzian):
     pass
+
+class KohnenPlusSpace:
+    r"""
+    The Kohnen Plus space.
+    """
+
+    def __init__(self, level):
+        if is_Gamma0(level):
+            N = Integer(level.level())
+        else:
+            N = level
+        if N % 4:
+            raise NotImplementedError
+        self.__N = N
+        self.__weilrep1 = WeilRep(matrix([[ N // 2]]))
+        self.__weilrep2 = self.__weilrep1.dual()
+
+    def __repr__(self):
+        return 'Kohnen plus space of level Gamma0(%d)'%self.__N
+
+    def _plus_form(self, X):
+        X = X.fourier_expansion()
+        N = self.__N
+        return sum(x[2].V(N).shift(Integer(N * x[1])) for x in X)
+
+    def _weilrep(self, k):
+        k0 = Integer(k - sage_one_half)
+        if k0 % 2:
+            return self.__weilrep1
+        return self.__weilrep2
+
+    ## Constructions of modular forms ##
+
+    def eisenstein_series(self, k, prec, *args, **kwargs):
+        precn = prec // self.__N + 1
+        return self._plus_form(self._weilrep(k).eisenstein_series(k, precn, *args, **kwargs)).add_bigoh(prec)
+
+
+    def theta_series(self, prec, *args, **kwargs):
+        precn = prec // self.__N + 1
+        return self._plus_form(self.__weilrep2.theta_series(precn, *args, **kwargs)).add_bigoh(prec)
+
+    def basis(self, k, prec, *args, **kwargs):
+        precn = prec // self.__N + 1
+        X = [self._plus_form(x).add_bigoh(prec) for x in self._weilrep(k).modular_forms_basis(k, precn, *args, **kwargs)]
+        return X
+
+class HalfIntegralWeightModularForm(object):
+
+    def __init__(self, k, N, f):
+        self.__weight = k
+        self.__level = N
+        self.__qexp = f
+
+    def __repr__(self):
+        return self.qexp().__repr__()
+
+    def level(self):
+        return self.__level
+
+    def qexp(self):
+        return self.__qexp
+
+    def weight(self):
+        return self.__weight
+
+class KohnenPlusSpaceForm(HalfIntegralWeightModularForm):
+
+    def __init__(self, k, N, f, X):
+        super().__init__(k, N, f)
+        self.__vvmf = X
+
+    def vvmf(self):
+        return self.__vvmf
+
+    def involution(self):
+        return HalfIntegralWeightModularForm(self.weight(), self.level(), self.vvmf()[0][2])
+
+cohen_eisenstein_series = lambda *args: KohnenPlusSpace(4).eisenstein_series(*args)

@@ -143,7 +143,7 @@ class OrthogonalModularForms(object):
         except (TypeError, ValueError, ZeroDivisionError):
             raise ValueError('Invalid weight') from None
 
-    def spezialschar(self, k, prec, cusp_forms = True):
+    def lifts_basis(self, k, prec, cusp_forms = True):
         r"""
         Compute a basis of the Maass Spezialschar of weight ``k`` up to precision ``prec``.
 
@@ -169,8 +169,12 @@ class OrthogonalModularForms(object):
         else:
             X = w.modular_forms_basis(k + self.input_wt(), ceil(prec * prec / 4) + 1)
         return [x.theta_lift(prec) for x in X]
+
+    def spezialschar(self, *args, **kwargs):
+        if args:
+            return self.lifts_basis(*args, **kwargs)
+        return Spezialschar(self)
     maass_space = spezialschar
-    lifts_basis = spezialschar
 
     ## methods for borcherds products
 
@@ -367,6 +371,30 @@ class OrthogonalModularForms(object):
                 X.extend(Y)
                 return X
         return Y
+
+class Spezialschar(object):
+    r"""
+    The Spezialschar of theta lifts.
+    """
+
+    def __init__(self, m):
+        self.__m = m
+
+    def __repr__(self):
+        return 'Spezialschar in '+str(self.__m)
+
+    def basis(self, k, prec):
+        return self.__m.lifts_basis(k, prec, cusp_forms = False)
+
+    modular_forms_basis = basis
+
+    def cusp_forms_basis(self, k, prec):
+        return self.__m.lifts_basis(k, prec)
+
+    def __contains__(self, f):
+        if f.weilrep() != self.__m.weilrep():
+            return False
+        return f.is_lift()
 
 class OrthogonalModularForm(object):
     r"""

@@ -25,7 +25,6 @@ from scipy.special import iv, jv
 import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
-
 from copy import copy
 from itertools import product
 
@@ -34,6 +33,7 @@ from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_
 from sage.arith.srange import srange
 from sage.combinat.root_system.cartan_matrix import CartanMatrix
 from sage.combinat.root_system.weyl_group import WeylGroup
+from sage.functions.gamma import gamma
 from sage.functions.generalized import sgn
 from sage.functions.log import log
 from sage.functions.other import ceil, floor, frac, sqrt
@@ -66,10 +66,13 @@ from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 from sage.rings.real_mpfr import RealField, RR
+from sage.symbolic.constants import pi
+from sage.symbolic.ring import SR
 
 from .eisenstein_series import *
 from .mock import WeilRepMockModularForm, WeilRepQuasiModularForm
 from .morphisms import WeilRepAutomorphism, WeilRepAutomorphismGroup
+from .weilrep_misc import QuadraticLFunction
 from .weilrep_modular_forms_class import smf,  WeilRepModularForm, WeilRepModularFormsBasis
 
 sage_one_half = Integer(1) / Integer(2)
@@ -99,15 +102,20 @@ class WeilRep(object):
         #    self._cartan = S
         #else:
         #    self._cartan = None
-        if isinstance(S.parent(), MatrixSpace):
-            S = matrix(ZZ, S)
+        try:
+            if isinstance(S.parent(), MatrixSpace):
+                S = matrix(ZZ, S)
+                self.__gram_matrix = S
+                self.__quadratic_form = QuadraticForm(S)
+            elif isinstance(S, QuadraticForm):
+                self.__quadratic_form = S
+                self.__gram_matrix = S.matrix()
+            else:
+                raise TypeError('Invalid input')
+        except AttributeError:
+            S = matrix(S)
             self.__gram_matrix = S
             self.__quadratic_form = QuadraticForm(S)
-        elif isinstance(S, QuadraticForm):
-            self.__quadratic_form = S
-            self.__gram_matrix = S.matrix()
-        else:
-            raise TypeError('Invalid input')
         self.__eisenstein = {}
         self.__cusp_forms_basis = {}
         self.__modular_forms_basis = {}
@@ -127,6 +135,9 @@ class WeilRep(object):
     def __repr__(self):
         #when printed:
         return 'Weil representation associated to the Gram matrix\n%s' % (self.gram_matrix())
+
+    def __bool__(self):
+        return self.gram_matrix().nrows().__bool__()
 
     ## rescale, add weilrep's
 
@@ -182,6 +193,19 @@ class WeilRep(object):
 
     def __hash__(self):
         return hash(tuple(self.gram_matrix().coefficients()))
+
+    def __mul__(self, N):
+        if N == 1:
+            return self
+        elif N == 2:
+            return self + self
+        elif N > 2:
+            Nhalf = N // 2
+            return self.__mul__(Nhalf) + self.__mul__(N - Nhalf)
+        else:
+            return NotImplemented
+
+    __rmul__ = __mul__
 
     ## basic attributes
 
@@ -299,7 +323,7 @@ class WeilRep(object):
         except KeyError:
             pass
         try:
-            return self.__valsm[A]
+            return self.__valsm[A][0]
         except KeyError:
             exp = cmath.exp
             if A == (0, -1, 1, 0):
@@ -322,7 +346,7 @@ class WeilRep(object):
                 self.__vals[A] = X
                 return X
             elif A == (1, 0, 0, 1):
-                X = identity_matrix(self.discriminant()), lambda x:1
+                X = identity_matrix(self.discriminant())
                 self.__vals[A] = X
                 return X
             elif A == (-1, 0, 0, -1):
@@ -412,7 +436,7 @@ class WeilRep(object):
             elif A == (0, 1, -1, 0):
                 X1, _ = self._evaluate_metaplectic(0, -1, 1, 0)
                 X2, _ = self._evaluate_metaplectic(-1, 0, 0, -1)
-                X = X1 * X2, cmath.sqrt
+                X = X1 * X2, lambda x: 1.0j*cmath.sqrt(x)
                 self.__valsm[A] = X
                 return X
             elif c:
@@ -426,10 +450,10 @@ class WeilRep(object):
                 else:
                     X1, f1 = self._evaluate_metaplectic(0, -1, 1, 0)
                     X2, f2 = self._evaluate_metaplectic(c, d, -a, -b)
-                    f = lambda x: f1((c * x + d) / (-a * x - b)) * f2(x)
+                    f = lambda x: (f1((c * x + d) / (-a * x - b)) * f2(x))
                     X = X1*X2
                     if f(I).real < 0:
-                        f = lambda x: -f1((c * x + d) / (-a * x - b)) * f2(x)
+                        f = lambda x: (-f1((c * x + d) / (-a * x - b)) * f2(x))
                         if self.signature() % 2:
                             X = -X
                     X = X, f
@@ -793,7 +817,7 @@ class WeilRep(object):
             raise ValueError('This modular form does not lie in the correct plus/minus subspace')
         return WeilRepModularForm(mf.weight(), self.gram_matrix(), Y, weilrep = self)
 
-    def eisenstein_series(self, k, prec, allow_small_weight = False, components = None):
+    def eisenstein_series(self, k, prec, allow_small_weight = False, components = None, _flag = None):
         r"""
         Constuct Eisenstein series attached to the vector e_0.
 
@@ -802,8 +826,9 @@ class WeilRep(object):
         INPUT:
         - ``k`` -- a weight (half-integer, and such that 2k + signature = 0 mod 4). also ``k`` can be a list of weights (then we produce a list of Eisenstein series).
         - ``prec`` -- precision
-        - ``allow_small_weight`` -- a boolean (default False). If True then we compute the Eisenstein series in weights less than or equal to 2 (where it may not be a true modular form)
+        - ``allow_small_weight`` -- a boolean (default False). If True then we compute the Eisenstein series in weights less than or equal to 2 (where it may not be a true modular form) If False then the output is usually a nonholomorphic Maass form.
         - ``components`` -- optional parameter (default None). A sublist L of self's discriminant group and a list of indices (e.g. [None]*len(L) ) can be passed here as a tuple.
+        - ``_flag`` -- ???
 
         OUTPUT: WeilRepModularForm
 
@@ -849,17 +874,40 @@ class WeilRep(object):
             [(1/2, 1/2, 1/2), -16*q - 64*q^2 - 96*q^3 - 128*q^4 + O(q^5)]
             [(1/2, 1/4, 1/2), -8*q^(5/8) - 40*q^(13/8) - 80*q^(21/8) - 120*q^(29/8) - 200*q^(37/8) + O(q^(45/8))]
 
-            sage: WeilRep(matrix([])).eisenstein_series(2, 10, allow_small_weight = True)
-            [(), 1 - 24*q - 72*q^2 - 96*q^3 - 168*q^4 - 144*q^5 - 288*q^6 - 192*q^7 - 360*q^8 - 312*q^9 + O(q^10)]
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([])).eisenstein_series(2, 10)
+            Almost holomorphic modular form f_0 + f_1 * (4 pi y)^(-1), where:
+            f_0 =
+            1 - 24*q - 72*q^2 - 96*q^3 - 168*q^4 - 144*q^5 - 288*q^6 - 192*q^7 - 360*q^8 - 312*q^9 + O(q^10)
+            --------------------------------------------------------------------------------
+            f_1 =
+            -12 + O(q^10)
 
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(matrix([[6]]))
+            sage: w.eisenstein_series(3/2, 5)
+            Harmonic Maass form with holomorphic part
+            [(0), 1 - 4*q - 6*q^2 - 12*q^3 - 10*q^4 + O(q^5)]
+            [(1/6), -3*q^(11/12) - 9*q^(23/12) - 6*q^(35/12) - 15*q^(47/12) - 9*q^(59/12) + O(q^(71/12))]
+            [(1/3), -3*q^(2/3) - 6*q^(5/3) - 9*q^(8/3) - 12*q^(11/3) - 12*q^(14/3) + O(q^(17/3))]
+            [(1/2), -q^(1/4) - 6*q^(5/4) - 7*q^(9/4) - 12*q^(13/4) - 6*q^(17/4) + O(q^(21/4))]
+            [(2/3), -3*q^(2/3) - 6*q^(5/3) - 9*q^(8/3) - 12*q^(11/3) - 12*q^(14/3) + O(q^(17/3))]
+            [(5/6), -3*q^(11/12) - 9*q^(23/12) - 6*q^(35/12) - 15*q^(47/12) - 9*q^(59/12) + O(q^(71/12))]
+            and shadow 1/3*sqrt(3)/pi times
+            [(0), 9/4 + 9/2*q^3 + O(q^5)]
+            [(5/6), 9/4*q^(1/12) + 9/4*q^(25/12) + 9/4*q^(49/12) + O(q^(61/12))]
+            [(2/3), 9/4*q^(1/3) + 9/4*q^(4/3) + O(q^(16/3))]
+            [(1/2), 9/2*q^(3/4) + O(q^(23/4))]
+            [(1/3), 9/4*q^(1/3) + 9/4*q^(4/3) + O(q^(16/3))]
+            [(1/6), 9/4*q^(1/12) + 9/4*q^(25/12) + 9/4*q^(49/12) + O(q^(61/12))]
         """
         #check input
         prec = ceil(prec)
         k_is_list = type(k) is list
-        if not k_is_list:
+        if not k_is_list and components is None and _flag is None:
             if prec <= 0:
                 raise ValueError('Precision must be at least 0')
-            if not self.is_symmetric_weight(k):
+            if _flag is None and not self.is_symmetric_weight(k):
                 raise ValueError('Invalid weight in Eisenstein series')
             try:#did we do this already?
                 try:
@@ -875,16 +923,17 @@ class WeilRep(object):
                 if k == 2:
                     s = self.eisenstein_series_shadow(prec)
                     if s:
-                        self.__eisenstein[k] = WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * s / sqrt(self.discriminant()), self.eisenstein_series(k, prec, allow_small_weight = True)], weilrep = self)
+                        self.__eisenstein[k] = prec, WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * s / sqrt(self.discriminant()), self.eisenstein_series(k, prec, allow_small_weight = True)], weilrep = self).completion()
                     else:
-                        self.__eisenstein[k] = self.eisenstein_series(k, prec, allow_small_weight = True)
+                        self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
                 else:
                     s = self.eisenstein_series_shadow_wt_three_half(prec)
                     if s:
-                        self.__eisenstein[k] = WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True).fourier_expansion(), s, weilrep = self)
+                        multiplier = 1 / (pi * sqrt(self.discriminant() // 2))
+                        self.__eisenstein[k] = prec, WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True).fourier_expansion(), s / 16, shadow_multiplier = multiplier, weilrep = self).completion()
                     else:
-                        self.__eisenstein[k] = self.eisenstein_series(k, prec, allow_small_weight = True)
-                return self.__eisenstein[k]
+                        self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
+                return self.__eisenstein[k][1]
             elif k <= 1:
                 return NotImplemented
         elif not k:
@@ -892,37 +941,38 @@ class WeilRep(object):
         dets = self.discriminant()
         #shortcut if unimodular
         S = self.gram_matrix()
-        if dets == 1:
+        if dets == 1 and _flag is None:
             if k_is_list:
                 return [WeilRepModularForm(k, self.gram_matrix(), [(vector([0] * S.nrows()), 0, eisenstein_series_qexp(k, prec, normalization = 'constant'))], weilrep=self) for k in k]
             X = WeilRepModularForm(k, self.gram_matrix(), [(vector([0] * S.nrows()), 0, eisenstein_series_qexp(k, prec, normalization = 'constant'))], weilrep=self)
             self.__eisenstein[k] = X
             return X
         #setup
+        R, q = PowerSeriesRing(QQ, 'q').objgen()
         try:
             k = Integer(k)
         except TypeError:
-            pass
-        R, q = PowerSeriesRing(QQ, 'q').objgen()
+            if _flag == 'maass':
+                R, q = PowerSeriesRing(RR, 'q').objgen()
         if components:
-            _ds, _indices = components
-            _norm_list = [-frac(g*S*g/2) for g in _ds]
+            ds, indices = components
+            norm_list = [-frac(g*S*g/2) for g in ds]
         else:
-            _ds = self.ds()
-            _indices = self.rds(indices = True)
-            _norm_list = self.norm_list()
+            ds = self.ds()
+            indices = self.rds(indices = True)
+            norm_list = self.norm_list()
         if k == 1 or (k_is_list and 1 in k):
             f = dets.squarefree_part()
-            zeroval = -isqrt(dets // f) * vector([product(L_values(2 * S * g, [g * S * g], S, p, 1, t = None)[0] for p in set(dets.prime_divisors() + [2])) for i, g in enumerate(_ds) if not _norm_list[i]])
+            zeroval = -isqrt(dets // f) * vector([product(L_values(2 * S * g, [g * S * g], S, p, 1, t = None)[0] for p in set(dets.prime_divisors() + [2])) for i, g in enumerate(ds) if not norm_list[i]])
         eps = (-1) ** (self.signature() in range(3, 7))
         S_rows_gcds = list(map(GCD, S.rows()))
         S_rows_sums = sum(S)
         level = self.level()
-        L_half_s = (matrix(_ds) * S).rows() #fix?
-        _dim = S.nrows()
+        L_half_s = (matrix(ds) * S).rows()
+        dim = S.nrows()
         precomputed_lists = {}
         dets_primes = dets.prime_divisors()
-        X = [None] * len(_ds)
+        X = [None for _ in ds]
         if k_is_list:
             len_k = len(k)
             X = [copy(X) for _ in range(len_k)]
@@ -932,20 +982,21 @@ class WeilRep(object):
             d_gamma = denominator(g)
             d_gamma_squared = d_gamma * d_gamma
             old_modulus = 2 * d_gamma_squared * dets
-            mod_value = old_modulus * _norm
+            mod_value = old_modulus * norm
             gcd_mm = GCD(old_modulus, mod_value)
             modulus = Integer(old_modulus / gcd_mm)
             mod_value = Integer(mod_value / gcd_mm)
             m = mod_value + modulus * modified_prec
             prime_list_1 = prime_range(2, m)
             prime_list_1.extend([p for p in dets_primes if p >= m])
-            little_n_list = [mod_value / modulus + j for j in range(1, modified_prec)]
+            x = mod_value / modulus
+            little_n_list = [x + j for j in range(1, modified_prec)]
             prime_list = []
             n_lists = []
             removable_primes = []
             for p in prime_list_1:
                 if level % p == 0:
-                    if p != 2 and any(L_half[i] % p and not S_rows_gcds[i] % p for i in range(_dim)):# and (p != 2 or any(L_half[i]%2 and not S[i,i]%4 for i in range(_dim))):#???
+                    if p != 2 and any(L_half[i] % p and not S_rows_gcds[i] % p for i in range(dim)):
                         removable_primes.append(p)
                     else:
                         prime_list.append(p)
@@ -976,7 +1027,7 @@ class WeilRep(object):
                         n_lists.append([n_list_p, index_list_p, n_list_p_ii, index_list_p_ii])
             return [little_n_list, n_lists, old_modulus, prime_list, removable_primes]
         #odd rank:
-        if _dim % 2:
+        if dim % 2:
             if k_is_list:
                 k_shift_list = [Integer(j - sage_one_half) for j in k]
                 two_k_shift_list = [j + j for j in k_shift_list]
@@ -986,12 +1037,12 @@ class WeilRep(object):
                 k_shift = Integer(k - sage_one_half)
                 two_k_shift = k_shift + k_shift
                 front_multiplier = eps / zeta(1 - two_k_shift)
-            for i_g, g in enumerate(_ds):
-                _norm = _norm_list[i_g]
-                if _indices[i_g] is None: #have we computed the negative component yet?
+            for i_g, g in enumerate(ds):
+                norm = norm_list[i_g]
+                if indices[i_g] is None: #have we computed the negative component yet?
                     L_half = L_half_s[i_g]
                     L = L_half + L_half
-                    modified_prec = prec - floor(_norm)
+                    modified_prec = prec - floor(norm)
                     little_n_list, n_lists, old_modulus, prime_list, removable_primes = eisenstein_series_create_lists(g)
                     gSg = g * S * g
                     if k_is_list:
@@ -1018,7 +1069,7 @@ class WeilRep(object):
                                 D_list.append(D)
                                 for j, k_shift in enumerate(k_shift_list):
                                     main_term_list[j].append(correct_L_function_list[j] * ((4 * n / little_D) ** k_shift) / sqrt_factor)
-                        else:
+                        elif _flag != 'maass':
                             main_term_list = [0]
                             D_list = [0]
                             for i_n, n in enumerate(little_n_list):
@@ -1033,12 +1084,28 @@ class WeilRep(object):
                                 correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
                                 D_list.append(D)
                                 main_term_list.append(correct_L_function * ((4 * n / little_D) ** k_shift) / sqrt_factor)
+                        else:
+                            removable_primes = []
+                            main_term_list = [0]
+                            D_list = [0]
+                            for i_n, n in enumerate(little_n_list):
+                                D = ((-1) ** k_shift) * old_modulus
+                                for p, e in factor(n):
+                                    if p==2 or (dets % p == 0):
+                                        D *= (p ** e)
+                                    else:
+                                        D *= (p ** (e % 2))
+                                little_D = abs(fundamental_discriminant(D))
+                                sqrt_factor = sqrt(2 * dets / little_D)
+                                correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
+                                D_list.append(D)
+                                main_term_list.append(correct_L_function * ((4 / little_D) ** k_shift) / sqrt_factor)
                     local_factor_list = [1] * (modified_prec)
                     if k_is_list:
                         local_factor_list = [copy(local_factor_list) for _ in range(len_k)]
                         for i, p in enumerate(prime_list):
                             p = prime_list[i]
-                            p_e_power = p ** ((1 + _dim) // 2)
+                            p_e_power = p ** ((1 + dim) // 2)
                             for index_k, k_shift in enumerate(k_shift_list):
                                 p_k_shift = p ** (-k_shift)
                                 p_k_shift_squared = p_k_shift * p_k_shift
@@ -1065,22 +1132,25 @@ class WeilRep(object):
                     E = (old_modulus == dets + dets) + O(q ** modified_prec)
                     if k_is_list:
                         for i in range(len_k):
-                            X[i][i_g] = g, _norm, E + front_multiplier_list[i] * (prod(1 / (1 - p ** (-two_k_shift_list[i])) for p in removable_primes)) * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
+                            X[i][i_g] = g, norm, E + front_multiplier_list[i] * (prod(1 / (1 - p ** (-two_k_shift_list[i])) for p in removable_primes)) * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
                     else:
-                        X[i_g] = g, _norm, E + front_multiplier * (prod(1 / (1 - p ** (-two_k_shift)) for p in removable_primes)) * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
-                    precomputed_lists[_norm] = D_list, main_term_list
+                        X[i_g] = g, norm, E + front_multiplier * (prod(1 / (1 - p ** (-two_k_shift)) for p in removable_primes)) * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
+                    precomputed_lists[norm] = D_list, main_term_list
                 else:
                     if k_is_list:
-                        ind_g = _indices[i_g]
+                        ind_g = indices[i_g]
                         for i in range(len_k):
-                            X[i][i_g] = g, _norm, X[i][ind_g][2]
+                            X[i][i_g] = g, norm, X[i][ind_g][2]
                     else:
-                        X[i_g] = g, _norm, X[_indices[i_g]][2]
+                        X[i_g] = g, norm, X[indices[i_g]][2]
             if k_is_list:
                 return [WeilRepModularForm(k[i], S, X[i], weilrep = self) for i in range(len_k)]
+            elif components:
+                return X
             else:
                 e = WeilRepModularForm(k, S, X, weilrep = self)
-                self.__eisenstein[k] = prec, e
+                if _flag is None:
+                    self.__eisenstein[k] = prec, e
                 return e
         #even rank
         else:
@@ -1096,13 +1166,13 @@ class WeilRep(object):
                 corrector = ~quadratic_L_function__corrector(k, D)
                 sqrt_factor = QQ(2 / isqrt(abs(littleD * dets)))
                 multiplier = QQ(eps * corrector * (littleD ** k) * sqrt_factor / quadratic_L_function__cached(1 - k, littleD))
-            for i_g, g in enumerate(_ds):
-                _norm = _norm_list[i_g]
-                modified_prec = prec - floor(_norm)
-                if _indices[i_g] is None: #have we computed the negative component yet?
+            for i_g, g in enumerate(ds):
+                norm = norm_list[i_g]
+                modified_prec = prec - floor(norm)
+                if indices[i_g] is None: #have we computed the negative component yet?
                     L_half = L_half_s[i_g]
                     L = L_half + L_half
-                    _norm = _norm_list[i_g]
+                    norm = norm_list[i_g]
                     little_n_list, n_lists, old_modulus, prime_list, removable_primes = eisenstein_series_create_lists(g)
                     gSg = g * S * g
                     if k_is_list:
@@ -1111,21 +1181,23 @@ class WeilRep(object):
                     else:
                         Lvalue_list = [L_values(L, [2*n + gSg for n in n_lists[i_p][0]], S, p, k) for i_p, p in enumerate(prime_list)]
                     try:
-                        main_term_list = precomputed_lists[_norm]#some things depend only on the exponents not the component-vector "g"
-                    except:
+                        main_term_list = precomputed_lists[norm]#some things depend only on the exponents not the component-vector "g"
+                    except KeyError:
                         if k_is_list:
                             main_term_list = [[0] for _ in range(len_k)]
                             for i, k_i in enumerate(k):
                                 main_term_list[i].extend([n ** (k_i - 1) for n in little_n_list])
-                        else:
+                        elif _flag != 'maass':
                             main_term_list = [0]
                             main_term_list.extend([n ** (k-1) for n in little_n_list])
+                        else:
+                            main_term_list = [0] + [1]*len(little_n_list)
                     local_factor_list = [1] * (modified_prec)
                     if k_is_list:
                         local_factor_list = [copy(local_factor_list) for _ in range(len_k)]
                         for i, p in enumerate(prime_list):
                             kron = local_kronecker_symbol(D, p)
-                            p_pow_e = p ** (1 + _dim//2)
+                            p_pow_e = p ** (1 + dim//2)
                             for index_k, k_i in enumerate(k):
                                 p_k = p ** (-k_i)
                                 kron_p = kron * p_k
@@ -1153,24 +1225,27 @@ class WeilRep(object):
                     E = (old_modulus == dets + dets) + O(q ** modified_prec)
                     if k_is_list:
                         for i in range(len_k):
-                            if (k[i] == 1) and not _norm:
+                            if (k[i] == 1) and not norm:
                                 E = E - zeroval[isotropic_count]
-                            X[i][i_g] = g, _norm, E + multiplier_list[i] * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
+                            X[i][i_g] = g, norm, E + multiplier_list[i] * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
                     else:
-                        X[i_g] = g, _norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
-                    precomputed_lists[_norm] = main_term_list
+                        X[i_g] = g, norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
+                    precomputed_lists[norm] = main_term_list
                 else:
                     if k_is_list:
-                        index = _indices[i_g]
+                        index = indices[i_g]
                         for i in range(len_k):
-                            X[i][i_g] = g, _norm, X[i][index][2]
+                            X[i][i_g] = g, norm, X[i][index][2]
                     else:
-                        X[i_g] = g, _norm, X[_indices[i_g]][2]
+                        X[i_g] = g, norm, X[indices[i_g]][2]
             if k_is_list:
                 return [WeilRepModularForm(k[i], S, X[i], weilrep = self) for i in range(len_k)]
+            elif components:
+                return X
             else:
                 e = WeilRepModularForm(k, S, X, weilrep = self)
-                self.__eisenstein[k] = prec, e
+                if _flag is None:
+                    self.__eisenstein[k] = prec, e
                 return e
 
     def eisenstein_newform(self, k, b, prec, allow_small_weight = False, print_exact = False):
@@ -1530,23 +1605,155 @@ class WeilRep(object):
                     if is_square(2 * _n * dets):
                         f += (q ** n) * 2 * prod(L_values(L, [_n + _n + c], S, p, sage_three_half)[0] / (1 + ~p) for p in prime_divisors(dets * _n * dg))
                 X[i] = g, offset, 24 * f
+                #X[i] = g, offset, f
         return WeilRepModularForm(sage_one_half, S, X, weilrep = wdual)
 
-    def maass_poincare_series(self, k, b, m, prec, nterms = 10):
+    def maass_eisenstein_series(self, *args):
+        r"""
+        Compute the Maass Eisenstein series of negative weight k < 0.
+
+        This is the series
+        \sum_M ( y^(1-k) e_0 ) |_k M
+        where M runs through representatives of Mp_2(ZZ) modulo the stabilizer of e_0.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``prec`` -- the precision
+
+        OUTPUT: WeilRepWeakMaassForm
+
+        EXAMPLES::
+            sage: from weilrep import *
+            sage: WeilRep([]).maass_eisenstein_series(-2, 5)
+            Harmonic Maass form with holomorphic part pi^(-3) times
+            -45/2*zeta(3) - 45/2*q - 405/16*q^2 - 70/3*q^3 - 3285/128*q^4 + O(q^5)
+            and shadow
+            3 + 720*q + 6480*q^2 + 20160*q^3 + 52560*q^4 + O(q^5)
+        """
+        return self.mock_eisenstein_series(*args).completion()
+
+    def maass_poincare_series(self, *args, **kwargs):
         r"""
         Compute Maass Poincare series.
 
-        This computes a numerical approximation to the Maass Poincare series of weight k (which is < 0) and index (b, m) up to precision 'prec'.
+        This is the completion of the mock Poincare series to a harmonic *weak* Maass form. It should be called with exactly the same arguments as
+        self.mock_poincare_series()
+        below.
         """
+        return self.mock_poincare_series(*args, **kwargs).completion()
+
+    def mock_eisenstein_series(self, k, prec):
+        r"""
+        Compute the mock Eisenstein series of negative weight k < 0.
+
+        This is the holomorphic part of the series
+        \sum_M ( y^(1-k) e_0 ) |_k M
+        where M runs through representatives of Mp_2(ZZ) modulo the stabilizer of e_0.
+
+        WARNING: this may have issues in half-integral weight
+
+        When the weight 'k' is an integer, all Fourier coefficients other than the constant term are rational multiples of some power of pi. The constant term involves a non-special value of a quadratic L function; when this is not the zeta function, it is expressed using the QuadraticLFunction() from weilrep_misc.py. To get the numerical value use
+        self.mock_eisenstein_series(k, prec).n()
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``prec`` -- the precision
+
+        OUTPUT: WeilRepMockModularForm
+
+        EXAMPLES::
+            sage: from weilrep import *
+            sage: WeilRep([]).mock_eisenstein_series(-2, 5)
+            pi^(-3) times
+            -45/2*zeta(3) - 45/2*q - 405/16*q^2 - 70/3*q^3 - 3285/128*q^4 + O(q^5)
+        """
+        if not self.is_symmetric_weight(k):
+            raise ValueError('Invalid weight in Maass Eisenstein series.')
+        s = self.signature()
+        r = PowerSeriesRing(SR, 'q')
+        L = QuadraticLFunction()
+        S = self.gram_matrix()
+        n = S.nrows()
+        X = self.eisenstein_series(2 - k, prec, _flag = 'maass')
+        Y = self.dual().eisenstein_series(2 - k, prec) * (1 - k)
+        d = self.discriminant()
+        if n % 2:
+            k0 = 1
+            if (2 * k + self.signature()) % 8:
+                k0 = -1
+            from scipy.special import zeta
+            dk = Integer(2 - 2*k)
+            u = (-1) * (4 * math.pi) ** (k - 1) * math.gamma(2 - k)
+            X = [x for x in (u * X).fourier_expansion()]
+            constant_term_factor = k0 * 2.0**k * math.pi * zeta(dk) / (math.sqrt(d) * zeta(dk + 1))
+            multiplier = Integer(1)
+            for i, x in enumerate(X):
+                if not x[1]:
+                    g = x[0]
+                    Sg = vector(ZZ, S * g)
+                    gSg = g * Sg
+                    f = r(X[i][2].list())
+                    f -= f[0]
+                    X[i] = g, 0, f.add_bigoh(prec) + constant_term_factor * prod((1 - p ** (-dk)) / (1 - p ** (-dk - 1)) * L_values(2 * Sg, [gSg], S, p, 2 - k)[0] for p in prime_divisors(2 * d))
+        else:
+            k = ZZ(k)
+            if k % 2:
+                Y = -Y
+            k0 = 1
+            if (2 * k - self.signature()) % 8:
+                k0 = -1
+            u = QQ((-1) * 4 ** (k - 1) * gamma(2 - k))
+            X = [x for x in (u * X).fourier_expansion()]
+            D = ZZ(d * (-1) ** k)
+            constant_term_factor = k0 * ZZ(2)**k * (pi ** (2 - k)) * L(1 - k, D) / (sqrt(d) * L(2 - k, D))
+            multiplier = pi ** (k - 1)
+            kron = kronecker_symbol
+            for i, x in enumerate(X):
+                if not x[1]:
+                    g = x[0]
+                    Sg = vector(ZZ, S * g)
+                    gSg = g * Sg
+                    f = r(X[i][2].list())
+                    f -= f[0]
+                    X[i] = g, 0, f.add_bigoh(prec) + constant_term_factor * prod((1 - kron(D, p) * p ** (k - 1)) / (1 - kron(D, p) * p ** (k - 2)) * L_values(2 * Sg, [gSg], S, p, 2 - k)[0] for p in prime_divisors(2 * d))
+        return WeilRepMockModularForm(k, self.gram_matrix(), X, Y, multiplier = multiplier, shadow_multiplier = Integer(1), weilrep = self)
+
+    def mock_poincare_series(self, k, b, m, prec, nterms = 50):
+        r"""
+        Compute mock Poincare series.
+
+        This computes a numerical approximation to the mock Poincare series of weight k (which is < 0) and index (b, m) up to precision 'prec'.
+        The 'mock Poincare series' is defined as the holomorphic part of the Maass Poincare series -- i.e. F_{\beta, m} in section (1.3) of Bruinier's book [B].
+
+        NOTE: 'm' must be strictly negative.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``b`` -- the vector ('beta'); typically an element of self's discriminant group (.ds())
+        - ``m`` -- the index; a rational number such that m - norm(b) is a *negative* integer
+        - ``prec`` -- the precision
+        - ``nterms`` -- the number of terms in the coefficient formula. (We truncate the infinite sum over Bessel functions and Kloosterman sums at this value.)
+
+        OUTPUT: WeilRepMockModularForm
+        """
+        if m >= 0:
+            raise NotImplementedError
+        w = self.dual()
         X = self.poincare_series(2 - k, b, m, prec, nterms = nterms, _flag = 'maass').fourier_expansion()
         cm = ceil(-m)
         for i, x in enumerate(X):
             if not x[1]:
-                e = self.poincare_series(2 - k, x[0], 0, prec, nterms = nterms, component = i)
-                X[i][2] -= e[2][cm]
-        return WeilRepMockModularForm(k, self.gram_matrix(), X, self.dual().poincare_series(2 - k, b, -m, prec, nterms = nterms), self)
+                if x[0]:
+                    e = w.poincare_series(2 - k, x[0], 0, prec, nterms = nterms, component = i)
+                else:
+                    e = w.eisenstein_series(2 - k, prec, components = ([vector([0] * self.gram_matrix().nrows())], [None]))[0]
+                if self:
+                    X[i][2] -= e[2][cm]
+                else:
+                    X[i][2] -= e[cm]
+        return WeilRepMockModularForm(k, self.gram_matrix(), X, w.poincare_series(2 - k, b, -m, prec, nterms = nterms) * ((4 * math.pi * abs(m))**(1-k) / math.gamma(1 - k)), weilrep = self)
 
-    def poincare_series(self, k, b, m, prec, nterms = 10, _flag = None, component = None):
+    def poincare_series(self, k, b, m, prec, nterms = 50, _flag = None, component = None):
         r"""
         Compute Poincare series.
 
@@ -1561,11 +1768,24 @@ class WeilRep(object):
         - ``nterms`` -- integer (default 10). We compute the coefficient formula (a series for c=1 to infinity over Bessel functions and Kloosterman sums) for c=1 to nterms.
         """
         s = self.is_symmetric_weight(k)
+        s1 = False
         eps = -1
-        if s is None or k < 2 or (k == 2 and not m):
-            raise ValueError('Invalid weight.')
+        exponent = k - 1
+        sgn = 1
+        h = lambda x: x.real()
+        if _flag == 'maass':
+            s1 = self.is_symmetric_weight(2 - k)
+            exponent *= -1
+            if s1:
+                eps = 1
+                if not s:
+                    h = lambda x: x.imag()
+                else:
+                    sgn = -1
         elif s:
             eps = 1
+        if s is None or k < 2 or (k == 2 and not m):
+            raise ValueError('Invalid weight.')
         dsdict = self.ds_dict()
         ds = self.ds()
         rds = self.rds(indices = True)
@@ -1591,12 +1811,7 @@ class WeilRep(object):
         r, q = PowerSeriesRing(RR, 'q').objgen()
         X = [vector(RR, [0]*(prec - floor(u))) for u in nl]
         s1 = e(-two_pi_i * k / 4)
-        exponent = k - 1
-        sgn = 1
         abs_m = abs(m)
-        if _flag == 'maass':
-            exponent *= -1
-            sgn = -1
         for c in range(1, nterms):
             two_pi_i_c = two_pi_i / c
             four_pi_c = four_pi / c
@@ -1611,10 +1826,10 @@ class WeilRep(object):
                             u = nl[i] + 1
                             zeta = s1 * zeta1 * e(two_pi_i_c * u * d)
                             for n in range(1, len(Y[i])):
-                                Y[i][n] += (M[j, i].conjugate() * zeta).real()
+                                Y[i][n] += h(M[j, i].conjugate() * zeta)
                                 zeta *= zeta2
             for i, y in enumerate(Y):
-                if rds[i] is None:
+                if rds[i] is None and (_flag or eps == 1 or 2 % denominator(ds[i])):
                     u = nl[i]
                     for n in range(1, len(Y[i])):
                         if m:
@@ -1981,7 +2196,7 @@ class WeilRep(object):
             Q_adj = QuadraticForm(level * S_inv)
             vs_list = Q_adj.short_vector_list_up_to_length(level*prec)
             X = [[g, n_dict[tuple(g)], O(q ** (prec - floor(n_dict[tuple(g)])))] for g in _ds]
-            for i in range(len(vs_list)):
+            for i in srange(len(vs_list)):
                 v_norm_offset = ceil(i/level)
                 vs = vs_list[i]
                 for v in vs:
@@ -2208,9 +2423,19 @@ class WeilRep(object):
             return len(self.modular_forms_basis(weight))
 
     def quasimodular_forms_dimension(self, weight):
+        r"""
+        Compute dimensions of quasimodular forms.
+
+        This is the sum dim M_k where k runs through weights less than 'weight' which are equal to 'weight' modulo 2*ZZ.
+        """
         return sum(self.modular_forms_dimension(weight - 2*k) for k in range(floor(weight / 2) + 1))
 
     def invariant_cusp_forms_dimension(self, weight, G = None, chi = None, force_Riemann_Roch = False, do_not_round = False):
+        r"""
+        Compute the dimension of cusp forms invariant under a group 'G' of automorphisms.
+
+        See invariant_forms_dimension()
+        """
         return self.invariant_forms_dimension(weight, cusp_forms = True, G = G, chi = chi, force_Riemann_Roch = force_Riemann_Roch, do_not_round = do_not_round)
 
     def invariant_forms_dimension(self, weight, cusp_forms = False, G = None, chi=None, force_Riemann_Roch = False, do_not_round = False):

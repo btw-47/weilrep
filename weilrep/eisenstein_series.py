@@ -18,24 +18,27 @@ AUTHORS:
 # ****************************************************************************
 
 from sage.all import cached_function
-from sage.quadratic_forms.quadratic_form import QuadraticForm, DiagonalQuadraticForm
-from sage.quadratic_forms.special_values import quadratic_L_function__exact
+from sage.arith.misc import factor, fundamental_discriminant, GCD, is_prime, kronecker_symbol, valuation
 from sage.functions.other import frac
 from sage.functions.transcendental import zeta
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
-from sage.rings.rational_field import QQ
-from sage.rings.monomials import monomials
-from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
-from sage.rings.integer_ring import IntegerRing, ZZ
-from sage.rings.infinity import Infinity
-from sage.rings.power_series_ring import PowerSeriesRing
-from sage.rings.big_oh import O
-from sage.rings.fast_arith import prime_range
-from sage.arith.misc import factor, fundamental_discriminant, GCD, is_prime, kronecker_symbol, valuation
-from sage.modules.free_module_element import vector
 from sage.misc.functional import denominator, isqrt
 from sage.misc.misc_c import prod
+from sage.modules.free_module_element import vector
+from sage.quadratic_forms.quadratic_form import QuadraticForm, DiagonalQuadraticForm
+from sage.quadratic_forms.special_values import quadratic_L_function__exact
+from sage.rings.big_oh import O
+from sage.rings.fast_arith import prime_range
+from sage.rings.infinity import Infinity
+from sage.rings.integer_ring import IntegerRing, ZZ
+from sage.rings.monomials import monomials
+from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
+from sage.rings.power_series_ring import PowerSeriesRing
+from sage.rings.rational_field import QQ
+
+
+
 
 
 @cached_function
@@ -1034,7 +1037,7 @@ def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at
                 u.append((t ** val_cj) * (1 - t/2) / q_powers[val_cj+1])
         return Z + vector(u)
 
-def L_values(L,c,S,p,k, t = None): #the Euler factors in the Eisenstein series, vector version
+def L_values(L, c, S, p, k, t = None): #the Euler factors in the Eisenstein series, vector version
     r"""
     Compute the Euler factors in the Eisenstein series.
 
@@ -1042,7 +1045,7 @@ def L_values(L,c,S,p,k, t = None): #the Euler factors in the Eisenstein series, 
 
     NOTE: We do not use the algorithm suggested in [BK].
 
-    NOTE: The output is actually renormalized to (1 - p^(d/2 - k)) * L_{\gamma, n}(k, p).
+    NOTE: The output is actually renormalized to (1 - p^(d/2 - k)) * L_{\gamma, n}(k, p) where d is the lattice rank.
 
     NOTE: if t is not None then the variable 'k' is never used
 

@@ -18,10 +18,24 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
+import cmath
+import math
 
-from sage.functions.other import floor
+from re import sub
+from scipy.special import gamma, hyperu
+
+from sage.functions.generalized import sgn
+from sage.functions.other import ceil, factorial, floor
+from sage.misc.cachefunc import cached_method
+from sage.misc.latex import latex
+from sage.modules.free_module_element import vector
+from sage.plot.complex_plot import complex_plot
 from sage.rings.big_oh import O
+from sage.rings.infinity import Infinity, SignError
+from sage.rings.integer import Integer
+from sage.rings.integer_ring import ZZ
 from sage.rings.rational_field import QQ
+from sage.symbolic.constants import pi
 
 from .weilrep_modular_forms_class import WeilRepModularForm
 
@@ -160,7 +174,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
 
     def depth(self):
         r"""
-        Computes the "depth" of the quasimodular form. 
+        Computes the "depth" of the quasimodular form.
         """
         try:
             return self.__depth
@@ -179,6 +193,9 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             self.__class__ = WeilRepModularForm
             return [self]
 
+    def is_modular(self):
+        return False
+
     def completion(self):
         r"""
         Return self's completion to an almost-holomorphic modular form.
@@ -186,14 +203,14 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         EXAMPLES::
             sage: from weilrep import WeilRep
             sage: w = WeilRep([])
-            sage: e2 = w.eisenstein_series(2, 5)
+            sage: e2 = w.eisenstein_series(2, 5).holomorphic_part()
             sage: e2.completion()
             Almost holomorphic modular form f_0 + f_1 * (4 pi y)^(-1), where:
             f_0 =
-            [(), 1 - 24*q - 72*q^2 - 96*q^3 - 168*q^4 + O(q^5)]
+            1 - 24*q - 72*q^2 - 96*q^3 - 168*q^4 + O(q^5)
             --------------------------------------------------------------------------------
             f_1 =
-            [(), -12 + O(q^5)]
+            -12 + O(q^5)
 
             sage: from weilrep import WeilRep
             sage: w = WeilRep(matrix([[-2, 0], [0, -2]]))
@@ -228,9 +245,9 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         EXAMPLES::
             sage: from weilrep import WeilRep
             sage: w = WeilRep([])
-            sage: e2 = w.eisenstein_series(2, 5)
+            sage: e2 = w.eisenstein_series(2, 5).holomorphic_part()
             sage: e2.derivative()
-            [(), -24*q - 144*q^2 - 288*q^3 - 672*q^4 + O(q^5)]
+            -24*q - 144*q^2 - 288*q^3 - 672*q^4 + O(q^5)
         """
         t = self._terms()
         S = self.gram_matrix()
@@ -251,6 +268,12 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         X = [(r - k) * t[0]] + [(r - k - j) * t[j] + d(t[j-1]) for j in range(1, r+1)] + [d(t[-1])]
         return WeilRepQuasiModularForm(k + 2, self.gram_matrix(), X, weilrep = self.weilrep())
 
+    def raising_operator(self):
+        return NotImplemented
+
+    def lowering_operator(self):
+        return NotImplemented
+
     def shift(self):
         r"""
         Apply the "shift operator" on quasimodular forms. This is a quasimodular form whose depth is one less than self.
@@ -260,7 +283,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             sage: w = WeilRep([])
             sage: e2 = w.eisenstein_series(2, 5)
             sage: e2.shift()
-            [(), -12 + O(q^5)]
+            -12 + O(q^5)
         """
         r = self.depth()
         f = [1]*(r + 1)
@@ -269,7 +292,19 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             f[k] = j * f[k + 1]
             k -= 1
         X = self._terms()
-        return WeilRepQuasiModularForm(k - 2, self.gram_matrix(), [f[i]*y for i, y in enumerate(X[:-1])], weilrep=self.weilrep())
+        return WeilRepQuasiModularForm(self.weight() - 2, self.gram_matrix(), [f[i]*y for i, y in enumerate(X[:-1])], weilrep=self.weilrep())
+
+    def reduce_precision(self, prec, in_place = False):
+        r"""
+        Reduce self's precision.
+
+        Overwrite the reduce_precision() method for holomorphic modular forms to return a quasimodular form, all of whose shifts precisions are lowered.
+        """
+        if in_place:
+            for x in self.__terms:
+                x.reduce_precision(prec, in_place = True)
+        else:
+            return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.reduce_precision(prec) for x in self._terms()], weilrep = self.weilrep())
 
 class WeilRepAlmostHolomorphicModularForm:
     r"""
@@ -307,6 +342,23 @@ class WeilRepAlmostHolomorphicModularForm:
     def __iter__(self):
         for x in self.__list:
             yield x
+
+    def weight(self):
+        return self.__weight
+
+    def gram_matrix(self):
+        return self.__gram_matrix
+
+    def depth(self):
+        return self.__depth
+
+    def weilrep(self):
+        try:
+            return self.__weilrep
+        except AttributeError:
+            from .weilrep import WeilRep
+            self.__weilrep = WeilRep(self.__gram_matrix)
+            return self.__weilrep
 
     ## lazy arithmetic ##
 
@@ -352,24 +404,153 @@ class WeilRepAlmostHolomorphicModularForm:
         return (self[0]**n).completion()
 
     def derivative(self):
+        return NotImplemented
+
+    def raising_operator(self):
         return self[0].derivative().completion()
 
     def shift(self):
         return self[0].shift().completion()
+
+    lowering_operator = shift
+
+    def holomorphic_part(self):
+        return self[0]
+
+    ## evaluate at points. partially copied from holomorphic case
+
+    def __call__(self, z, q = False, funct = None):
+        if funct is None:
+            funct = self.__call__
+        if q:
+            return self.__call__(cmath.log(z) / complex(0.0, 2 * math.pi), funct = funct)
+        if 0 < abs(z) < 1:
+            z = -1 / z
+            return (z ** self.weight()) * (self.weilrep()._evaluate(0, -1, 1, 0) * funct(z))
+        else:
+            try:
+                y = z.imag()
+            except TypeError:
+                y = z.imag
+            if y <= 0:
+                raise ValueError('Not in the upper half plane.')
+            elif y < 0.5:
+                try:
+                    x = z.real()
+                except TypeError:
+                    x = z.real
+                if abs(x) > 0.5:
+                    try:
+                        f = x.round()
+                    except AttributeError:
+                        f = round(x)
+                    return self.weilrep()._evaluate(1, f, 0, 1) * funct(z - f)
+                return (z ** self.weight()) * (self.weilrep()._evaluate(0, -1, 1, 0) * funct(z))
+        four_pi_y_inv = 1 / (4 * math.pi * y)
+        return sum(x.__call__(z) * four_pi_y_inv ** j for j, x in enumerate(self))
+
+    @cached_method
+    def _cached_call(self, z, q = False, isotherm = False):
+        s = self.__call__(z, q = q, funct = self._cached_call)
+        if isotherm:
+            v = [0] * len(s)
+            for i, x in enumerate(s):
+                if x == 0.0:
+                    v[i] = x
+                else:
+                    c = abs(x)
+                    v[i] = x * 2 * math.frexp(c)[0] / c
+            return v
+        return s
+
+    def plot(self, x_range = [-1, 1], y_range = [0.01, 2], isotherm = True, **kwargs):
+        r"""
+        Plot self on the upper half-plane.
+
+        See the plot() method from weilrep_modular_forms_class.py
+        """
+        if isotherm and 'plot_points' not in kwargs:
+            kwargs['plot_points'] = 150
+        function = kwargs.pop('function', None)
+        if function is not None:
+            f = lambda z: function(self._cached_call(z, isotherm = isotherm))
+            self._cached_call.clear_cache()
+            return complex_plot(f, x_range, y_range, **kwargs)
+        f = lambda i: lambda z: self._cached_call(z, isotherm = isotherm)[i]
+        L = []
+        rds = self.weilrep().rds(indices = True)
+        ds = self.weilrep().ds()
+        for i, x in enumerate(rds):
+            if x is None and self[i]:
+                L.append(complex_plot(f(i), x_range, y_range, **kwargs))
+                print('Component %s:'%ds[i])
+                L[-1].show()
+        self._cached_call.clear_cache()
+        return L
+
+    def plot_q(self, isotherm = True, show = True, **kwargs):
+        r"""
+        Plot self on the unit disc.
+
+        See the plot_q() method from weilrep_modular_forms_class.py
+        """
+        if 'figsize' not in kwargs:
+            kwargs['figsize'] = [6, 6]
+        if isotherm and 'plot_points' not in kwargs:
+            kwargs['plot_points'] = 150
+        function = kwargs.pop('function', None)
+        if function is not None:
+            f = lambda z: function(self._cached_call(z, q = True, isotherm = isotherm)) if abs(z) < 1 else Infinity
+            self._cached_call.clear_cache()
+            return complex_plot(f, [-1, 1], [-1, 1], **kwargs)
+        f = lambda i: (lambda z: self._cached_call(z, q = True, isotherm = isotherm)[i] if abs(z) < 1 else Infinity)
+        L = []
+        rds = self.weilrep().rds(indices = True)
+        ds = self.weilrep().ds()
+        for i, x in enumerate(rds):
+            if x is None and self[i]:
+                L.append(complex_plot(f(i), [-1, 1], [-1, 1], **kwargs))
+                if show:
+                    print('Component %s:'%ds[i])
+                    L[-1].show()
+        self._cached_call.clear_cache()
+        return L
+
+
+
 
 class WeilRepMockModularForm(WeilRepModularForm):
     r"""
     Class for mock modular forms.
     """
 
-    def __init__(self, k, S, X, shadow, weilrep = None):
-        WeilRepModularForm.__init__(self, k, S, X, weilrep = weilrep)
+    def __init__(self, k, S, X, shadow, **kwargs):
+        WeilRepModularForm.__init__(self, k, S, X, weilrep = kwargs.pop('weilrep', None))
         self.__class__ = WeilRepMockModularForm
         self.__shadow = shadow
+        self.__multiplier = kwargs.pop('multiplier', Integer(1))
+        try:
+            self.__multiplier_n = kwargs.pop('multiplier_n', self.__multiplier.n())
+        except AttributeError:
+            self.__multiplier_n = Integer(self.__multiplier).n()
+        self.__shadow_multiplier = kwargs.pop('shadow_multiplier', Integer(1))
+        try:
+            self.__shadow_multiplier_n = kwargs.pop('shadow_multiplier_n', self.__shadow_multiplier.n())
+        except AttributeError:
+            self.__shadow_multiplier_n = Integer(self.__shadow_multiplier).n()
+
+    def __repr__(self):
+        m = self.__multiplier
+        if m != 1:
+            return '%s times\n'%m + super().__repr__()
+        return super().__repr__()
 
 
     def shadow(self):
         return self.__shadow
+
+    def shadow_multiplier(self):
+        return self.__shadow_multiplier
 
     def __add__(self, other):
         f = super().__add__(other)
@@ -392,11 +573,216 @@ class WeilRepMockModularForm(WeilRepModularForm):
         if other in QQ:
             f = super().__mul__(other)
             return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), self.shadow() * other, weilrep = self.weilrep())
-        return NotImplemented
+        raise NotImplementedError
+
+    __rmul__ = __mul__
 
     def __truediv__(self, other):
         return self.__mul__(~other)
     __div__ = __truediv__
 
     def derivative(self):
-        return NotImplemented
+        raise NotImplementedError
+
+    def completion(self):
+        return WeilRepWeakMaassForm(self.weight(), self.gram_matrix(), self.fourier_expansion(), self.shadow(), multiplier = self.__multiplier, multiplier_n = self.__multiplier_n, shadow_multiplier = self.shadow_multiplier(), shadow_multiplier_n = self.__shadow_multiplier_n, weilrep = self.weilrep(), holomorphic_part = self)
+
+    def n(self):
+        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), super().n().__mul__(self.__multiplier_n).fourier_expansion(), self.shadow().n(), weilrep = self.weilrep())
+
+    def bol(self):
+        X = super().bol()
+        Y = self.shadow()
+        Z = X.fourier_expansion()
+        for i, z in enumerate(Z):
+            if not z[1]:
+                Z[i] = z[0], 0, z[2] + Y[tuple(z[0])][0]
+        return WeilRepModularForm(X.weight(), X.gram_matrix(), Z, weilrep = self.weilrep())
+
+    def flip(self):
+        k = self.weight()
+        try:
+            k = ZZ(k)
+        except TypeError:
+            return NotImplemented
+        u = factorial(-k)
+        return WeilRepMockModularForm(k, self.gram_matrix(), (u * self.shadow()).fourier_expansion(), self.bol() / u, weilrep = self.weilrep() )
+
+    def is_modular(self):
+        return False
+
+    def is_quasimodular(self):
+        return False
+
+
+class WeilRepWeakMaassForm(WeilRepModularForm):
+    r"""
+    Class for weak Maass forms.
+    """
+
+    def __init__(self, k, S, X, shadow, **kwargs):
+        WeilRepModularForm.__init__(self, k, S, X, weilrep = kwargs.pop('weilrep', None))
+        self.__class__ = WeilRepWeakMaassForm
+        self.__shadow = shadow
+        self.__multiplier = kwargs.pop('multiplier', Integer(1))
+        try:
+            self.__multiplier_n = kwargs.pop('multiplier_n', self.__multiplier.n())
+        except AttributeError:
+            self.__multiplier_n = Integer(self.__multiplier).n()
+        self.__shadow_multiplier = kwargs.pop('shadow_multiplier', Integer(1))
+        try:
+            self.__shadow_multiplier_n = kwargs.pop('shadow_multiplier_n', self.__shadow_multiplier.n())
+        except AttributeError:
+            self.__shadow_multiplier_n = Integer(self.__shadow_multiplier).n()
+
+    def __repr__(self):
+        s = self.__shadow_multiplier
+        s = ' %s times'%s if s != 1 else ''
+        t = self.__multiplier
+        t = ' %s times'%t if t != 1 else ''
+        w = '' if self.is_maass_form() else 'weak '
+        return 'Harmonic %sMaass form with holomorphic part%s\n%s\nand shadow%s\n%s'%(w, t, super().__repr__(), s, self.__shadow.__repr__())
+
+    def __call__(self, z, q = False, funct = None):
+        if funct is None:
+            funct = self.__call__
+        if q:
+            return self.__call__(cmath.log(z) / complex(0.0, 2 * math.pi), funct = funct)
+        try:
+            y = z.imag()
+        except TypeError:
+            y = z.imag
+        if 0 < abs(z) < 1:
+            z = -1 / z
+            return (z ** self.weight()) * (self.weilrep()._evaluate(0, -1, 1, 0) * funct(z))
+        else:
+            try:
+                y = z.imag()
+            except TypeError:
+                y = z.imag
+            if y <= 0:
+                raise ValueError('Not in the upper half plane.')
+            elif y < 0.5:
+                try:
+                    x = z.real()
+                except TypeError:
+                    x = z.real
+                if abs(x) > 0.5:
+                    try:
+                        f = x.round()
+                    except AttributeError:
+                        f = round(x)
+                    return self.weilrep()._evaluate(1, f, 0, 1) * funct(z - f)
+                return (z ** self.weight()) * (self.weilrep()._evaluate(0, -1, 1, 0) * funct(z))
+        two_pi = 2 * math.pi
+        exp = cmath.exp
+        try:
+            zbar = z.conjugate()
+        except TypeError:
+            zbar = z.conjugate
+        f = self.holomorphic_part().n().__call__(z)
+        four_pi_y = 2 * two_pi * y
+        k = self.weight()
+        psi = lambda n: hyperu(k, k, four_pi_y * n) * (2 * two_pi * n) ** (k - 1)
+        d = self.xi().coefficients()
+        dsdict = self.weilrep().ds_dict()
+        normlist= self.weilrep().norm_list()
+        z = complex(0.0, 0.0)
+        def correction():
+            s = vector([z for _ in f])
+            for g, a in d.items():
+                i = dsdict[tuple(g[:-1])]
+                n = g[-1]
+                if n:
+                    s[i] += psi(n) * exp(-complex(0.0, two_pi) * zbar * n) * a
+                else:
+                    s[i] += y ** (1 - k) * a / (k - 1)
+            return s
+        try:
+            s = correction()
+        except TypeError:
+            y = y.n()
+            four_pi_y = 2 * two_pi * y
+            psi = lambda n: hyperu(k, k, four_pi_y * n) * (2 * two_pi * n) ** (k - 1)
+            s = correction()
+        a = f - s * self.__shadow_multiplier_n#* (-1)**k
+        return a
+
+    @cached_method
+    def _cached_call(self, z, q = False, isotherm = False, f = None):
+        s = self.__call__(z, q = q, funct = self._cached_call)
+        if f is not None:
+            s = f(s)
+            if isotherm:
+                if s == 0.0:
+                    return s
+                else:
+                    c = abs(s)
+                    return 2 * s * math.frexp(c)[0] / c
+        elif isotherm:
+            v = [0] * len(s)
+            for i, x in enumerate(s):
+                if x == 0.0:
+                    v[i] = x
+                else:
+                    c = abs(x)
+                    v[i] = 2 * x * math.frexp(c)[0] / c
+            return v
+        return s
+
+    def _latex_(self):
+        return self.__repr__(_flag = 'latex')
+
+    def holomorphic_part(self):
+        try:
+            return self.__holomorphic_part
+        except AttributeError:
+            self.__holomorphic_part = WeilRepMockModularForm(self.weight(), self.gram_matrix(), self.fourier_expansion(), self.xi(), multiplier = self.__multiplier, shadow_multiplier = self.__shadow_multiplier, weilrep = self.weilrep())
+            return self.__holomorphic_part
+
+    def __add__(self, other):
+        f = self.holomorphic_part()
+        g = other.holomorphic_part()
+        N = self.shadow_multiplier()
+        return WeilRepWeakMaassForm(self.weight(), self.gram_matrix(), (f + g).fourier_expansion(), self.shadow() + other.shadow() * (other.shadow_multiplier() / N), shadow_multiplier = N, weilrep = self.weilrep())
+
+    def __sub__(self, other):
+        f = self.holomorphic_part()
+        g = other.holomorphic_part()
+        N = self.shadow_multiplier()
+        return WeilRepWeakMaassForm(self.weight(), self.gram_matrix(), (f - g).fourier_expansion(), self.shadow() - other.shadow() * (other.shadow_multiplier() / N), shadow_multiplier = N, weilrep = self.weilrep())
+
+    def __mul__(self, N):
+        if N in QQ:
+            return WeilRepWeakMaassForm(self.weight(), self.gram_matrix(), [[x[0], x[1], x[2]*N] for x in self.fourier_expansion()], self.shadow() * N, shadow_multiplier = self.shadow_multiplier(), weilrep = self.weilrep())
+        raise NotImplementedError
+
+    __rmul__ = __mul__
+
+    def __div__(self, N):
+        return self.__mul__(1 / N)
+
+    __truediv__ = __div__
+
+    def __neg__(self):
+        return self.__mul__(-1)
+
+    def __pow__(self, N):
+        raise NotImplementedError
+
+    def xi(self):
+        return self.__shadow
+    shadow = xi
+
+    def shadow_multiplier(self):
+        return self.__shadow_multiplier
+
+    def is_maass_form(self):
+        try:
+            return self.__is_maass_form
+        except AttributeError:
+            self.__is_maass_form = self.holomorphic_part().is_holomorphic() and self.shadow().is_holomorphic()
+            return self.__is_maass_form
+
+    def n(self):
+        return WeilRepWeakMaassForm(self.weight(), self.gram_matrix(), (super().n() * self.__multiplier_n).fourier_expansion(), self.shadow().n() * self.__shadow_multiplier_n, weilrep = self.weilrep())

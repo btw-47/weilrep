@@ -18,6 +18,10 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
+import math
+import cmath
+import mpmath
+
 import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
@@ -32,12 +36,17 @@ from sage.calculus.var import var
 from sage.functions.other import ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
-from sage.misc.functional import denominator, isqrt
+from sage.misc.cachefunc import cached_method
+from sage.misc.functional import denominator, isqrt, symbolic_sum
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import is_ModularFormElement
+from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module_element import vector
+from sage.plot.complex_plot import complex_plot
 from sage.quadratic_forms.quadratic_form import QuadraticForm
+from sage.rings.all import CC
 from sage.rings.big_oh import O
+from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
@@ -91,6 +100,7 @@ class WeilRepModularForm(object):
         try:
             return self.__qexp_string
         except AttributeError:
+            r = r'(q(\^-?\d+)?)|((?<!\^)\d+\s)'
             X = self.__fourier_expansions
             def a(x):
                 def b(y):
@@ -102,12 +112,16 @@ class WeilRepModularForm(object):
                     except TypeError:
                         return 'q^(%s)'%(1 + x)
                 return b
-            s = '\n'.join(['[%s, %s]'%(x[0], sub(r'(q(\^-?\d+)?)|((?<!\^)\d+\s)', a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
+            if self.weilrep():
+                s = '\n'.join(['[%s, %s]'%(x[0], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
+            else:
+                s = str(X[0][2])
             self.__qexp_string = s
             return s
 
     def _latex_(self):
         X = self.fourier_expansion()
+        r = r'q(\^-?\d+)?|\*|((?<!\^)\d+\s)'
         def a(x):
             def b(y):
                 y = y.string[slice(*y.span())]
@@ -116,13 +130,23 @@ class WeilRepModularForm(object):
                         return '%sq^{%s} '%([y[:-1]+'*',''][y == '1 '], x)
                     return y
                 try:
-                    return 'q^{%s}'%(QQ(y[2:]) + x)
+                    j = QQ(y[2:]) + x
+                    if j != 1:
+                        return 'q^{%s}'%j
+                    else:
+                        return 'q'
                 except TypeError:
                     if y == '*':
                         return ''
-                    return 'q^{%s}'%(1 + x)
+                    j = 1+x
+                    if j != 1:
+                        return 'q^{%s}'%j
+                    return 'q'
             return b
-        return '&' + ' + &'.join(['\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r'q(\^-?\d+)?|\*|((?<!\^)\d+\s)', a(x[1]), str(x[2])), x[0]) for x in X])[:-2]
+        if self.weilrep():
+            return r'\begin{align*}&' + ' + &'.join(['\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r, a(x[1]), str(x[2])), x[0]) for x in X])[:-2]+r'\end{align*}'
+        else:
+            return X[0][2]._latex_()
 
     ## basic attributes
 
@@ -213,7 +237,223 @@ class WeilRepModularForm(object):
         """
         r, q = PowerSeriesRing(RR, 'q').objgen()
         prec = self.precision()
-        return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], r([y.n() for y in x[2].list()]).add_bigoh(ceil(prec - x[1]))) for x in self.fourier_expansion()], weilrep = self.weilrep())
+        def n(f):
+            val = f.valuation()
+            prec = f.prec()
+            s = r([y.n() for y in f.list()]).add_bigoh(prec)
+            if val >= 0:
+                return s
+            else:
+                return (q ** val) * s
+        #return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], r([y.n() for y in x[2].list()]).add_bigoh(ceil(prec - x[1]))) for x in self.fourier_expansion()], weilrep = self.weilrep())
+        return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], n(x[2])) for x in self.fourier_expansion()], weilrep = self.weilrep())
+
+    def __call__(self, z, q = False, funct = None):
+        r"""
+        Evaluate self at a point ``z`` in the upper half-plane.
+
+        We estimate the value using the known Fourier coefficients. If f transforms like a modular form or quasimodular form then we only compute the series if im[z] > 0.5; otherwise we use a mobius transformation to map to this range, for better accuracy. For modular forms with poles at cusps we multiply away the poles with the zeros of mpmath's qp() (Dedekind eta function), again to improve convergence
+
+        INPUT:
+        - ``z`` -- a point in the upper half plane. Can be an element of CC or a complex().
+        - ``q`` -- boolean. If True then we interpret 'z' instead as the variable 'q' in the unit disc.
+        """
+        if funct is None:
+            funct = self.__call__
+        if q:
+            if z:
+                z = cmath.log(z) / complex(0.0, 2 * math.pi)
+                return funct(z)
+            return vector([self[i][0] if not x else 0 for i, x in enumerate(self.weilrep().norm_list())])
+        if self.is_modular():
+            if 0 < abs(z) < 1:
+                z = -1 / z
+                return (z ** self.weight()) * (self.weilrep()._evaluate(0, -1, 1, 0) * funct(z))
+            else:
+                try:
+                    y = z.imag()
+                except TypeError:
+                    y = z.imag
+                if y <= 0:
+                    raise ValueError('Not in the upper half-plane.')
+                elif y < 0.5:
+                    try:
+                        x = z.real()
+                    except TypeError:
+                        x = z.real
+                    if abs(x) > 0.5:
+                        try:
+                            f = x.round()
+                        except AttributeError:
+                            f = round(x)
+                        return self.weilrep()._evaluate(1, f, 0, 1) * funct(z - f)
+                    raise RunTimeError('Oops!')
+        elif self.is_quasimodular():
+            if 0 < abs(z) < 1:
+                z1 = -1 / z
+                two_pi_inv = 1 / complex(0.0, 2*math.pi)
+                return z1 ** self.weight() * self.weilrep()._evaluate(0, -1, 1, 0) * (sum(f.__call__(z1) * (two_pi_inv * z)**j for j, f in enumerate(self.completion())))
+            else:
+                try:
+                    y = z.imag()
+                except TypeError:
+                    y = z.imag
+                if y <= 0:
+                    raise ValueError('Not in the upper half-plane.')
+                elif y < 0.5:
+                    try:
+                        x = z.real()
+                    except TypeError:
+                        x = z.real
+                    if abs(x) > 0.5:
+                        try:
+                            f = x.round()
+                        except AttributeError:
+                            f = round(x)
+                        return self.weilrep()._evaluate(1, f, 0, 1) * funct(z - f)
+                    raise RunTimeError('Oops!')
+        eps = 1
+        if not self.is_symmetric():
+            eps = -1
+        val = self.valuation()
+        prec = self.precision()
+        if val < 0:
+            val = -val
+            f = smf(12 * val, delta_qexp(prec + 1) ** val)
+            f = f.__mul__(self)
+            u = cmath.exp(complex(0.0, 2 * math.pi) * z)
+            if not u:
+                return f(0.0, q = True)
+            return f(z) * (u * complex(mpmath.qp(u)) ** 24) ** (-val)
+        two_pi = 2 * math.pi
+        w = self.weilrep()
+        e = cmath.exp(complex(0.0, two_pi) * z)
+        indices = w.rds(indices = True)
+        v = vector([complex(0.0, 0.0) for _ in w.ds()])
+        X = self.fourier_expansion()
+        val = self.valuation()
+        bd = max(prec + 1, -val + 1)
+        Z = [1] * bd
+        for i in range(1, bd):
+            Z[i] = Z[i - 1] * e
+        def e(x):
+            if x > 0:
+                return Z[x]
+            elif x < 0:
+                try:
+                    return 1.0 / Z[-x]
+                except ZeroDivisionError:
+                    return Infinity
+            return 1.0
+        for i, x in enumerate(X):
+            if indices[i] is None:
+                try:
+                    d = x[2].dict()
+                except AttributeError:
+                    d = x[2].laurent_polynomial().dict()
+                try:
+                    v[i] = cmath.exp(complex(0.0, two_pi * x[1]) * z) * sum(e(x) * d[x] for x in d.keys() if x < bd)
+                except OverflowError:
+                    v[i] = 0.0
+                except TypeError:
+                    v[i] = Infinity
+            else:
+                v[i] = eps * v[indices[i]]
+        return v
+
+    @cached_method
+    def _cached_call(self, z, q = False, isotherm = False, f = None):
+        s = self.__call__(z, q = q, funct = self._cached_call)
+        if f is not None:
+            s = f(s)
+            if isotherm:
+                if s == 0.0:
+                    return s
+                else:
+                    c = abs(s)
+                    return 2 * s * math.frexp(c)[0] / c
+        elif isotherm:
+            v = [0] * len(s)
+            for i, x in enumerate(s):
+                if x == 0.0:
+                    v[i] = x
+                else:
+                    c = abs(x)
+                    v[i] = 2 * x * math.frexp(c)[0] / c
+            return v
+        return s
+
+    def plot(self, x_range = [-1, 1], y_range = [0.01, 2], isotherm = True, show = True, **kwargs):
+        r"""
+        Plot self on the upper half-plane.
+
+        INPUT:
+        - ``x_range`` -- range for 'x' (default -1 <= x <= 1)
+        - ``y_range`` -- range for 'y' (default 0.01 <= y <= 2). Warning: keep z=x+iy in the upper half plane!!
+        - ``isotherm`` -- phase plot with magnitude indicated by isotherms or contour lines. (default True). If False then use Sage default plot style.
+        - ``show`` -- boolean (default True) if False then return only the graphics object without displaying it
+        - ``function`` -- any function (lambda x: ...) that can be applied to vectors and returns a number; for example, 'function = sum'
+        -- keyword arguments for complex_plot(), e.g. figsize, plot_points, etc.
+
+        OUTPUT: if ``function`` is None then a list of plots, one for each component of self. Otherwise, apply ``function`` to self and plot it.
+        """
+        if isotherm and 'plot_points' not in kwargs:
+            kwargs['plot_points'] = 150
+        function = kwargs.pop('function', None)
+        if function is not None:
+            f = lambda z: self._cached_call(z, isotherm = isotherm, f = function)
+            P = complex_plot(f, x_range, y_range, **kwargs)
+            self._cached_call.clear_cache()
+            return P
+        f = lambda i: lambda z: self._cached_call(z, isotherm = isotherm)[i]
+        L = []
+        rds = self.weilrep().rds(indices = True)
+        ds = self.weilrep().ds()
+        for i, x in enumerate(rds):
+            if x is None and self[i]:
+                L.append(complex_plot(f(i), x_range, y_range, **kwargs))
+                if show:
+                    print('Component %s:'%ds[i])
+                    L[-1].show()
+        self._cached_call.clear_cache()
+        return L
+
+    def plot_q(self, isotherm = True, show = True, **kwargs):
+        r"""
+        Plot self on the unit disc as a function of 'q' (q = exp(2*pi*i*z)).
+
+        NOTE: when there are nonintegral Fourier exponents then q=0 is a branch point
+
+        INPUT:
+        - ``isotherm`` -- phase plot with magnitude indicated by isotherms or contour lines. (default True). If False then use Sage default plot style.
+        - ``show`` -- boolean (default True) if False then return only the graphics object without displaying it
+        - ``function`` -- any function (lambda x: ...) that can be applied to vectors and returns a number; for example, 'function = sum'
+        -- keyword arguments for complex_plot(), e.g. figsize, plot_points, etc.
+
+        OUTPUT: if ``function`` is None then a list of plots, one for each component of self. Otherwise, apply ``function`` to self and plot it.
+        """
+        if 'figsize' not in kwargs:
+            kwargs['figsize'] = [6, 6]
+        if isotherm and 'plot_points' not in kwargs:
+            kwargs['plot_points'] = 150
+        function = kwargs.pop('function', None)
+        if function is not None:
+            f = lambda z: self._cached_call(z, q = True, isotherm = isotherm, f = function) if abs(z) < 1 else Infinity
+            P = complex_plot(f, [-1, 1], [-1, 1], **kwargs)
+            self._cached_call.clear_cache()
+            return P
+        f = lambda i: (lambda z: self._cached_call(z, q = True, isotherm = isotherm)[i] if abs(z) < 1 else Infinity)
+        L = []
+        rds = self.weilrep().rds(indices = True)
+        ds = self.weilrep().ds()
+        for i, x in enumerate(rds):
+            if x is None and self[i]:
+                L.append(complex_plot(f(i), [-1, 1], [-1, 1], **kwargs))
+                if show:
+                    print('Component %s:'%ds[i])
+                    L[-1].show()
+        self._cached_call.clear_cache()
+        return L
 
     def precision(self):
         r"""
@@ -293,6 +533,15 @@ class WeilRepModularForm(object):
 
     def is_holomorphic(self):
         return self.valuation(exact = True) >= 0
+
+    def holomorphic_part(self):
+        return self
+
+    def is_modular(self):
+        return True
+
+    def is_quasimodular(self):
+        return True
 
     def is_symmetric(self):
         r"""
@@ -376,9 +625,13 @@ class WeilRepModularForm(object):
         return v
 
     def coefficients(self):#returns a dictionary of self's Fourier coefficients
-        def f():
-            return 0
-        return defaultdict(f, {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents()})
+        try:
+            return self.__coefficients
+        except AttributeError:
+            def f():
+                return 0
+            self.__coefficients = defaultdict(f, {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents()})
+            return self.__coefficients
 
     def components(self):
         r"""
@@ -629,8 +882,8 @@ class WeilRepModularForm(object):
         X_new = [None]*len(X)
         prec = self.precision()
         for j, x in enumerate(X):
-            val = x[2].valuation()
-            X_new[j] = x[0], x[1], (q ** val) * R([ y * (i + x[1] + val) ** (1-k) for i, y in enumerate(x[2])]) + O(q ** (prec - floor(x[1])))
+            val = min(0, x[2].valuation())
+            X_new[j] = x[0], x[1], (q ** val) * R([ y * (i + x[1] + val) ** (1-k) for i, y in enumerate(x[2].list())]) + O(q ** (prec - floor(x[1])))
         return WeilRepModularForm(2 - k, self.gram_matrix(), X_new, weilrep = self.weilrep())
 
     def conjugate(self, A, w=None):
@@ -956,6 +1209,24 @@ class WeilRepModularForm(object):
                 Y[j] = [g, big_offset, eps * Y[i][2]]
         return WeilRepModularForm(self.weight(), N*S, Y )
 
+    def raising_operator(self):
+        r"""
+        Apply the Maass raising operator.
+
+        The result is an "almost-holomorphic" modular form.
+        """
+        return self.derivative().completion()
+
+    def lowering_operator(self, _weight = None):
+        r"""
+        Apply the Maass lowering operator.
+
+        For holomorphic forms the result is zero.
+        """
+        if _weight is None:
+            _weight = self.weight() - 2
+        return self.weilrep().zero(_weight, self.precision())
+
     def reduce_lattice(self, z = None, z_prime = None, zeta = None, return_vectors = False):
         r"""
         Compute self's image under lattice reduction.
@@ -978,7 +1249,7 @@ class WeilRepModularForm(object):
             sage: w = WeilRep(matrix([[2, 0], [0, -2]]))
             sage: f = w.eisenstein_series(4, 10)
             sage: f.reduce_lattice()
-            [(), 1 + 240*q + 2160*q^2 + 6720*q^3 + 17520*q^4 + 30240*q^5 + 60480*q^6 + 82560*q^7 + 140400*q^8 + 181680*q^9 + O(q^10)]
+            1 + 240*q + 2160*q^2 + 6720*q^3 + 17520*q^4 + 30240*q^5 + 60480*q^6 + 82560*q^7 + 140400*q^8 + 181680*q^9 + O(q^10)
         """
         from weilrep import WeilRep
         w = self.weilrep()
@@ -1106,6 +1377,18 @@ class WeilRepModularForm(object):
                 f /= a
         return f
 
+    def xi(self):
+        r"""
+        Apply the Bruinier--Funke 'xi' operator.
+
+        The result is zero as WeilRepModularForm's are assumed to be holomorphic.
+        """
+        return self.weilrep().dual().zero(2 - self.weight(), self.precision())
+    shadow = xi
+
+    def shadow_multiplier(self):
+        return Integer(1)
+
     def symmetrized(self, b):
         r"""
         Compute the symmetrization of self over an isotropic subgroup of the finite quadratic module.
@@ -1179,7 +1462,7 @@ class WeilRepModularForm(object):
             sage: from weilrep import WeilRep
             sage: w = WeilRep(matrix([[2]]))
             sage: w.eisenstein_series(7/2, 5).theta_contraction()
-            [(), 1 + 240*q + 2160*q^2 + 6720*q^3 + 17520*q^4 + O(q^5)]
+            1 + 240*q + 2160*q^2 + 6720*q^3 + 17520*q^4 + O(q^5)
 
             sage: from weilrep import WeilRep
             sage: w = WeilRep(matrix([[-2,1],[1,2]]))
@@ -1189,7 +1472,7 @@ class WeilRepModularForm(object):
 
             sage: from weilrep import WeilRep
             sage: WeilRep(matrix([[2]])).nearly_holomorphic_modular_forms_basis(-1/2, 1/4, 20)[0].hecke_V(8).theta_contraction()
-            [(), 45/2 + O(q^2)]
+            45/2 + O(q^2)
 
          """
         symm = self.is_symmetric()
@@ -1293,7 +1576,7 @@ def smf(weight, f):
 
         sage: from weilrep import *
         sage: smf(12, delta_qexp(10))
-        [(), q - 24*q^2 + 252*q^3 - 1472*q^4 + 4830*q^5 - 6048*q^6 - 16744*q^7 + 84480*q^8 - 113643*q^9 + O(q^10)]
+        q - 24*q^2 + 252*q^3 - 1472*q^4 + 4830*q^5 - 6048*q^6 - 16744*q^7 + 84480*q^8 - 113643*q^9 + O(q^10)
 
     """
     return WeilRepModularForm(weight, matrix([]), [[vector([]), 0, f]])
@@ -1854,4 +2137,3 @@ class WeilRepModularFormPrincipalPart:
 
     def weilrep(self):
         return self.__weilrep
-

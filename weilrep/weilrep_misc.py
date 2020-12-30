@@ -6,16 +6,35 @@ Miscellaneous functions
 
 """
 
+import cmath
+import math
 from bisect import bisect
-from sage.arith.misc import divisors
+
+from sage.arith.misc import divisors, fundamental_discriminant, is_square, kronecker, prime_divisors
+from sage.arith.srange import srange
+from sage.functions.generalized import sgn
+from sage.functions.other import ceil, floor, frac, sqrt
+from sage.functions.transcendental import zeta
 from sage.matrix.constructor import matrix
+from sage.misc.functional import denominator, isqrt
+from sage.misc.misc_c import prod
+from sage.modular.dirichlet import kronecker_character
 from sage.modular.modform.eis_series import eisenstein_series_qexp
-from sage.functions.other import ceil, floor
+from sage.modular.modform.vm_basis import delta_qexp
+from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
+from sage.quadratic_forms.special_values import quadratic_L_function__exact
 from sage.rings.big_oh import O
 from sage.rings.integer import Integer
+from sage.rings.integer_ring import ZZ
+from sage.rings.number_field.number_field import QuadraticField
+from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
+from sage.rings.power_series_ring import PowerSeriesRing
+from sage.rings.rational_field import QQ
+from sage.symbolic.function import BuiltinFunction
 
 sage_one_eighth = Integer(1) / Integer(8)
+sage_three_half = Integer(3) / Integer(2)
 
 
 def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound):
@@ -52,29 +71,7 @@ def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound)
             return basis, basis_vectors, pivots, rank
     return basis, basis_vectors, pivots, rank
 
-def serre_derivative_on_q_series(f, offset, weight, prec):
-    r"""
-    Computes the formal Serre derivative on a power series of the form q^(offset) * f(q).
-
-    INPUT:
-    - ``f`` -- a power series in the variable 'q'
-    - ``offset`` -- a rational number
-    - ``weight`` -- the weight of the formal Serre derivative
-    - ``prec`` -- precision
-
-    OUTPUT: a power series in the variable 'q'
-
-    NOTE:  ``prec`` is only used if f=0. should this be fixed?
-    """
-    #R.<q> = PowerSeriesRing(QQ,f.prec())
-    r = f.parent()
-    q, = r.gens()
-    if f:
-        fval = f.valuation()
-        fprec = f.prec()
-        E2 = eisenstein_series_qexp(2, fprec, normalization = 'constant')
-        return q**(fval) * r([f[i] * (i + offset) for i in range(fval, fprec)]) - weight/12 * f * E2
-    return O(q ** (prec - floor(offset)))
+## theta blocks
 
 def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose = False):
     r"""
@@ -219,3 +216,43 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
     if verbose:
         print('I did not find enough theta blocks. Time to try something else.')
     return jacobiforms.basis(2, prec, try_theta_blocks = False, verbose = verbose)
+
+class QuadraticLFunction(BuiltinFunction):
+    r"""
+    Symbolic quadratic L-functions.
+
+    L(s, D) represents the Dirichlet series \sum_{n = 1}^{\infty} \chi_D(n) n^{-s}, where D is a discriminant (i.e. 0 or 1 mod 4) and \chi_D(n) is the kronecker symbol (D / n)
+    """
+    def __init__(self):
+        super().__init__('L', nargs=2, latex_name = 'L')
+
+    def _eval_(self, x, D): #symbolic value
+        D = Integer(D)
+        if D % 4 > 1:
+            raise ValueError('Not a discriminant')
+        f = D.squarefree_part()
+        if f % 4 > 1 and not D % 4:
+            f *= 4
+        m = D // f
+        if f != D:
+            L = QuadraticLFunction()
+            return prod(1 - p**(-x) * kronecker(f, p) for p in prime_divisors(m)) * L(x, f)
+        if D == 1:
+            return prod(1 - p**(-x) * kronecker(f, p) for p in prime_divisors(m)) * zeta(x)
+        try:
+            return quadratic_L_function__exact(x, D)
+        except TypeError:
+            pass
+
+    def _evalf_(self, x, D, **kwargs): #numerical value
+        D = Integer(D)
+        if D % 4 > 1:
+            raise ValueError('Not a discriminant')
+        s = kronecker_character(D).lfunction()(x)
+        f = D.squarefree_part()
+        if f % 4 > 1 and not D % 4:
+            f *= 4
+        m = D // f
+        if m != 1:
+            return prod(1 - p**(-x) * kronecker(f, p) for p in prime_divisors(m)) * s
+        return s

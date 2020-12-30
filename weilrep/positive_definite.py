@@ -472,6 +472,8 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         try:
             X = self.fourier_jacobi()
             f = X[1]
+            if not bool(f):
+                return False
             return all(f.hecke_V(N) == x for N, x in enumerate(X) if N)
         except NotImplementedError:
             return False

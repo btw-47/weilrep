@@ -1042,6 +1042,12 @@ class JacobiForm:
             self.__weilrep = WeilRep(self.index_matrix())
             return self.__weilrep
 
+    def __bool__(self):
+        try:
+            return self.modform().__bool__()
+        except AttributeError:
+            return self.fourier_expansion().__bool__()
+
     ## arithmetic operations
 
     def __add__(self, other):
