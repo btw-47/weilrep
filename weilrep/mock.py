@@ -203,7 +203,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         EXAMPLES::
             sage: from weilrep import WeilRep
             sage: w = WeilRep([])
-            sage: e2 = w.eisenstein_series(2, 5).holomorphic_part()
+            sage: e2 = w.eisenstein_series(2, 5)
             sage: e2.completion()
             Almost holomorphic modular form f_0 + f_1 * (4 pi y)^(-1), where:
             f_0 =
@@ -245,7 +245,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         EXAMPLES::
             sage: from weilrep import WeilRep
             sage: w = WeilRep([])
-            sage: e2 = w.eisenstein_series(2, 5).holomorphic_part()
+            sage: e2 = w.eisenstein_series(2, 5)
             sage: e2.derivative()
             -24*q - 144*q^2 - 288*q^3 - 672*q^4 + O(q^5)
         """

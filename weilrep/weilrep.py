@@ -875,7 +875,7 @@ class WeilRep(object):
             [(1/2, 1/4, 1/2), -8*q^(5/8) - 40*q^(13/8) - 80*q^(21/8) - 120*q^(29/8) - 200*q^(37/8) + O(q^(45/8))]
 
             sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([])).eisenstein_series(2, 10)
+            sage: WeilRep(matrix([])).eisenstein_series(2, 10).completion()
             Almost holomorphic modular form f_0 + f_1 * (4 pi y)^(-1), where:
             f_0 =
             1 - 24*q - 72*q^2 - 96*q^3 - 168*q^4 - 144*q^5 - 288*q^6 - 192*q^7 - 360*q^8 - 312*q^9 + O(q^10)
@@ -885,7 +885,7 @@ class WeilRep(object):
 
             sage: from weilrep import WeilRep
             sage: w = WeilRep(matrix([[6]]))
-            sage: w.eisenstein_series(3/2, 5)
+            sage: w.eisenstein_series(3/2, 5).completion()
             Harmonic Maass form with holomorphic part
             [(0), 1 - 4*q - 6*q^2 - 12*q^3 - 10*q^4 + O(q^5)]
             [(1/6), -3*q^(11/12) - 9*q^(23/12) - 6*q^(35/12) - 15*q^(47/12) - 9*q^(59/12) + O(q^(71/12))]
@@ -923,14 +923,14 @@ class WeilRep(object):
                 if k == 2:
                     s = self.eisenstein_series_shadow(prec)
                     if s:
-                        self.__eisenstein[k] = prec, WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * s / sqrt(self.discriminant()), self.eisenstein_series(k, prec, allow_small_weight = True)], weilrep = self).completion()
+                        self.__eisenstein[k] = prec, WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * s / sqrt(self.discriminant()), self.eisenstein_series(k, prec, allow_small_weight = True)], weilrep = self)
                     else:
                         self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
                 else:
                     s = self.eisenstein_series_shadow_wt_three_half(prec)
                     if s:
                         multiplier = 1 / (pi * sqrt(self.discriminant() // 2))
-                        self.__eisenstein[k] = prec, WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True).fourier_expansion(), s / 16, shadow_multiplier = multiplier, weilrep = self).completion()
+                        self.__eisenstein[k] = prec, WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True).fourier_expansion(), s / 16, shadow_multiplier = multiplier, weilrep = self)
                     else:
                         self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
                 return self.__eisenstein[k][1]
