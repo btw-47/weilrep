@@ -599,7 +599,7 @@ class WeilRepMockModularForm(WeilRepModularForm):
                 Z[i] = z[0], 0, z[2] + Y[tuple(z[0])][0]
         return WeilRepModularForm(X.weight(), X.gram_matrix(), Z, weilrep = self.weilrep())
 
-    def flip(self):
+    def flip(self): ##does not work
         k = self.weight()
         try:
             k = ZZ(k)
@@ -613,6 +613,11 @@ class WeilRepMockModularForm(WeilRepModularForm):
 
     def is_quasimodular(self):
         return False
+
+    def reduce_precision(self, prec, **kwargs):
+        f = super().reduce_precision(prec)
+        g = self.shadow().reduce_precision(prec)
+        return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), g, multiplier = self.__multiplier, shadow_multipler = self.__shadow_multiplier)
 
 
 class WeilRepWeakMaassForm(WeilRepModularForm):
@@ -786,3 +791,6 @@ class WeilRepWeakMaassForm(WeilRepModularForm):
 
     def n(self):
         return WeilRepWeakMaassForm(self.weight(), self.gram_matrix(), (super().n() * self.__multiplier_n).fourier_expansion(), self.shadow().n() * self.__shadow_multiplier_n, weilrep = self.weilrep())
+
+    def reduce_precision(self, prec):
+        return self.holomorphic_part().reduce_precision(prec).completion()
