@@ -248,7 +248,7 @@ class QuadraticLFunction(BuiltinFunction):
         D = Integer(D)
         if D % 4 > 1:
             raise ValueError('Not a discriminant')
-        s = kronecker_character(D).lfunction()(x)
+        s = kronecker_character(D).lfunction(algorithm='lcalc').value(x).real()
         f = D.squarefree_part()
         if f % 4 > 1 and not D % 4:
             f *= 4
