@@ -1441,7 +1441,7 @@ class WeilRep(object):
                 X.append([g, norm_list[indices[i]], eps * X[indices[i]][2]])
         return WeilRepModularForm(k, S, X, weilrep = self)
 
-    def eisenstein_oldform(self, k, b, prec):
+    def eisenstein_oldform(self, k, b, prec, **kwargs):
         r"""
         Compute certain Eisenstein oldforms.
 
@@ -1468,7 +1468,7 @@ class WeilRep(object):
             [(7/8), O(q^(95/16))]
         """
         eps = 1 if self.is_symmetric_weight(k) else -1
-        E = self.eisenstein_series(k, prec)
+        E = self.eisenstein_series(k, prec, **kwargs)
         d_b = denominator(b)
         if d_b == 1:
             return E
@@ -2593,48 +2593,43 @@ class WeilRep(object):
         except TypeError:
             pass
         j = floor((k - 1) / 2)
-        dim = floor(min(dim, j) if dim else j)
-        k_list = [k - (j + j) for j in srange(dim)]
+        bd = floor(min(dim, j) if dim else j)
+        k_list = [k - (j + j) for j in srange(bd)]
         E = self.eisenstein_series(k_list, ceil(prec))
+        X = []
+        e = E[0]
         if include_E:
-            X = [E[0]]
-        else:
+            X.append(e)
+        if len(k_list) > 2:
+            e4 = smf(4, eisenstein_series_qexp(4, prec, normalization = 'constant'))
+            if len(k_list) > 3:
+                e6 = smf(6, eisenstein_series_qexp(6, prec, normalization = 'constant'))
+                y = e - e6 * E[3]
+                if y:
+                    X.append(y)
             X = []
-        def repeated_serre_deriv(x, N):
-            if N <= 0:
-                return x
-            return repeated_serre_deriv(x.serre_derivative(normalize_constant_term = True), N - 1)
-        if len(k_list) > 1:
-            e4 = eisenstein_series_qexp(4, prec, normalization='constant')
-            if len(k_list) > 2:
-                e6 = eisenstein_series_qexp(6, prec, normalization='constant')
-        for c in srange(dim // 3 + 1):
-            if c:
-                s6 = smf(6 * c, e6 ** c)
-            three_c = c + c + c
-            for b in srange((dim - 3*c) // 2 + 1):
-                if b:
-                    s4 = smf(4*b, e4 ** b)
-                i = three_c + b + b
-                for a in range(dim - i):
-                    if (i or a) and len(X) < (4/3) * dim: #random multiple...
-                        u = E[a + i]
-                        if b:
-                            u = u * s4
-                        if c:
-                            u = u * s6
-                        u = repeated_serre_deriv(u, a)
-                        if include_E:
-                            u *= u.denominator()
-                            X.append(u)
-                        else:
-                            u = E[0] - u
-                            u *= u.denominator()
-                            X.append(u)
-        b = WeilRepModularFormsBasis(k, X, self)
+        Y = []
+        Z = []
+        E.reverse()
+        for f in E:
+            if dim is None or len(Y) < dim:
+                temp = [y for y in Y]
+                Y = WeilRepModularFormsBasis(f.weight(), [f] + [x.serre_derivative(normalize_constant_term = True) for x in Y] + [e4 * z for z in Z], self)
+                Z = temp
+            else:
+                j = f.weight() - 2
+                j = (k - j) // 2
+                if j % 2:
+                    Y = [y.serre_derivative(normalize_constant_term = True) for y in Y]
+                if j >= 2:
+                    e4j = e4 ** (j // 2)
+                    Y = [e4j * y for y in Y]
+                break
+        X = WeilRepModularFormsBasis(k, X + [e - y for y in Y], self)
+        X.remove_nonpivots()
         if include_E:
-            return b
-        return E[0], b
+            return X
+        return e, X
 
     def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False, echelonize = True, symmetry_data = None):#basis of cusp forms
         r"""
@@ -2864,7 +2859,7 @@ class WeilRep(object):
                 return X, rank
             def t_packet_2(X, k, m, b, max_dim, prec, verbose = False): #anti-symmetric
                 w_new = self.embiggen(b, m)
-                if max_dim > 3:
+                if max_dim > 3 and k >= 4:
                     z = w_new.cusp_forms_basis(k - sage_three_half, prec, echelonize = False, verbose = verbose, dim = max_dim).theta(weilrep = self, odd = True)
                     if z:
                         X.extend(z)
