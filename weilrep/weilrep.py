@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2021 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1441,7 +1441,7 @@ class WeilRep(object):
                 X.append([g, norm_list[indices[i]], eps * X[indices[i]][2]])
         return WeilRepModularForm(k, S, X, weilrep = self)
 
-    def eisenstein_oldform(self, k, b, prec, allow_small_weight = False):
+    def eisenstein_oldform(self, k, b, prec):
         r"""
         Compute certain Eisenstein oldforms.
 
@@ -1468,28 +1468,45 @@ class WeilRep(object):
             [(7/8), O(q^(95/16))]
         """
         eps = 1 if self.is_symmetric_weight(k) else -1
-        E = self.eisenstein_series(k, prec, allow_small_weight = allow_small_weight)
+        E = self.eisenstein_series(k, prec)
         d_b = denominator(b)
         if d_b == 1:
             return E
         q, = PowerSeriesRing(QQ, 'q').gens()
-        S = self.gram_matrix()
-        X = E.components()
-        ds = self.ds()
-        indices = self.rds(indices = True)
-        norm_list = self.norm_list()
-        Y = [None] * len(ds)
-        for i, g in enumerate(ds):
-            if indices[i] is None:
-                g_b = frac(g * S * b)
-                if g_b:
-                    Y[i] = g, norm_list[i], O(q ** (prec - floor(norm_list[i])))
+        def a(E):
+            w = E.weilrep()
+            S = w.gram_matrix()
+            ds = w.ds()
+            indices = w.rds(indices = True)
+            norm_list = w.norm_list()
+            X = E.components()
+            Y = [None] * len(ds)
+            for i, g in enumerate(ds):
+                if indices[i] is None:
+                    g_b = frac(g * S * b)
+                    if g_b:
+                        Y[i] = g, norm_list[i], O(q ** (prec - floor(norm_list[i])))
+                    else:
+                        f = sum(X[tuple(map(frac, g + j * b))] for j in range(d_b))
+                        Y[i] = g, norm_list[i], f
                 else:
-                    f = sum(X[tuple(map(frac, g + j * b))] for j in range(d_b))
-                    Y[i] = g, norm_list[i], f
-            else:
-                Y[i] = g, norm_list[i], eps*Y[indices[i]][2]
-        return WeilRepModularForm(k, S, Y, weilrep = self)
+                    Y[i] = g, norm_list[i], eps*Y[indices[i]][2]
+            return Y
+        Y = a(E)
+        S = self.gram_matrix()
+        if k > 2:
+            return WeilRepModularForm(k, S, Y, weilrep = self)
+        elif k == 2:
+            s = self.eisenstein_series_shadow(prec)
+            if s:
+                return WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * a(s) / isqrt(self.discriminant()), WeilRepModularForm(k, S, Y, weilrep = self)], weilrep = self)
+            return WeilRepModularForm(k, S, Y, weilrep = self)
+        else:
+            s = self.eisenstein_series_shadow_wt_three_half(prec)
+            if s:
+                multiplier = 1 / (pi * sqrt(self.discriminant() // 2))
+                return WeilRepMockModularForm(k, self.gram_matrix(), Y, WeilRepModularForm(1/2, -S, a(s), s.weilrep()) / 16, shadow_multiplier = multiplier, weilrep = self)
+            return WeilRepModularForm(k, S, Y, weilrep = self)
 
     def eisenstein_series_shadow(self, prec):
         r"""

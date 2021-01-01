@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2021 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ from re import sub
 from scipy.special import gamma, hyperu
 
 from sage.functions.generalized import sgn
-from sage.functions.other import ceil, factorial, floor
+from sage.functions.other import ceil, factorial, floor, sqrt
 from sage.misc.cachefunc import cached_method
 from sage.misc.latex import latex
 from sage.modules.free_module_element import vector
@@ -37,7 +37,7 @@ from sage.rings.integer_ring import ZZ
 from sage.rings.rational_field import QQ
 from sage.symbolic.constants import pi
 
-from .weilrep_modular_forms_class import WeilRepModularForm
+from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
 
 class WeilRepQuasiModularForm(WeilRepModularForm):
     r"""
@@ -65,6 +65,8 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         except StopIteration:
             j = l
         f = terms[-1].fourier_expansion()
+        if weilrep is None:
+            weilrep = terms[-1].weilrep()
         super().__init__(k, S, f, weilrep=weilrep)
         l -= 1
         if j < l:
@@ -128,16 +130,17 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         """
         return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [-x for x in self._terms()], weilrep=self.weilrep())
 
-    def __mul__(self, other):
+    def __mul__(self, other, w = None):
         r"""
         (Tensor) Product of quasimodular forms
         """
         if other in QQ:
             return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [other*x for x in self._terms()], weilrep=self.weilrep())
-        w1 = self.weilrep()
-        w2 = other.weilrep()
         k = self.weight() + other.weight()
-        w = w1 + w2
+        if w is None:
+            w1 = self.weilrep()
+            w2 = other.weilrep()
+            w = w1 + w2
         t1 = self._terms()
         t2 = other._terms()
         r = self.depth()
@@ -306,6 +309,34 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         else:
             return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.reduce_precision(prec) for x in self._terms()], weilrep = self.weilrep())
 
+    def hecke_P(self, N):
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() / (N * N), [x.hecke_P(N) for x in self._terms()], weilrep = self.weilrep())
+
+    def hecke_T(self, N):
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.hecke_T(N) for x in self._terms()], weilrep = self.weilrep())
+
+    def hecke_U(self, N):
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N * N, [x.hecke_U(N) for x in self._terms()])
+
+    def hecke_V(self, N):
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N, [x.hecke_V(N) for x in self._terms()])
+
+    def bol(self):
+        k = self.weight()
+        try:
+            k = Integer(k)
+        except TypeError:
+            raise TypeError('Invalid weight') from None
+        if k == 1:
+            return self
+        elif k == 0:
+            return self.derivative()
+        return (self.derivative()).bol().derivative()
+
+    def theta_contraction(self):
+        X = WeilRepModularFormsBasis(self.weight(), self._terms(), self.weilrep()).theta()
+        return WeilRepQuasiModularForm(X.weight(), X.gram_matrix(), list(X), X.weilrep())
+
 class WeilRepAlmostHolomorphicModularForm:
     r"""
     Provide a custom string representation for the 'completion' of a quasimodular form. Also implements arithmetic operations and the Maass raising operator.
@@ -352,6 +383,15 @@ class WeilRepAlmostHolomorphicModularForm:
     def depth(self):
         return self.__depth
 
+    def precision(self):
+        return self[0].precision()
+
+    def valuation(self):
+        return self[0].valuation()
+
+    def coefficient_vector(self):
+        return self[0].coefficient_vector()
+
     def weilrep(self):
         try:
             return self.__weilrep
@@ -380,12 +420,12 @@ class WeilRepAlmostHolomorphicModularForm:
         except AttributeError:
             return (self[0] - other).completion()
 
-    def __mul__(self, other):
+    def __mul__(self, other, **kwargs):
         try:
             if other in QQ:
                 return (other * self[0]).completion()
             try:
-                return (self[0] * other[0]).completion()
+                return (self[0].__mul__(other[0], **kwargs)).completion()
             except AttributeError:
                 return (self[0] * other).completion()
         except TypeError:
@@ -405,6 +445,15 @@ class WeilRepAlmostHolomorphicModularForm:
 
     def derivative(self):
         return NotImplemented
+
+    def __getattr__(self, x):
+        try:
+            h = self[0].__getattribute__(x)
+            def a(*args, **kwargs):
+                return h(*args, **kwargs).completion()
+            return a
+        except AttributeError as e:
+            raise e
 
     def raising_operator(self):
         return self[0].derivative().completion()
@@ -599,7 +648,7 @@ class WeilRepMockModularForm(WeilRepModularForm):
                 Z[i] = z[0], 0, z[2] + Y[tuple(z[0])][0]
         return WeilRepModularForm(X.weight(), X.gram_matrix(), Z, weilrep = self.weilrep())
 
-    def flip(self): ##does not work
+    def flip(self): ##does not work correctly??
         k = self.weight()
         try:
             k = ZZ(k)
@@ -618,6 +667,29 @@ class WeilRepMockModularForm(WeilRepModularForm):
         f = super().reduce_precision(prec)
         g = self.shadow().reduce_precision(prec)
         return WeilRepMockModularForm(self.weight(), self.gram_matrix(), f.fourier_expansion(), g, multiplier = self.__multiplier, shadow_multipler = self.__shadow_multiplier)
+
+    def theta_contraction(self):
+        raise NotImplementedError
+
+    def hecke_P(self, N):
+        raise NotImplementedError
+        #X = super().hecke_P(N)
+        #return WeilRepMockModularForm(self.weight(), X.gram_matrix(), X.fourier_expansion(), self.shadow().hecke_P(N), weilrep = X.weilrep(), multiplier = self.__multiplier, shadow_multiplier = self.__shadow_multiplier)
+
+    def hecke_T(self, N):
+        raise NotImplementedError
+        #X = super().hecke_T(N)
+        #return WeilRepMockModularForm(self.weight(), X.gram_matrix(), X.fourier_expansion(), self.shadow().hecke_T(N), weilrep = X.weilrep(), multiplier = self.__multiplier, shadow_multiplier = self.__shadow_multiplier)
+
+    def hecke_U(self, N):
+        raise NotImplementedError
+        #X = super().hecke_U(N)
+        #return WeilRepMockModularForm(self.weight(), X.gram_matrix(), X.fourier_expansion(), self.shadow().hecke_U(N), weilrep = X.weilrep(), multiplier = self.__multiplier, shadow_multiplier = self.__shadow_multiplier)
+
+    def hecke_V(self, N):
+        raise NotImplementedError
+        #X = super().hecke_V(N)
+        #return WeilRepMockModularForm(self.weight(), X.gram_matrix(), X.fourier_expansion(), self.shadow().hecke_V(N), weilrep = X.weilrep(), multiplier = self.__multiplier, shadow_multiplier = self.__shadow_multiplier * sqrt(self.weilrep().discriminant()))
 
 
 class WeilRepWeakMaassForm(WeilRepModularForm):
@@ -710,7 +782,7 @@ class WeilRepWeakMaassForm(WeilRepModularForm):
             four_pi_y = 2 * two_pi * y
             psi = lambda n: hyperu(k, k, four_pi_y * n) * (2 * two_pi * n) ** (k - 1)
             s = correction()
-        a = f - s * self.__shadow_multiplier_n#* (-1)**k
+        a = f - s * self.__shadow_multiplier_n
         return a
 
     @cached_method
@@ -794,3 +866,18 @@ class WeilRepWeakMaassForm(WeilRepModularForm):
 
     def reduce_precision(self, prec):
         return self.holomorphic_part().reduce_precision(prec).completion()
+
+    def hecke_P(self, N):
+        return self.holomorphic_part().hecke_P(N).completion()
+
+    def hecke_T(self, N):
+        return self.holomorphic_part().hecke_T(N).completion()
+
+    def hecke_U(self, N):
+        return self.holomorphic_part().hecke_U(N).completion()
+
+    def hecke_V(self, N):
+        return self.holomorphic_part().hecke_V(N).completion()
+
+    def theta_contraction(self):
+        raise NotImplementedError

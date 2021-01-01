@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2021 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -57,6 +57,7 @@ from sage.rings.real_mpfr import RealField, RR
 from sage.structure.element import is_Matrix
 
 sage_one_half = Integer(1) / Integer(2)
+
 
 
 
@@ -258,11 +259,14 @@ class WeilRepModularForm(object):
         - ``z`` -- a point in the upper half plane. Can be an element of CC or a complex().
         - ``q`` -- boolean. If True then we interpret 'z' instead as the variable 'q' in the unit disc.
         """
+        cmath_exp = cmath.exp
+        cmath_log = cmath.log
+        two_pi = 2 * math.pi
         if funct is None:
             funct = self.__call__
         if q:
             if z:
-                z = cmath.log(z) / complex(0.0, 2 * math.pi)
+                z = cmath_log(z) / complex(0.0, two_pi)
                 return funct(z)
             return vector([self[i][0] if not x else 0 for i, x in enumerate(self.weilrep().norm_list())])
         if self.is_modular():
@@ -291,7 +295,7 @@ class WeilRepModularForm(object):
         elif self.is_quasimodular():
             if 0 < abs(z) < 1:
                 z1 = -1 / z
-                two_pi_inv = 1 / complex(0.0, 2*math.pi)
+                two_pi_inv = 1 / complex(0.0, two_pi)
                 return z1 ** self.weight() * self.weilrep()._evaluate(0, -1, 1, 0) * (sum(f.__call__(z1) * (two_pi_inv * z)**j for j, f in enumerate(self.completion())))
             else:
                 try:
@@ -318,16 +322,18 @@ class WeilRepModularForm(object):
         val = self.valuation()
         prec = self.precision()
         if val < 0:
-            val = -val
-            f = smf(12 * val, delta_qexp(prec + 1) ** val)
-            f = f.__mul__(self)
-            u = cmath.exp(complex(0.0, 2 * math.pi) * z)
-            if not u:
-                return f(0.0, q = True)
-            return f(z) * (u * complex(mpmath.qp(u)) ** 24) ** (-val)
-        two_pi = 2 * math.pi
+            try:
+                val = -val
+                f = smf(12 * val, delta_qexp(prec + 1) ** val)
+                f = f.__mul__(self)
+                u = cmath_exp(complex(0.0, 2 * math.pi) * z)
+                if not u:
+                    return f(0.0, q = True)
+                return f(z) * (u * complex(mpmath.qp(u)) ** 24) ** (-val)
+            except OverflowError:
+                return vector([0.0 for _ in self.weilrep().ds()])
         w = self.weilrep()
-        e = cmath.exp(complex(0.0, two_pi) * z)
+        e = cmath_exp(complex(0.0, two_pi) * z)
         indices = w.rds(indices = True)
         v = vector([complex(0.0, 0.0) for _ in w.ds()])
         X = self.fourier_expansion()
@@ -352,7 +358,7 @@ class WeilRepModularForm(object):
                 except AttributeError:
                     d = x[2].laurent_polynomial().dict()
                 try:
-                    v[i] = cmath.exp(complex(0.0, two_pi * x[1]) * z) * sum(e(x) * d[x] for x in d.keys() if x < bd)
+                    v[i] = cmath_exp(complex(0.0, two_pi * x[1]) * z) * sum(e(x) * d[x] for x in d.keys() if x < bd)
                 except OverflowError:
                     v[i] = 0.0
                 except TypeError:
@@ -968,6 +974,7 @@ class WeilRepModularForm(object):
 
         This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
         """
+        from .weilrep import WeilRep
         S = self.gram_matrix()
         S_new = matrix(ZZ, S / (N * N))
         nrows = S.nrows()
@@ -2032,14 +2039,21 @@ def rankin_cohen(N, X, Y):
         val = f.valuation()
         prec = f.prec()
         return (q**val * r([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
-    d = lambda f: [(x[0], x[1], d0(x[1], x[2])) for x in f]
+    m = X.is_modular() and Y.is_modular()
+    if m:
+        d = lambda f: [(x[0], x[1], d0(x[1], x[2])) for x in f]
+    else:
+        deriv1[0], deriv2[0] = X, Y
+        d = lambda x: x.derivative()
     for r in range(1, N + 1):
         binom1[r] = (binom1[r - 1] * k) // r
         binom2[r] = (binom2[r - 1] * ell) // r
         deriv1[r] = d(deriv1[r - 1])
         deriv2[r] = d(deriv2[r - 1])
         k, ell = k-1, ell-1
-    return sum( (-1)**r * binom1[r] * binom2[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w = w) for r in range(N + 1))
+    if m:
+        return sum( (-1)**r * binom1[r] * binom2[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w = w) for r in range(N + 1))
+    return sum( (-1)**r * binom1[r] * binom2[-1-r] * deriv1[r].__mul__(deriv2[-1 - r], w=w) for r in range(N + 1))
 
 def theta_product(f, g, _check = True):
     r"""
