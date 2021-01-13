@@ -8,7 +8,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2021 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -310,7 +310,7 @@ def twonf_with_change_vars(Q):
     WARNING: the change-of-basis matrix P computed here does not put the quadratic form in Jordan normal form! (This is impossible over the integers.) For our purposes it is enough that the result is 2-adically ``close enough``. In the example below (Q = A_3 lattice) we obtain the Gram matrix P * (Q_Jordan).matrix() * P.transpose() = matrix([[2,1,0],[1,2,-3],[0,-3,114]]), which equals Q.matrix() = matrix([[2,1,0],[1,2,1],[0,1,2]]) only mod 4.
 
     INPUT:
-    - ``Q`` -- a quadratic form over ZZ
+    - ``Q`` -- matrix
 
     OUTPUT:
     - ``Q_Jordan`` -- the Jordan normal form of Q (also a quadratic form)
@@ -333,6 +333,7 @@ def twonf_with_change_vars(Q):
     """
 
     #basically copied from the built-in function local_normal_form(), specialized to p=2, but it also computes a change-of-variables to the local normal form. it skips the "Cassels' proof" step. this is accounted for later.
+    Q = QuadraticForm(Q)
     I = list(range(Q.dim()))
     P = identity_matrix(QQ,Q.dim())
     Q_Jordan = DiagonalQuadraticForm(ZZ,[])
@@ -419,7 +420,7 @@ def twoadic_isospectral_normal_form(Q,L):
         , 2, 0)
 
     """
-    D, P = twonf_with_change_vars(QuadraticForm(Q.matrix()))
+    D, P = twonf_with_change_vars(Q.matrix())
     L = P * L
     linear_term_gcd = 0
     NewQ = DiagonalQuadraticForm(ZZ, [])
@@ -487,7 +488,7 @@ def twoadic_classify(Q):
         ([3], 0, 0)
 
     """
-    J = twonf_with_change_vars(Q)
+    J = twonf_with_change_vars(Q.matrix())
     J = J[0].matrix()
     squares = []
     ell = 0
@@ -947,7 +948,7 @@ def iaqqq(a,u,U0,U1,U2,t):
         else:
             return hat_hq(a,u,Q0,t) + two_r1 * tilde_hq_diff(a,u,Q0,t)
 
-def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at the same time\
+def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at the same time
     r"""
     Compute special values of Igusa (local) zeta functions of quadratic polynomials at the prime p=2.
 

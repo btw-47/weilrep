@@ -55,6 +55,7 @@ from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 from sage.rings.real_mpfr import RealField, RR
 from sage.structure.element import is_Matrix
+from sage.symbolic.ring import SR
 
 sage_one_half = Integer(1) / Integer(2)
 
@@ -101,7 +102,7 @@ class WeilRepModularForm(object):
         try:
             return self.__qexp_string
         except AttributeError:
-            r = r'(q(\^-?\d+)?)|((?<!\^)\d+\s)'
+            r = r'((?<!\w)q(?!\w)(\^-?\d+)?)|((?<!\^)\d+\s)'
             X = self.__fourier_expansions
             def a(x):
                 def b(y):
@@ -595,7 +596,7 @@ class WeilRepModularForm(object):
         elif (not starting_from) and (ending_with == self.weight() / 12):
             try:
                 return self.__coefficient_vector_sturm_bound
-            except:
+            except: #this will probably be triggered anyway
                 pass
         if G is None:
             w = self.weilrep()
@@ -669,7 +670,7 @@ class WeilRepModularForm(object):
         from .mock import WeilRepQuasiModularForm
         if not other:
             return self
-        elif isinstance(other, WeilRepQuasiModularForm):
+        elif isinstance(other, WeilRepQuasiModularForm): #return the sum as a quasimodular formm by using the 'add' method from quasimodular forms
             return other.__add__(self)
         elif not self.gram_matrix() == other.gram_matrix():
             raise ValueError('Incompatible Gram matrices')
@@ -782,7 +783,15 @@ class WeilRepModularForm(object):
             return WeilRepModularForm(self.__weight + other.weight(), self.gram_matrix(), [(x[0], x[1], x[2]*other.qexp()) for x in X], weilrep = self.weilrep())
         else:
             X = self.fourier_expansion()
-            X_times_other = WeilRepModularForm(self.__weight, self.gram_matrix(), [(x[0], x[1], x[2]*other) for x in X], weilrep = self.weilrep())
+            try:
+                X_times_other = WeilRepModularForm(self.__weight, self.gram_matrix(), [(x[0], x[1], x[2]*other) for x in X], weilrep = self.weilrep())
+            except TypeError as err:
+                if other in SR:
+                    R, q = PowerSeriesRing(SR, 'q').objgen()
+                    prec = self.precision()
+                    X_times_other = WeilRepModularForm(self.__weight, self.gram_matrix(), [(x[0], x[1], R(x[2].dict()).add_bigoh(prec)*other) for x in X], weilrep = self.weilrep())
+                else:
+                    raise err from None
             try:
                 v = X.__coefficient_vector
                 X_times_other.coefficient_vector(set_v = v * other)
@@ -1384,6 +1393,27 @@ class WeilRepModularForm(object):
                 f /= a
         return f
 
+    def complex_conjugate(self):
+        r"""
+        Return the modular complex conjugate of self.
+
+        If f(\tau) has weight k then this is the form
+
+        y^k * \overline{f(\tau)}
+        where \tau = x + iy. This is a (non holomorphic) modular form of weight -k.
+        """
+        from .mock import WeilRepMixedModularForm
+        val = self.valuation()
+        if val >= 0:
+            r = PowerSeriesRing(QQ, ['q', 'qbar'])
+        else:
+            r = LaurentSeriesRing(QQ, ['q', 'qbar'])
+        q, qbar = r.gens()
+        X = self.fourier_expansion()
+        k = self.weight()
+        w = self.weilrep().dual()
+        return WeilRepMixedModularForm(k, k, w.gram_matrix(), [(x[0], x[1], r(x[2]).subs({q:qbar})) for x in X], w)
+
     def xi(self):
         r"""
         Apply the Bruinier--Funke 'xi' operator.
@@ -1709,7 +1739,7 @@ class WeilRepModularFormsBasis:
         else:
             return NotImplemented
 
-    def _flag(self):
+    def _flag(self): #I don't remember what this is for but I am afraid to delete it. it appears a few times when you search for it but it doesn't seem to do anything
         return self.__flag
 
     def __getitem__(self, n):
@@ -1717,16 +1747,16 @@ class WeilRepModularFormsBasis:
             return WeilRepModularFormsBasis(self.__weight, self.__basis[n], self.__weilrep)
         return self.__basis[n]
 
-    def __getslice__(self, i, j):
+    def __getslice__(self, i, j): #at one point this was added for compatibility with Python 2. that ship has sailed long ago
         return WeilRepModularFormsBasis(self.__weight, self.__basis[i:j], self.__weilrep)
 
     def gram_matrix(self):
         return self.__weilrep.gram_matrix()
 
-    def is_symmetric(self):
+    def is_symmetric(self): #whether self's modular forms are symmetric
         return self.__weilrep.is_symmetric_weight(self.__weight)
 
-    def __iter__(self):
+    def __iter__(self): #iterate like a list
         for x in self.__basis:
             yield x
 
@@ -2151,3 +2181,4 @@ class WeilRepModularFormPrincipalPart:
 
     def weilrep(self):
         return self.__weilrep
+
