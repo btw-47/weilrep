@@ -1287,9 +1287,9 @@ class JacobiForm:
     def __rtruediv__(self, other):
         N = self.nvars()
         if other in QQ:
-            x = JacobiForm(0, matrix(N), other)
+            x = JacobiForm(0, matrix(N), self.qexp().parent()(other))
         elif is_ModularFormElement(other):
-            x = JacobiForm(other.weight(), matrix(N), other)
+            x = JacobiForm(other.weight(), matrix(N), self.qexp().parent()(other.qexp()))
         else:
             x = other
         return x.__truediv__(self)
