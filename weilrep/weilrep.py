@@ -98,10 +98,6 @@ class WeilRep(object):
     def __init__(self, S):
         if not S:
             S = matrix([])
-        #if isinstance(S, CartanMatrix):
-        #    self._cartan = S
-        #else:
-        #    self._cartan = None
         try:
             if isinstance(S.parent(), MatrixSpace):
                 S = matrix(ZZ, S)
@@ -170,7 +166,7 @@ class WeilRep(object):
     def __call__(self, N):
         r"""
         If ``N`` is an integer, then: Rescale the underlying lattice.
-        If ``N`` is a matrix in SL_2(ZZ)
+        If ``N`` is a matrix in SL_2(ZZ), then: return a matrix representation of \rho(N) (with respect to the canonical basis e_x, x \in L'/L, in the order determined by self's method ds()) where \rho is the Weil representation attached to self's lattice.
         """
         try:
             N = Integer(N)
@@ -180,7 +176,7 @@ class WeilRep(object):
             a, b, c, d = tuple(ZZ(x) for x in N.list())
             if not a*d == 1 + b*c:
                 raise ValueError('Matrix is not in SL_2(ZZ)') from None
-            if self.signature() % 2:
+            if self.signature() % 2: #odd rank -> not a representation of SL_2(Z) -> better be careful
                 return self._evaluate_metaplectic(a, b, c, d)[0]
             return self._evaluate(a, b, c, d)
 
@@ -191,7 +187,7 @@ class WeilRep(object):
 
     __radd__ = __add__
 
-    def __hash__(self):
+    def __hash__(self): #just in case ??
         return hash(tuple(self.gram_matrix().coefficients()))
 
     def __mul__(self, N):
@@ -317,6 +313,13 @@ class WeilRep(object):
         return None
 
     def _evaluate(self, a, b, c, d): #bad
+        r"""
+        Compute values of the Weil representation: \rho(M) for M in SL_2(Z). We assume the lattice has even rank.
+
+        Naive algorithm based on writing M as a product of the generators 'T' and 'S', and therefore \rho(M) as a composition of multiplication operators and discrete Fourier transforms.
+        Used when calculating Poincare series, Maass Poincare series, and when computing or plotting modular forms numerically.
+
+        """
         A = (a, b, c, d)
         try:
             return self.__vals[A]
@@ -326,6 +329,7 @@ class WeilRep(object):
             return self.__valsm[A][0]
         except KeyError:
             exp = cmath.exp
+            # a few easy cases
             if A == (0, -1, 1, 0):
                 G = self.gram_matrix()
                 ds = self.ds()
@@ -365,6 +369,7 @@ class WeilRep(object):
                 X = X1 * X2
                 self.__vals[A] = X
                 return X
+            # now what??
             elif c:
                 if abs(a) >= abs(c):
                     q, r = Integer(a).quo_rem(c)
@@ -393,6 +398,14 @@ class WeilRep(object):
                 return X
 
     def _evaluate_metaplectic(self, a, b, c, d): #worse
+        r"""
+        Has the same purpose as ._evaluate(), but retains a branch of the square root as a lambda--function.
+
+        INPUT: integers a, b, c, d such that a*d - b*c = 1
+        OUTPUT: a tuple (M, j) where M is the Weil representation applied to the metaplectic transformation z -> ((a * z + b) / (c * z + d)) *with respect to the choice of square root of cz+d for which Re[ci + d]>= 0 if c != 0* and where j is the corresponding branch of the square root
+
+        NOTE: in practice cmath.sqrt always gives the correct branch of the square root. but can it be trusted ???
+        """
         A = (a, b, c, d)
         try:
             return self.__valsm[A]
@@ -682,7 +695,7 @@ class WeilRep(object):
         Reduce the representatives of the discriminant group modulo equivalence g ~ -g
 
         OUTPUT:
-        - If indices = False then output a sublist of discriminant_group(S) containing exactly one element from each pair {g,-g}. 
+        - If indices = False then output a sublist of discriminant_group(S) containing exactly one element from each pair {g,-g}.
         - If indices = True then output a list X of indices defined as follows. Let ds = self.ds(). Then: X[j] = i if j > i and ds[j] = -ds[i] mod Z^N, and X[j] = None if no such i exists.
 
         NOTE: as we run through the discriminant group we also store the denominators of the vectors as a list
@@ -953,7 +966,7 @@ class WeilRep(object):
             k = Integer(k)
         except TypeError:
             if _flag == 'maass':
-                R, q = PowerSeriesRing(RR, 'q').objgen()
+                R, q = PowerSeriesRing(SR, 'q').objgen()
         if components:
             ds, indices = components
             norm_list = [-frac(g*S*g/2) for g in ds]
@@ -1230,6 +1243,7 @@ class WeilRep(object):
                             X[i][i_g] = g, norm, E + multiplier_list[i] * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
                     else:
                         X[i_g] = g, norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
+                        #print('factors!', g, multiplier, local_factor_list, main_term_list, Lvalue_list)
                     precomputed_lists[norm] = main_term_list
                 else:
                     if k_is_list:
@@ -1698,11 +1712,10 @@ class WeilRep(object):
             k0 = 1
             if (2 * k + self.signature()) % 8:
                 k0 = -1
-            from scipy.special import zeta
             dk = Integer(2 - 2*k)
-            u = (-1) * (4 * math.pi) ** (k - 1) * math.gamma(2 - k)
+            u = (-1) * (4 * pi) ** (k - 1) * gamma(2 - k)
             X = [x for x in (u * X).fourier_expansion()]
-            constant_term_factor = k0 * 2.0**k * math.pi * zeta(dk) / (math.sqrt(d) * zeta(dk + 1))
+            constant_term_factor = k0 * 2**k * pi * zeta(dk) / (sqrt(d) * zeta(dk + 1))
             multiplier = Integer(1)
             for i, x in enumerate(X):
                 if not x[1]:
