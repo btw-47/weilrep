@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2021 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -60,10 +60,10 @@ from sage.rings.real_mpfr import RR
 sage_one_half = Integer(1) / Integer(2)
 sage_three_half = Integer(3) / Integer(2)
 
-from .jacobi_forms_class import JacobiForm, JacobiForms
+from .jacobi_forms_class import JacobiForm, JacobiForms, JacobiFormWithCharacter
 from .lifts import OrthogonalModularForm, OrthogonalModularForms
 from .weilrep import WeilRep
-from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormWithCharacter, WeilRepModularFormsBasis
 
 class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
 
@@ -1092,3 +1092,12 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             return X
         except TypeError:
             raise RuntimeError('I caught a TypeError. This probably means you are trying to compute a Borcherds product that is not holomorphic.')
+
+class WeilRepModularFormPositiveDefiniteWithCharacter(WeilRepModularFormWithCharacter, WeilRepModularFormPositiveDefinite):
+    def jacobi_form(self, *args, **kwargs):
+        from .weilrep_modular_forms_class import smf_eta
+        chi = self.character()
+        k = chi._k()
+        psi = smf_eta() ** (24 - k)
+        f = (self.__mul__(psi)).jacobi_form(*args, **kwargs)
+        return f / psi

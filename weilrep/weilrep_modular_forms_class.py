@@ -2245,12 +2245,18 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
     def __init__(self, *args, **kwargs):
         try:
             character = kwargs.pop('character')
-            self.__character = character
-            super().__init__(*args, **kwargs)
-            self.__class__ = WeilRepModularFormWithCharacter
+            if not character:
+                super().__init__(*args, **kwargs)
+            else:
+                self.__character = character
+                super().__init__(*args, **kwargs)
+                from .positive_definite import WeilRepModularFormPositiveDefiniteWithCharacter, WeilRepModularFormPositiveDefinite
+                if isinstance(self, WeilRepModularFormPositiveDefinite):
+                    self.__class__ = WeilRepModularFormPositiveDefiniteWithCharacter
+                else:
+                    self.__class__ = WeilRepModularFormWithCharacter
         except KeyError:
-            self.__class__ = WeilRepModularForm
-            self.__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
 
     def character(self):
@@ -2260,15 +2266,13 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         if self.character() != other.character():
             return NotImplemented
         f = super().__add__(other)
-        f.__class__, f.__character = WeilRepModularFormWithCharacter, self.character()
-        return f
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
 
     def __sub__(self, other):
         if self.character() != other.character():
             return NotImplemented
         f = super().__sub__(other)
-        f.__class__, f.__character = WeilRepModularFormWithCharacter, self.character()
-        return f
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
 
     def __mul__(self, other):
         f = super().__mul__(other)
@@ -2279,8 +2283,7 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
             x = self.character() * k
         except AttributeError:
             x = self.character()
-        f.__class__, f.__character = WeilRepModularFormWithCharacter, x
-        return f
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = x)
 
     __rmul__ = __mul__
 
@@ -2291,20 +2294,17 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
             x = self.character() / k
         except AttributeError:
             x = self.character()
-        f.__class__, f.__character = WeilRepModularFormWithCharacter, x
-        return f
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = x)
 
     __truediv__ = __div__
 
     def __pow__(self, N):
         f = super().__pow__(N)
-        f.__class__, f.__character = WeilRepModularFormWithCharacter, self.character() ** N
-        return f
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character()**N)
 
     def __neg__(self):
         f = super().__neg__()
-        f.__class__, f.__character = WeilRepModularFormWithCharacter, self.character()
-        return f
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
 
     def __rdiv__(self, other):
         return (~self).__mul__(other)
@@ -2313,8 +2313,7 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
 
     def __invert__(self):
         f = super().__invert__()
-        f.__class__, f.__character = WeilRepModularFormWithCharacter, ~self.character()
-        return f
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = ~self.character())
 
 #special modular forms
 def smf_eta(prec = 20):

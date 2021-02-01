@@ -22,6 +22,7 @@ import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
 
+from collections import Counter
 from re import sub
 
 from sage.arith.misc import divisors
@@ -37,6 +38,7 @@ from sage.modular.modform.element import is_ModularFormElement
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
+from sage.rings.all import CC
 from sage.rings.big_oh import O
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
@@ -905,11 +907,15 @@ class JacobiForm:
             self.__jacobiforms = JacobiForms(self.index())
             return self.__jacobiforms
 
-    def modform(self):
+    def modform(self, error = True):
         r"""
         Try to return self's theta decomposition. If this is not stored then raises an AttributeError.
         """
-        return self.__theta
+        try:
+            return self.__theta
+        except AttributeError as e:
+            if error:
+                raise e
 
     def nvars(self):
         r"""
@@ -1622,7 +1628,6 @@ def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to 
         sage: theta_block([1]*8, 0, 5)
         (w^-4 - 8*w^-3 + 28*w^-2 - 56*w^-1 + 70 - 56*w + 28*w^2 - 8*w^3 + w^4)*q + (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q^2 + (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q^3 + (-56*w^-7 + 288*w^-6 - 616*w^-5 + 896*w^-4 - 1400*w^-3 + 2016*w^-2 - 2024*w^-1 + 1792 - 2024*w + 2016*w^2 - 1400*w^3 + 896*w^4 - 616*w^5 + 288*w^6 - 56*w^7)*q^4 + O(q^5)
     """
-    from collections import Counter
     if any(not a for a in a):
         raise ValueError('List "a" contains zeros')
     qval = Integer(3 * len(a) + n)
@@ -1665,9 +1670,17 @@ class JacobiFormWithCharacter(JacobiForm):
     def __init__(self, *args, **kwargs):
         chi = kwargs.pop('character')
         qshift = kwargs.pop('qshift', 0)
+        qfloor = floor(qshift)
+        if qfloor:
+            f = args[2]
+            f = f.shift(qfloor)
+            qshift -= qfloor
+            args = args[0], args[1], f
         super().__init__(*args, **kwargs)
         if chi:
             self.__class__, self.__character, self.__qshift = JacobiFormWithCharacter, chi, qshift
+        else:
+            self.__class__ = JacobiForm
 
     def __repr__(self):
         try:
@@ -1707,15 +1720,13 @@ class JacobiFormWithCharacter(JacobiForm):
         if self.character() != other.character():
             return NotImplemented
         f = super().__add__(other)
-        f.__class__, f.__character = JacobiFormWithCharacter, self.character()
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
     def __sub__(self, other):
         if self.character() != other.character():
             return NotImplemented
         f = super().__sub__(other)
-        f.__class__, f.__character = JacobiFormWithCharacter, self.character()
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
     def __mul__(self, other):
         f = super().__mul__(other)
@@ -1731,13 +1742,7 @@ class JacobiFormWithCharacter(JacobiForm):
             x *= f.character()
         except AttributeError:
             pass
-        if qshift in ZZ:
-            f._JacobiForm__fourier_expansion = f.fourier_expansion().shift(qshift)
-            f.__qshift = 0
-            f.__class__ = JacobiForm
-            return f
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, x, qshift
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = x, qshift = qshift, w_scale = f.scale())
 
     __rmul__ = __mul__
 
@@ -1760,24 +1765,18 @@ class JacobiFormWithCharacter(JacobiForm):
             f.__qshift = 0
             f.__class__ = JacobiForm
             return f
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, x, qshift
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = x, qshift = qshift, w_scale = f.scale())
 
     __truediv__ = __div__
 
     def __pow__(self, N):
         f = super().__pow__(N)
         qshift = self._qshift() * N
-        if qshift in ZZ:
-            f._JacobiForm__fourier_expansion = f.fourier_expansion().shift(qshift)
-            return f
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, self.character() ** N, qshift
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character()**N, qshift = qshift, w_scale = f.scale())
 
     def __neg__(self):
         f = super().__neg__()
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, self.character(), self._qshift()
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
     def __rdiv__(self, other):
         return (~self).__mul__(other)
@@ -1786,29 +1785,25 @@ class JacobiFormWithCharacter(JacobiForm):
 
     def __invert__(self):
         f = super().__invert__()
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, ~self.character(), -self._qshift()
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = ~self.character(), qshift = -self._qshift(), w_scale = f.scale())
 
     def substitute_zero(self, *args):
         f = super().substitute_zero(*args)
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, self.character(), self._qshift()
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
     def pullback(self, *args):
         f = super().pullback(*args)
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, self.character(), self._qshift()
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
-    def theta_decomposition(self, **kwargs):
+    def theta_decomposition(self, **kwargs): #dumb
         try:
             return self._JacobiForm__theta
         except AttributeError:
-            f = super().theta_decomposition(**kwargs)
-            f.__class__, f.__character = WeilRepModularFormWithCharacter, self.character()
-            u = self._qshift()
-            X = f.fourier_expansion()
-            q, = X[0][2].parent().gens()
-            f._WeilRepModularForm__fourier_expansions = [(x[0], -frac(-x[1] - u), x[2] * (q ** Integer(x[1] + u + frac(-x[1] - u)))) for x in X]
+            chi = self.character()
+            k = chi._k()
+            from .weilrep_modular_forms_class import smf_eta
+            h = smf_eta(self.precision() + 1) ** (24 - k)
+            f = (self * h).theta_decomposition(**kwargs) / h
             self._JacobiForm__theta = f
             return f
 
@@ -1817,8 +1812,7 @@ class JacobiFormWithCharacter(JacobiForm):
 
     def hecke_U(self, N):
         f = super().hecke_U(N)
-        f.__class__, f.__character, f.__qshift = JacobiFormWithCharacter, self.character(), self._qshift()
-        return f
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
     def hecke_V(self, N):
         raise NotImplementedError
