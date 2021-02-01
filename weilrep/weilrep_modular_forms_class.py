@@ -2327,6 +2327,9 @@ def smf_j(prec = 20):
     return smf(0, j_invariant_qexp(prec))
 
 def smf_eisenstein_series(k, prec = 20):
+    if k == 2:
+        from weilrep import WeilRep
+        return WeilRep([]).eisenstein_series(2, prec)
     return smf(k, eisenstein_series_qexp(k, prec, normalization='constant'))
 
 def smf_j_cube_root(prec = 20):

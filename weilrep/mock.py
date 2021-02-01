@@ -271,6 +271,10 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         X = [(r - k) * t[0]] + [(r - k - j) * t[j] + d(t[j-1]) for j in range(1, r+1)] + [d(t[-1])]
         return WeilRepQuasiModularForm(k + 2, self.gram_matrix(), X, weilrep = self.weilrep())
 
+    def serre_derivative(self):
+        from weilrep import WeilRep
+        return self.derivative() - (QQ(self.weight()) / 12) * (self * WeilRep([]).eisenstein_series(2, self.precision()))
+
     def raising_operator(self):
         return NotImplemented
 
@@ -566,6 +570,40 @@ class WeilRepAlmostHolomorphicModularForm:
         return L
 
 
+class WeilRepMixedModularForm(object):
+
+    def __init__(self, y_power, weight, gram_matrix, fourier_expansions, weilrep = None):
+        self.__weight = weight
+        self.__gram_matrix = gram_matrix
+        self.__fourier_expansions = fourier_expansions
+        if weilrep is None:
+            from .weilrep import WeilRep
+            weilrep = WeilRep(gram_matrix)
+        self.__weilrep = weilrep
+        self.__y_power = y_power
+
+    def __repr__(self): #represent as a list of pairs (g, f) where g is in the discriminant group and f is a q-series with fractional exponents
+        try:
+            return self.__qexp_string
+        except AttributeError:
+            r = r'((?<!\w)q(bar)?(?!\w)(\^-?\d+)?)|((?<!\^)\d+\s)'
+            X = self.__fourier_expansions
+            def a(x1, x2):
+                def b(y):
+                    y = y.string[slice(*y.span())]
+                    if y[0] != 'q':
+                        return '%sq^(%s)*qbar^(%s) '%([y[:-1]+'*',''][y == '1 '], x1, x2)
+                    try:
+                        return 'q^(%s)'%(QQ(y[2:]) + x)
+                    except TypeError:
+                        return 'q^(%s)'%(1 + x)
+                return b
+            if self.weilrep():
+                s = '\n'.join(['[%s, %s]'%(x[0], sub(r, a(x[1], x[2]), str(x[3]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
+            else:
+                s = str(X[0][2])
+            self.__qexp_string = s
+            return s
 
 
 class WeilRepMockModularForm(WeilRepModularForm):
