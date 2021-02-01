@@ -2644,7 +2644,7 @@ class WeilRep(object):
             return X
         return e, X
 
-    def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False, echelonize = True, symmetry_data = None):#basis of cusp forms
+    def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False, echelonize = True, symmetry_data = None, eta_twist = 0):#basis of cusp forms
         r"""
         Compute a basis of the space of cusp forms.
 
@@ -2728,15 +2728,21 @@ class WeilRep(object):
             [(0, 1/2), -q^(3/4) + 18*q^(7/4) - 135*q^(11/4) + 510*q^(15/4) - 765*q^(19/4) - 1242*q^(23/4) + 7038*q^(27/4) - 8280*q^(31/4) - 9180*q^(35/4) + 27710*q^(39/4) + O(q^(43/4))]
             [(1/2, 1/2), O(q^(21/2))]
          """
-        if symmetry_data is not None:
-            return self.invariant_cusp_forms_basis(k, prec, G = symmetry_data[0], chi = symmetry_data[1], verbose = verbose)
         try:
             k = Integer(k)
         except TypeError:
             k = QQ(k)
         if k <= 0 or (dim is not None and dim <= 0):
             return WeilRepModularFormsBasis(k, [], self)
-        if not save_pivots:
+        eta_twist = Integer(eta_twist % 24)
+        if eta_twist:
+            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24, prec = prec, inclusive = False, reverse = False, symmetry_data = symmetry_data, verbose = verbose)
+            from .weilrep_modular_forms_class import smf_eta
+            f = smf_eta(prec) ** eta_twist
+            return WeilRepModularFormsBasis(k, [x * f for x in X], self)
+        elif symmetry_data is not None:
+            return self.invariant_cusp_forms_basis(k, prec, G = symmetry_data[0], chi = symmetry_data[1], verbose = verbose)
+        elif not save_pivots:
             try:
                 old_prec, X = self.__cusp_forms_basis[k]
                 if old_prec >= prec or not X:
@@ -2990,7 +2996,7 @@ class WeilRep(object):
                 self.__cusp_forms_basis[k] = prec, X
                 return return_pivots()
 
-    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False, symmetry_data = None):
+    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False, symmetry_data = None, eta_twist = 0):
         r"""
         Compute a basis of the space of modular forms.
 
@@ -3029,6 +3035,12 @@ class WeilRep(object):
             [(1/2, 1/2), q^(1/4) + 8*q^(5/4) - 45*q^(9/4) - 8*q^(13/4) + 226*q^(17/4) - 96*q^(21/4) - 335*q^(25/4) + 88*q^(29/4) - 156*q^(33/4) + 456*q^(37/4) + O(q^(41/4))]
             [(1/2, 3/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^(85/8))]
         """
+        eta_twist = Integer(eta_twist % 24)
+        if eta_twist:
+            X = self.nearly_holomorphic_modular_forms_basis(weight - eta_twist / 2, eta_twist / 24, prec = prec, reverse = False, symmetry_data = symmetry_data, verbose = verbose)
+            from .weilrep_modular_forms_class import smf_eta
+            f = smf_eta(prec) ** eta_twist
+            return WeilRepModularFormsBasis(weight, [x * f for x in X], self)
         if symmetry_data is not None:
             return self.invariant_forms_basis(weight, prec = prec, G = symmetry_data[0], chi = symmetry_data[1], verbose = verbose)
         prec = ceil(prec)
@@ -3137,7 +3149,7 @@ class WeilRep(object):
 
     basis = modular_forms_basis
 
-    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, symmetry_data = None, verbose = False):
+    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, symmetry_data = None, verbose = False, eta_twist = 0):
         r"""
         Compute bases of modular forms that vanish to a specified order at infinity.
 
@@ -3181,6 +3193,12 @@ class WeilRep(object):
             k = Integer(k)
         except TypeError:
             k = QQ(k)
+        eta_twist = Integer(eta_twist % 24)
+        if eta_twist:
+            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 - N, prec = prec, inclusive = not inclusive, reverse = False, symmetry_data = symmetry_data, verbose = verbose)
+            from .weilrep_modular_forms_class import smf_eta
+            f = smf_eta(prec) ** eta_twist
+            return WeilRepModularFormsBasis(k, [x * f for x in X], self)
         symm = self.is_symmetric_weight(k)
         if symm is None:
             return WeilRepModularFormsBasis(k, [], self)
@@ -3234,7 +3252,7 @@ class WeilRep(object):
         Z.echelonize()
         return Z
 
-    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, symmetry_data = None, verbose = False):
+    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, symmetry_data = None, verbose = False, eta_twist = 0):
         r"""
         Computes a basis of nearly holomorphic modular forms.
 
@@ -3331,6 +3349,12 @@ class WeilRep(object):
             k = Integer(k)
         except TypeError:
             k = QQ(k)
+        eta_twist = Integer(eta_twist % 24)
+        if eta_twist:
+            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 + pole_order, prec = prec, reverse = reverse, symmetry_data = symmetry_data, verbose = verbose)
+            from .weilrep_modular_forms_class import smf_eta
+            f = smf_eta(prec) ** eta_twist
+            return WeilRepModularFormsBasis(k, [x * f for x in X], self)
         sturm_bound = k/12
         prec = max(prec, sturm_bound)
         dual_sturm_bound = Integer(1)/Integer(6) - sturm_bound
@@ -3693,18 +3717,22 @@ class WeilRep(object):
             except AttributeError:
                 return []
 
-    def quasimodular_forms_basis(self, k, prec, verbose = False):
-        if k < 2:
+    def quasimodular_forms_basis(self, k, prec, depth = Infinity, verbose = False):
+        if k < 2 or depth <= 0:
             return self.modular_forms_basis(k, prec, verbose=verbose)
         e2 = WeilRep([]).eisenstein_series(2, prec)
         if verbose:
             print('I will compute a basis of quasimodular forms of weight %s.'%k)
-        X = self.quasimodular_forms_basis(k - 2, prec, verbose=verbose)
+        X = self.quasimodular_forms_basis(k - 2, prec, depth = depth - 1, verbose=verbose)
         X = self.modular_forms_basis(k, prec, verbose=verbose) + WeilRepModularFormsBasis(k, [e2 * x for x in X], self, flag = 'quasimodular')
         if verbose:
             print('I am computing an echelon form.')
         X.echelonize()
         return X
+
+    def almost_holomorphic_modular_forms_basis(self, *args, **kwargs):
+        X = self.quasimodular_forms_basis(*args, **kwargs)
+        return WeilRepModularFormsBasis(X.weight(), [x.completion() for x in X], self)
 
     ## automorphisms ##
 
