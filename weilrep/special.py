@@ -45,7 +45,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
     """
 
     def __init__(self, N):
-        S = matrix([[N + N]])
+        S = matrix([[Integer(N + N)]])
         w = WeilRep(S)
         w.lift_qexp_representation = 'siegel'
         OrthogonalModularFormsPositiveDefinite.__init__(self, w)

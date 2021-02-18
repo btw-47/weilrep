@@ -48,6 +48,7 @@ from sage.plot.complex_plot import complex_plot
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.all import CC
 from sage.rings.big_oh import O
+from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
@@ -71,7 +72,7 @@ class WeilRepModularForm(object):
 
     INPUT:
 
-    A WeilRepModularForm is constructed by calling WeilRepModularForm(k, S, X), where
+    A WeilRepModularForm is constructed by c alling WeilRepModularForm(k, S, X), where
     - ``k`` -- a weight (half integer)
     - ``S`` -- a symmetric integral matrix with even diagonal and nonzero determinant (this is not checked)
     - ``X`` -- a list of lists: X = [[g_0, n_0, f_0], [g_1, n_1, f_1], ...] where each element [g, n, f] consists of
@@ -82,6 +83,10 @@ class WeilRepModularForm(object):
     - ``weilrep`` -- optional (default None). This should be set if the VVMF was created by a WeilRep instance.
 
     OUTPUT: WeilRepModularForm(k, S, [[g, n, f], ...]) represents a vector-valued modular form of weight k for the Weil representation attached to the Gram matrix S, whose Fourier expansion takes the form \sum_g q^n f(q) e_g.
+
+    NOTE: WeilRepModularForm's should not (and by default cannot) be constructed this way. If you have to create a vector-valued modular form 'from scratch' then you need to import this class explicitly.
+
+    NOTE: The class is automatically changed to WeilRepModularFormPositiveDefinite or WeilRepModularFormLorentzian if appropriate.
 
     """
 
@@ -159,6 +164,9 @@ class WeilRepModularForm(object):
 
     def base_ring(self):
         return self.fourier_expansion()[0][2].base_ring()
+
+    def character(self):
+        return EtaCharacterPower(0)
 
     def denominator(self):
         r"""
@@ -241,18 +249,21 @@ class WeilRepModularForm(object):
     def n(self):
         r"""
         Replace self's Fourier coefficients by numerical approximations.
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: smf_j().n()
+            1.00000000000000*q^-1 + 744.000000000000 + 196884.000000000*q + 2.14937600000000e7*q^2 + 8.64299970000000e8*q^3 + 2.02458562560000e10*q^4 + 3.33202640600000e11*q^5 + 4.25202330009600e12*q^6 + 4.46569940719350e13*q^7 + 4.01490886656000e14*q^8 + 3.17644022978442e15*q^9 + 2.25673933095936e16*q^10 + 1.46211911499519e17*q^11 + 8.74313719685775e17*q^12 + 4.87201011179814e18*q^13 + 2.54978273894105e19*q^14 + 1.26142916465782e20*q^15 + 5.93121772421445e20*q^16 + 2.66284241315078e21*q^17 + 1.14599127884448e22*q^18 + O(q^19)
         """
-        r, q = PowerSeriesRing(RR, 'q').objgen()
-        prec = self.precision()
         def n(f):
-            val = f.valuation()
-            prec = f.prec()
+            val, prec = f.valuation(), f.prec()
             s = r([y.n() for y in f.list()]).add_bigoh(prec)
             if val >= 0:
                 return s
-            else:
-                return (q ** val) * s
-        #return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], r([y.n() for y in x[2].list()]).add_bigoh(ceil(prec - x[1]))) for x in self.fourier_expansion()], weilrep = self.weilrep())
+            return (q ** val) * s
+        r, q = PowerSeriesRing(RR, 'q').objgen()
+        prec = self.precision()
         return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], n(x[2])) for x in self.fourier_expansion()], weilrep = self.weilrep())
 
     def __call__(self, z, q = False, funct = None):
@@ -278,7 +289,11 @@ class WeilRepModularForm(object):
         if self.is_modular():
             if 0 < abs(z) < 1:
                 z = -1 / z
-                return (z ** self.weight()) * (self.weilrep()._evaluate(0, -1, 1, 0) * funct(z))
+                h = funct(z)
+                chi = self.character()
+                if chi:
+                    h *= cmath_exp(complex(0.0, two_pi * chi._k() / (-8)))
+                return (z ** self.weight()) * h
             else:
                 try:
                     y = z.imag()
@@ -296,13 +311,21 @@ class WeilRepModularForm(object):
                             f = x.round()
                         except AttributeError:
                             f = round(x)
-                        return self.weilrep()._evaluate(1, f, 0, 1) * funct(z - f)
+                        h = funct(z - f)
+                        chi = self.character()
+                        if chi:
+                            h *= cmath_exp(complex(0.0, two_pi) * (f * chi._k()) / 24)
+                        return self.weilrep()._evaluate(1, f, 0, 1) * h
                     raise RunTimeError('Oops!')
         elif self.is_quasimodular():
             if 0 < abs(z) < 1:
                 z1 = -1 / z
                 two_pi_inv = 1 / complex(0.0, two_pi)
-                return z1 ** self.weight() * self.weilrep()._evaluate(0, -1, 1, 0) * (sum(f.__call__(z1) * (two_pi_inv * z)**j for j, f in enumerate(self.completion())))
+                h = (sum(f.__call__(z1) * (two_pi_inv * z)**j for j, f in enumerate(self.completion())))
+                chi = self.character()
+                if chi:
+                    h *= cmath_exp(complex(0.0, two_pi * chi._k() / (-8)))
+                return (z1 ** self.weight()) * h
             else:
                 try:
                     y = z.imag()
@@ -320,7 +343,11 @@ class WeilRepModularForm(object):
                             f = x.round()
                         except AttributeError:
                             f = round(x)
-                        return self.weilrep()._evaluate(1, f, 0, 1) * funct(z - f)
+                        h = funct(z - f)
+                        chi = self.character()
+                        if chi:
+                            h *= cmath.exp(complex(0.0, two_pi) * (f * chi._k()) / 24)
+                        return self.weilrep()._evaluate(1, f, 0, 1) * h
                     raise RunTimeError('Oops!')
         eps = 1
         if not self.is_symmetric():
@@ -675,6 +702,8 @@ class WeilRepModularForm(object):
         from .mock import WeilRepQuasiModularForm
         if not other:
             return self
+        elif not self:
+            return other
         elif isinstance(other, WeilRepQuasiModularForm): #return the sum as a quasimodular formm by using the 'add' method from quasimodular forms
             return other.__add__(self)
         elif not self.gram_matrix() == other.gram_matrix():
@@ -995,13 +1024,19 @@ class WeilRepModularForm(object):
                 return O(q ** f.prec())
             val = f.valuation()
             prec = f.prec()
-            return (q**val * R([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
+            try:
+                return (q**val * R([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
+            except TypeError:
+                X = self.fourier_expansion()[0][2].parent()
+                X = PowerSeriesRing(FractionField(X.base_ring()), 'q')
+                return (q**val * X([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
         def d(X):
             k = X.weight()
             Y = [(x[0], x[1], a(x[1], x[2])) for x in X.fourier_expansion()]
             return WeilRepModularForm(k + 2, S, Y, w)
         k = self.weight()
-        return WeilRepQuasiModularForm(k + 2, S, [-k * self, d(self)], weilrep = self.weilrep())
+        f = WeilRepQuasiModularForm(k + 2, S, [-k * self, d(self)], weilrep = self.weilrep())
+        return f
 
     def hecke_P(self, N):
         r"""
@@ -1251,6 +1286,16 @@ class WeilRepModularForm(object):
                 Y[j] = [g, big_offset, eps * Y[i][2]]
         return WeilRepModularForm(self.weight(), N*S, Y )
 
+    def pullback(self, *v):
+        A = matrix(ZZ, matrix(v).transpose().echelon_form(transformation = True)[1].inverse())
+        n = A.nrows() - len(v)
+        f = self.conjugate(A)
+        i = 0
+        while i < n:
+            f = f.theta_contraction()
+            i += 1
+        return f
+
     def raising_operator(self):
         r"""
         Apply the Maass raising operator.
@@ -1410,7 +1455,12 @@ class WeilRepModularForm(object):
                 return O(q ** f.prec())
             val = f.valuation()
             prec = f.prec()
-            return (q**val * r([(i + offset) * f[i] for i in range(val, prec)]) - f * mod_e2).add_bigoh(prec - floor(offset))
+            try:
+                return (q**val * r([(i + offset) * f[i] for i in range(val, prec)]) - f * mod_e2).add_bigoh(prec - floor(offset))
+            except TypeError:
+                X = self.fourier_expansion()[0][2].parent()
+                X = PowerSeriesRing(FractionField(X.base_ring()), 'q')
+                return (q**val * X([(i + offset) * f[i] for i in range(val, prec)]) - f * mod_e2).add_bigoh(prec - floor(offset))
         X = [(x[0], x[1], sd(x[1], x[2])) for x in X]
         f = WeilRepModularForm(k + 2, self.gram_matrix(), X, weilrep = self.weilrep())
         if normalize_constant_term:
@@ -2209,12 +2259,16 @@ class WeilRepModularFormPrincipalPart:
         return self.__weilrep
 
 class EtaCharacterPower:
+    r"""
+    A power of the Eta character.
+    This class contains no information other than the power, which can be recovered with _k()
+    """
     def __init__(self, k):
         k = ZZ(k) % 24
         self.__k = k
 
     def __repr__(self):
-        return '%dth power of the eta multiplier'%self._k()
+        return '%d%s power of the eta multiplier'%(self._k(), self._th())
 
     def __bool__(self):
         return bool(self.__k)
@@ -2241,7 +2295,22 @@ class EtaCharacterPower:
     def _k(self):
         return self.__k
 
+    def _th(self): #avoid 1th, 2th, 3th powers
+        k = self.__k
+        if k == 1:
+            return 'st'
+        elif k == 2:
+            return 'nd'
+        elif k == 3:
+            return 'rd'
+        return 'th'
+
 class WeilRepModularFormWithCharacter(WeilRepModularForm):
+    r"""
+    Vector-valued modular forms for a tensor product of a finite Weil representation and a (nonzero) power of the eta multiplier.
+
+    This is kept as a separate class so we don't have to deal with characters when using WeilRepModularForm's
+    """
     def __init__(self, *args, **kwargs):
         try:
             character = kwargs.pop('character')
@@ -2275,6 +2344,12 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
 
     def __mul__(self, other):
+        try:
+            x = other.is_modular()
+            if not x:
+                return NotImplemented
+        except AttributeError:
+            pass
         f = super().__mul__(other)
         if f is NotImplemented:
             return NotImplemented
@@ -2294,6 +2369,12 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
             x = self.character() / k
         except AttributeError:
             x = self.character()
+        try:
+            x = other.is_modular()
+            if not x:
+                return NotImplemented
+        except AttributeError:
+            pass
         return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = x)
 
     __truediv__ = __div__
@@ -2315,22 +2396,72 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         f = super().__invert__()
         return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = ~self.character())
 
+    def derivative(self):
+        f = super().derivative()
+        X = f._WeilRepQuasiModularForm__terms
+        f._WeilRepQuasiModularForm__terms = [WeilRepModularFormWithCharacter(x.weight(), x.gram_matrix(), x.fourier_expansion(), weilrep = self.weilrep(), character = self.character()) for x in X]
+        return f
+
+    def serre_derivative(self):
+        f = super().serre_derivative()
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
+
 #special modular forms
 def smf_eta(prec = 20):
+    r"""
+    Compute the Dedekind eta function, with Fourier expansion up to precision 'prec'.
+
+    This is a wrapper for the built-in function qexp_eta.
+    INPUT:
+    - ``prec`` -- precision (default 20)
+    OUTPUT: WeilRepModularFormWithCharacter
+    """
     r = PowerSeriesRing(ZZ, 'q')
     return WeilRepModularFormWithCharacter(sage_one_half, matrix([]), [(vector([]), ZZ(-23) / 24, qexp_eta(r, floor(prec)).shift(1))], character = EtaCharacterPower(1))
 
 def smf_delta(prec = 20):
-    return smf(12, delta_qexp(prec))
+    r"""
+    Compute the Ramanujan Delta function, with Fourier expansion up to precision 'prec'.
+
+    This is a wrapper for the built-in function delta_qexp.
+    INPUT:
+    - ``prec`` -- precision (default 20)
+    OUTPUT: WeilRepModularForm
+    """
+    return smf(Integer(12), delta_qexp(prec))
 
 def smf_j(prec = 20):
-    return smf(0, j_invariant_qexp(prec))
+    r"""
+    Compute the Klein j-invariant, with Fourier expansion up to precision 'prec'.
+
+    This is a wrapper for the built-in function j_invariant_qexp.
+    INPUT:
+    - ``prec`` -- precision (default 20)
+    OUTPUT: WeilRepModularForm
+    """
+    return smf(Integer(0), j_invariant_qexp(prec))
 
 def smf_eisenstein_series(k, prec = 20):
+    r"""
+    Compute the (scalar) Eisenstein series, with Fourier expansion up to precision 'prec'.
+
+    This is a wrapper for the built-in function eisenstein_series_qexp. When k = 2 the output is a quasimodular form.
+    INPUT:
+    - ``k`` -- the weight
+    - ``prec`` -- precision (default 20)
+    OUTPUT: WeilRepModularForm (or WeilRepQuasiModularForm when k = 2)
+    """
     if k == 2:
         from weilrep import WeilRep
         return WeilRep([]).eisenstein_series(2, prec)
-    return smf(k, eisenstein_series_qexp(k, prec, normalization='constant'))
+    return smf(Integer(k), eisenstein_series_qexp(k, prec, normalization='constant'))
 
 def smf_j_cube_root(prec = 20):
-    return smf_eisenstein_series(4, prec) / smf_eta(prec)**8
+    r"""
+    Compute the cube root of the j-invariant: q^(-1/3) + 248*q^(2/3) + 4124*q^(5/3) + 34752*q^(8/3) + ...
+
+    INPUT:
+    - ``prec`` -- precision (default 20)
+    OUTPUT: WeilRepModularFormWithCharacter
+    """
+    return smf_eisenstein_series(Integer(4), prec) / smf_eta(prec)**8

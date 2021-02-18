@@ -170,7 +170,7 @@ class WeilRep(object):
         """
         try:
             N = Integer(N)
-            w = WeilRep(N * self.gram_matrix())
+            w = WeilRep( N * self.gram_matrix())
             return w
         except TypeError:
             a, b, c, d = tuple(ZZ(x) for x in N.list())
@@ -275,7 +275,7 @@ class WeilRep(object):
         r"""
         Test whether self is of the form L + II(n) for some Lorentzian WeilRep L.
 
-        Always returns False. When we construct L+II(n) this method is overwritten to sometimes be True.
+        Always returns False. When we construct L+II(n) this method is overwritten to sometimes be True. (In other words we are not testing here whether L is Lorentzian + II_{1, 1} up to isometry.)
         """
         return False
 
@@ -317,7 +317,7 @@ class WeilRep(object):
         Compute values of the Weil representation: \rho(M) for M in SL_2(Z). We assume the lattice has even rank.
 
         Naive algorithm based on writing M as a product of the generators 'T' and 'S', and therefore \rho(M) as a composition of multiplication operators and discrete Fourier transforms.
-        Used when calculating Poincare series, Maass Poincare series, and when computing or plotting modular forms numerically.
+        Used when calculating Poincare series, Maass Poincare series, and when computing or plotting modular forms numerically. In this case we usually have to evaluate the Weil Representation \rho at many values of M \in SL_2(Z); this sort of (i.e. does not) justify computing \rho(M) this way
 
         """
         A = (a, b, c, d)
@@ -830,6 +830,48 @@ class WeilRep(object):
             raise ValueError('This modular form does not lie in the correct plus/minus subspace')
         return WeilRepModularForm(mf.weight(), self.gram_matrix(), Y, weilrep = self)
 
+    def _eisenstein_series_weight_one_constant_term(self):
+        r"""
+        Correct the constant term in the Eisenstein series of weight one.
+
+        Not meant to be called directly.
+        """
+        d = -self.discriminant()
+        d0 = fundamental_discriminant(d)
+        f = [[x, y, 0] for x, y in self.norm_dict().items()]
+        e = 0
+        c = ~isqrt(d // d0)
+        for p in prime_divisors(d):
+            if kronecker_symbol(d0, p) == 1:
+                e += 1
+                c /= (1 - ~p)
+            elif d0 % p:
+                c *= 2 / (1 + ~p)
+        t, = PolynomialRing(QQ, 't').gens()
+        if self.signature() == 2:
+            c = -c
+        S = self.gram_matrix()
+        n = Integer(S.nrows() / 2)
+        for i, x in enumerate(f):
+            if not x[1]:
+                g0 = vector(x[0])
+                g = vector(ZZ, 2 * vector(x[0]) * S)
+                u = c
+                e0 = e
+                for p in prime_divisors(d):
+                    z = L_values(g, [Integer(-g*g0 / 2)], S, p, 0, t)[0]
+                    pn = p ** n
+                    try:
+                        h = z(pn)
+                    except ZeroDivisionError:
+                        z *= (1 - t / pn)
+                        h = z(pn)
+                        e0 -= 1
+                    u *= h
+                if not e0:
+                    f[i][2] = u
+        return WeilRepModularForm(1, S, f, weilrep = self)
+
     def eisenstein_series(self, k, prec, allow_small_weight = False, components = None, _flag = None):
         r"""
         Constuct Eisenstein series attached to the vector e_0.
@@ -947,8 +989,9 @@ class WeilRep(object):
                     else:
                         self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
                 return self.__eisenstein[k][1]
-            elif k <= 1:
-                return NotImplemented
+            elif k <= 1 and not _flag:
+                f = self.eisenstein_series(1, prec, _flag = 1)
+                return f + self._eisenstein_series_weight_one_constant_term()
         elif not k:
             return []
         dets = self.discriminant()
@@ -974,9 +1017,6 @@ class WeilRep(object):
             ds = self.ds()
             indices = self.rds(indices = True)
             norm_list = self.norm_list()
-        if k == 1 or (k_is_list and 1 in k):
-            f = dets.squarefree_part()
-            zeroval = -isqrt(dets // f) * vector([product(L_values(2 * S * g, [g * S * g], S, p, 1, t = None)[0] for p in set(dets.prime_divisors() + [2])) for i, g in enumerate(ds) if not norm_list[i]])
         eps = (-1) ** (self.signature() in range(3, 7))
         S_rows_gcds = list(map(GCD, S.rows()))
         S_rows_sums = sum(S)
@@ -989,7 +1029,9 @@ class WeilRep(object):
         if k_is_list:
             len_k = len(k)
             X = [copy(X) for _ in range(len_k)]
-        local_kronecker_symbol = kronecker_symbol
+        @cached_function
+        def local_kronecker_symbol(*x):
+            return kronecker_symbol(*x)
         #guess which Lvalues we have to look at. (this is always enough but sometimes its too many)
         def eisenstein_series_create_lists(g):
             d_gamma = denominator(g)
@@ -1243,7 +1285,6 @@ class WeilRep(object):
                             X[i][i_g] = g, norm, E + multiplier_list[i] * R([local_factor_list[i][j] * main_term_list[i][j] for j in range(modified_prec)])
                     else:
                         X[i_g] = g, norm, E + multiplier * R([local_factor_list[j] * main_term_list[j] for j in range(modified_prec)])
-                        #print('factors!', g, multiplier, local_factor_list, main_term_list, Lvalue_list)
                     precomputed_lists[norm] = main_term_list
                 else:
                     if k_is_list:
@@ -1636,7 +1677,6 @@ class WeilRep(object):
                     if is_square(2 * _n * dets):
                         f += (q ** n) * 2 * prod(L_values(L, [_n + _n + c], S, p, sage_three_half)[0] / (1 + ~p) for p in prime_divisors(dets * _n * dg))
                 X[i] = g, offset, 24 * f
-                #X[i] = g, offset, f
         return WeilRepModularForm(sage_one_half, S, X, weilrep = wdual)
 
     def maass_eisenstein_series(self, *args):
@@ -3367,7 +3407,7 @@ class WeilRep(object):
             j_order = floor(pole_order - dual_sturm_bound - 1)
             new_pole_order = pole_order - j_order
             X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, symmetry_data = symmetry_data, verbose = verbose)
-            j = j_invariant_qexp(prec + j_order + 1) - 744
+            j = smf(0, j_invariant_qexp(prec + j_order + 1) - 744)
             j0 = j
             jl = [None]*j_order
             for n in range(j_order):
@@ -3854,8 +3894,10 @@ class WeilRep(object):
             return self.__s_matrix
         except AttributeError:
             pass
+        @cached_function
         def local_moebius(n):
             return moebius(n)
+        @cached_function
         def local_phi(n):
             return euler_phi(n)
         def tr_sqrt_f_zeta_N(f, N, n): #trace of sqrt(f) * zeta_N

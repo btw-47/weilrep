@@ -8,7 +8,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1087,7 +1087,12 @@ def L_values(L, c, S, p, k, t = None): #the Euler factors in the Eisenstein seri
             fv = (one_v - twoadic_igusa_zetas(Q,L,c,t0)) / (1 - t0)
             return vector(f(t) for f in fv)
     else:
-        return (one_v - t*igusa_zetas(Q,L,c,p,t)) / (1 - t) #for technical reasons the igusa zetas here are multiplied by 't' and the igusa zetas at p=2 are not!
+        try:
+            return (one_v - t*igusa_zetas(Q,L,c,p,t)) / (1 - t) #for technical reasons the igusa zetas here are multiplied by 't' and the igusa zetas at p=2 are not!
+        except ZeroDivisionError:#should only happen in weight one
+            t0, = PolynomialRing(QQ, 't0').gens()
+            fv = (one_v - t0*igusa_zetas(Q,L,c,p,t0)) / (1 - t0)
+            return vector(f(t) for f in fv)
 
 @cached_function
 def quadratic_L_function__cached(k,D):

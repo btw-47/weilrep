@@ -30,6 +30,7 @@ from sage.misc.cachefunc import cached_method
 from sage.misc.latex import latex
 from sage.modules.free_module_element import vector
 from sage.plot.complex_plot import complex_plot
+from sage.rings.all import CC
 from sage.rings.big_oh import O
 from sage.rings.infinity import Infinity, SignError
 from sage.rings.integer import Integer
@@ -37,7 +38,7 @@ from sage.rings.integer_ring import ZZ
 from sage.rings.rational_field import QQ
 from sage.symbolic.constants import pi
 
-from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
 
 class WeilRepQuasiModularForm(WeilRepModularForm):
     r"""
@@ -134,7 +135,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         r"""
         (Tensor) Product of quasimodular forms
         """
-        if other in QQ:
+        if other in CC:
             return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [other*x for x in self._terms()], weilrep=self.weilrep())
         k = self.weight() + other.weight()
         if w is None:
@@ -158,11 +159,28 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
 
     def __div__(self, other):
         r"""
-        Division of quasimodular forms by scalars.
+        Division of quasimodular forms.
         """
-        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x/other for x in self._terms()], weilrep=self.weilrep())
+        try:
+            if other.is_modular():
+                return WeilRepQuasiModularForm(self.weight() - other.weight(), self.gram_matrix(), [x/other for x in self._terms()], weilrep = self.weilrep())
+            else:
+                return NotImplemented
+        except AttributeError:
+            pass
+        if other in CC:
+            return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x/other for x in self._terms()], weilrep=self.weilrep())
+        return NotImplemented
 
     __truediv__ = __div__
+
+    def __rdiv__(self, other):
+        raise NotImplementedError
+
+    __rtruediv__ = __rdiv__
+
+    def __invert__(self):
+        raise NotImplementedError
 
     def __pow__(self, N):
         r"""
@@ -239,7 +257,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         for i in range(r):
             j *= (i + 1)
             X.append(X[-1].shift() / j)
-        return WeilRepAlmostHolomorphicModularForm(self.weight(), self.gram_matrix(), X, weilrep = self.weilrep())
+        return WeilRepAlmostHolomorphicModularForm(self.weight(), self.gram_matrix(), X, weilrep = self.weilrep(), character = self.character())
 
     def derivative(self):
         r"""
@@ -262,14 +280,24 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             val = f.valuation()
             prec = f.prec()
             return (q**val * R([(i + offset) * f[i] for i in range(val, prec)])).add_bigoh(prec - floor(offset))
-        def d(X):
-            k = X.weight()
-            Y = [(x[0], x[1], a(x[1], x[2])) for x in X.fourier_expansion()]
-            return WeilRepModularForm(k + 2, S, Y, w)
+        chi = self.character()
+        if chi:
+            def d(X):
+                k = X.weight()
+                Y = [(x[0], x[1], a(x[1], x[2])) for x in X.fourier_expansion()]
+                return WeilRepModularFormWithCharacter(k + 2, S, Y, weilrep = w, character = chi)
+        else:
+            def d(X):
+                k = X.weight()
+                Y = [(x[0], x[1], a(x[1], x[2])) for x in X.fourier_expansion()]
+                return WeilRepModularForm(k + 2, S, Y, w)
         r = self.depth()
         k = self.weight()
         X = [(r - k) * t[0]] + [(r - k - j) * t[j] + d(t[j-1]) for j in range(1, r+1)] + [d(t[-1])]
         return WeilRepQuasiModularForm(k + 2, self.gram_matrix(), X, weilrep = self.weilrep())
+
+    def character(self):
+        return self.__terms[0].character()
 
     def serre_derivative(self):
         from weilrep import WeilRep
@@ -347,13 +375,16 @@ class WeilRepAlmostHolomorphicModularForm:
 
     Currently the only way to construct a WeilRepAlmostHolomorphicModularForm is as the modular completion of a quasimodular form.
     """
-    def __init__(self, k, S, X, weilrep=None):
+    def __init__(self, k, S, X, weilrep=None, character = None):
         self.__weight = k
         self.__gram_matrix = S
         self.__list = X
         if weilrep:
             self.__weilrep = weilrep
         self.__depth = X[0].depth()
+        if character:
+            self.__character = character
+            self.__list = [WeilRepModularFormWithCharacter(x.weight(), x.gram_matrix(), x.fourier_expansion(), weilrep = self.weilrep(), character = character) for x in X]
 
     def __repr__(self):
         try:
@@ -449,6 +480,9 @@ class WeilRepAlmostHolomorphicModularForm:
 
     def derivative(self):
         return NotImplemented
+
+    def character(self):
+        return self.__character
 
     def __getattr__(self, x):
         try:

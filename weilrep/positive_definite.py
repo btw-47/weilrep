@@ -65,28 +65,48 @@ from .lifts import OrthogonalModularForm, OrthogonalModularForms
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormWithCharacter, WeilRepModularFormsBasis
 
+
+
 class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
+    r"""
+    Represents spaces of Orthogonal modular forms for positive-definite lattices (or rather lattices of the form 2U + K, K positive definite)
+
+    Compared to more general lattices (in lifts.py and lorentz.py) this provides Fourier--Jacobi expansions and better ways to construct Borcherds products.
+    """
 
     def input_wt(self):
+        r"""
+        Nearly-holomorphic modular forms of this weight lift to Borcherds products.
+        """
         return -self.nrows() / 2
 
     def nvars(self):
+        r"""
+        The number of variables appearing in the Fourier expansion of a modular form.
+        """
         return self.nrows() + 2
 
-    def modular_form_from_fourier_jacobi_expansion(self, k, fj):
+    def modular_form_from_fourier_jacobi_expansion(self, fj):
         r"""
         Recover an orthogonal modular form from its Fourier--Jacobi coefficients.
 
         WARNING: we do not check whether the Fourier--Jacobi coefficients actually correspond to a modular form!
 
         INPUT:
-        - ``k`` -- the weight
         - ``fj`` -- a list of Jacobi forms
 
         OUTPUT: OrthogonalModularForm
+
+        EXAMPLES::
+            sage: from weilrep import *
+            sage: f = jacobi_eisenstein_series(4, 1, 10)
+            sage: m = ParamodularForms(1)
+            sage: m.modular_form_from_fourier_jacobi_expansion([f.hecke_V(N) for N in range(5)])
+            1/240 + q + s + 9*q^2 + (r^-2 + 56*r^-1 + 126 + 56*r + r^2)*q*s + 9*s^2 + 28*q^3 + (126*r^-2 + 576*r^-1 + 756 + 576*r + 126*r^2)*q^2*s + (126*r^-2 + 576*r^-1 + 756 + 576*r + 126*r^2)*q*s^2 + 28*s^3 + 73*q^4 + (56*r^-3 + 756*r^-2 + 1512*r^-1 + 2072 + 1512*r + 756*r^2 + 56*r^3)*q^3*s + (9*r^-4 + 576*r^-3 + 2520*r^-2 + 4032*r^-1 + 5166 + 4032*r + 2520*r^2 + 576*r^3 + 9*r^4)*q^2*s^2 + (56*r^-3 + 756*r^-2 + 1512*r^-1 + 2072 + 1512*r + 756*r^2 + 56*r^3)*q*s^3 + 73*s^4 + O(q, s)^5
         """
         if len(fj) < 2:
             raise ValueError('Too few coefficients')
+        k = fj[0].weight()
         rb_w = fj[1].base_ring()
         S = self.gram_matrix()
         nrows = S.nrows()
@@ -478,6 +498,11 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         except NotImplementedError:
             return False
 
+    def _add_II(self):
+        from .lorentz import OrthogonalModularFormLorentzian, II
+        w = self.weilrep() + II(Integer(1))
+        return OrthogonalModularFormLorentzian(self.weight(), w, self.true_fourier_expansion(), scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = 'PD+II')
+
     ## other methods
 
     def phi(self):
@@ -509,6 +534,33 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         from .lorentz import WeilRepLorentzian, OrthogonalModularFormLorentzian
         S = matrix([[-2]])
         return OrthogonalModularFormLorentzian(self.weight() / 2, WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
+
+    def pullback(self, *v):
+        if not v:
+            return self
+        v_ref = v[0]
+        S = self.gram_matrix()
+        if len(v_ref) > S.nrows():
+            return self._add_II().pullback( *v )
+        f = self.true_fourier_expansion()
+        r = f.base_ring().base_ring()
+        z = r.gens()
+        z_new = z[:len(v)]
+        r_new = LaurentPolynomialRing(r.base_ring(), z_new)
+        s = LaurentPolynomialRing(r_new, 'x')
+        s = PowerSeriesRing(s, 't')
+        A = matrix(v)
+        if len(z_new) > 1:
+            a = A.columns()
+            d = {x: r_new.monomial(*a[i]) for i, x in enumerate(z)}
+        else:
+            z0, = r_new.gens()
+            d = {x: z0**a_cols[i][0] for i, x in enumerate(z)}
+        A = matrix(v)
+        S = A * self.gram_matrix() * A.transpose()
+        u = self.weyl_vector()
+        u = vector([u[0]] + list(A * u[1:-1]) + [u[-1]])
+        return OrthogonalModularForm(self.weight(), WeilRep(S), s(f.map_coefficients(lambda y: y.map_coefficients(lambda z: z.subs(d)))), scale = self.scale(), weylvec = u)
 
     def witt(self):
         r"""
@@ -564,8 +616,9 @@ class WeilRepPositiveDefinite(WeilRep):
         from .lorentz import RescaledHyperbolicPlane, WeilRepLorentzian
         if isinstance(other, RescaledHyperbolicPlane):
             S = self.gram_matrix()
-            z = matrix([[0]])
-            zerov = matrix([[0]*S.nrows()])
+            zero = Integer(0)
+            z = matrix([[zero]])
+            zerov = matrix([[zero]*S.nrows()])
             zerovt = zerov.transpose()
             N = other._N()
             return WeilRepLorentzian(block_matrix([[z, zerov, N], [zerovt, S, zerovt], [N, zerov, z]], subdivide = False), lift_qexp_representation = 'PD+II')
@@ -1094,6 +1147,9 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             raise RuntimeError('I caught a TypeError. This probably means you are trying to compute a Borcherds product that is not holomorphic.')
 
 class WeilRepModularFormPositiveDefiniteWithCharacter(WeilRepModularFormWithCharacter, WeilRepModularFormPositiveDefinite):
+    r"""
+    Adds the Jacobi form corresponding to a vector-valued modular form with additional character for a positive-definite lattice.
+    """
     def jacobi_form(self, *args, **kwargs):
         from .weilrep_modular_forms_class import smf_eta
         chi = self.character()

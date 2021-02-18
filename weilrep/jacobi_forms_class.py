@@ -10,7 +10,7 @@ AUTHORS:
 
 # ****************************************************************************
 #       Copyright (C) 2020-2021 Brandon Williams
-#                                    MN
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 2 of the License, or
@@ -75,6 +75,10 @@ class JacobiForms:
                     raise ValueError('This index is not positive definite.')
                 self.__index_matrix = index_matrix.gram_matrix()
             else:
+                try:
+                    _ = index_matrix.nrows()
+                except AttributeError:
+                    index_matrix = matrix(index_matrix)
                 self.__index_matrix = index_matrix
         else:
             self.__index_matrix = matrix([])
@@ -1414,8 +1418,7 @@ class JacobiForm:
             return self.modform().gritsenko_lift()
         except AttributeError:
             from .lifts import OrthogonalModularForms
-            fj = [self.hecke_V(N) for N in range(self.precision())]
-            return OrthogonalModularForms(self.weilrep()).modular_form_from_fourier_jacobi_expansion(self.weight(), fj)
+            return OrthogonalModularForms(self.weilrep()).modular_form_from_fourier_jacobi_expansion([self.hecke_V(N) for N in range(self.precision())])
 
     def hecke_T(self, N):
         r"""
