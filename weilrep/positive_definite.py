@@ -612,9 +612,9 @@ class WeilRepPositiveDefinite(WeilRep):
     def jacobi_forms(self):
         return JacobiForms(self.gram_matrix(), weilrep = self)
 
-    def __add__(self, other):
+    def __add__(self, other, _flag=None):
         from .lorentz import RescaledHyperbolicPlane, WeilRepLorentzian
-        if isinstance(other, RescaledHyperbolicPlane):
+        if _flag is None and isinstance(other, RescaledHyperbolicPlane):
             S = self.gram_matrix()
             zero = Integer(0)
             z = matrix([[zero]])

@@ -309,13 +309,13 @@ class WeilRepLorentzian(WeilRep):
         self._WeilRep__modular_forms_basis = {}
         self.lift_qexp_representation = lift_qexp_representation
 
-    def __add__(self, other):
+    def __add__(self, other, _flag = None):
         r"""
         Tensor product of Weil representations.
 
         If 'other' is a rescaled hyperbolic plane then we rearrange it so that 'other' goes in the first and last coordinates.
         """
-        if self.is_lorentzian() and isinstance(other, RescaledHyperbolicPlane):
+        if not _flag or (self.is_lorentzian() and isinstance(other, RescaledHyperbolicPlane)):
             S = self.gram_matrix()
             n = S.nrows()
             N = other._N()

@@ -180,7 +180,7 @@ class WeilRep(object):
                 return self._evaluate_metaplectic(a, b, c, d)[0]
             return self._evaluate(a, b, c, d)
 
-    def __add__(self, other):
+    def __add__(self, other, **kwargs):
         if isinstance(other, WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
         return NotImplemented
