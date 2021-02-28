@@ -67,7 +67,7 @@ class JacobiForms:
 
     """
     def __init__(self, index_matrix = None, weilrep=None):
-        if index_matrix in ZZ:
+        if index_matrix in QQ:
             self.__index_matrix = matrix([[2 * index_matrix]])
         elif index_matrix:
             if isinstance(index_matrix, WeilRep):
@@ -91,7 +91,7 @@ class JacobiForms:
         if N > 1:
             return 'Jacobi forms of index \n%s' % S
         else:
-            return 'Jacobi forms of index %d' % self.index()
+            return 'Jacobi forms of index %s' % self.index()
 
     def __call__(self, N):
         r"""
@@ -131,7 +131,10 @@ class JacobiForms:
         """
         S = self.index_matrix()
         if S.nrows() == 1:
-            return Integer(S[0, 0] / 2)
+            try:
+                return Integer(S[0, 0] / 2)
+            except TypeError:
+                return QQ(S[0, 0]) / 2
         else:
             return S
 
@@ -271,7 +274,7 @@ class JacobiForms:
 
     ## dimensions associated to this index
 
-    def cusp_forms_dimension(self, weight):
+    def cusp_forms_dimension(self, weight, **kwargs):
         r"""
         Dimension of Jacobi cusp forms.
 
@@ -287,16 +290,18 @@ class JacobiForms:
             sage: JacobiForms(13).cusp_forms_dimension(3)
             1
         """
-        if self.nvars() == 1 and weight == 2:
-            dim = self.weilrep().cusp_forms_dimension(sage_three_half, force_Riemann_Roch=True)
-            N = self.index()
-            sqrtN = isqrt(N)
-            return dim + Integer(len(divisors(N)) + N.is_square()) / 2
-        if weight <= 1:
-            return 0
-        return self.weilrep().cusp_forms_dimension(weight - self.nvars() / 2)
+        eta_twist = kwargs.pop('eta_twist', 0)
+        if not eta_twist:
+            if self.nvars() == 1 and weight == 2:
+                dim = self.weilrep().cusp_forms_dimension(sage_three_half, force_Riemann_Roch=True)
+                N = self.index()
+                sqrtN = isqrt(N)
+                return dim + Integer(len(divisors(N)) + N.is_square()) / 2
+            if weight <= 1:
+                return 0
+        return self.weilrep().cusp_forms_dimension(weight - self.nvars() / 2, eta_twist = eta_twist, **kwargs)
 
-    def dimension(self, weight):
+    def dimension(self, weight, **kwargs):
         r"""
         Dimension of Jacobi forms.
 
@@ -318,14 +323,16 @@ class JacobiForms:
             sage: JacobiForms(49).dimension(2)
             2
         """
-        if self.nvars() == 1 and weight == 2:
-            dim = self.weilrep().modular_forms_dimension(sage_three_half, force_Riemann_Roch=True)
-            N = self.index()
-            sqrtN = isqrt(N)
-            return dim + len([d for d in divisors(N) if d <= sqrtN and N % (d * d)])
-        if weight <= 1:
-            return 0
-        return self.weilrep().modular_forms_dimension(weight - self.nvars() / 2)
+        eta_twist = kwargs.pop('eta_twist', 0)
+        if not eta_twist:
+            if self.nvars() == 1 and weight == 2:
+                dim = self.weilrep().modular_forms_dimension(sage_three_half, force_Riemann_Roch=True)
+                N = self.index()
+                sqrtN = isqrt(N)
+                return dim + len([d for d in divisors(N) if d <= sqrtN and N % (d * d)])
+            if weight <= 1:
+                return 0
+        return self.weilrep().modular_forms_dimension(weight - self.nvars() / 2, eta_twist = eta_twist, **kwargs)
 
     jacobi_forms_dimension = dimension
 
@@ -465,7 +472,7 @@ class JacobiForms:
 
     ## bases of spaces associated to this index
 
-    def cusp_forms_basis(self, weight, prec=0, try_theta_blocks=None, verbose=False):
+    def cusp_forms_basis(self, weight, prec=0, try_theta_blocks=None, **kwargs):
         r"""
         Compute a basis of Jacobi cusp forms.
 
@@ -474,7 +481,9 @@ class JacobiForms:
         INPUT:
          - ``weight`` -- the weight
          - ``prec`` -- the precision of the Fourier expansions (with respect to the variable 'q')
+         - ``try_theta_blocks`` -- if True then in weight 2 or 3 we first try to find theta blocks which span the space.
          - ``verbose`` -- boolean (default False); if True then we add commentary throughout the computation
+         - ``eta_twist`` -- integer (default 0); if this is 'k' then compute Jacobi forms that transform with the k^th power of the eta multiplier
 
         OUTPUT: a list of JacobiForm's
 
@@ -489,7 +498,9 @@ class JacobiForms:
             [(-w^-1 + w)*q + (w^-3 + 21*w^-1 - 21*w - w^3)*q^2 + (-21*w^-3 - 189*w^-1 + 189*w + 21*w^3)*q^3 + (-w^-5 + 189*w^-3 + 910*w^-1 - 910*w - 189*w^3 + w^5)*q^4 + O(q^5)]
 
         """
-        if self.nvars() == 1 and weight <= 3:
+        verbose = kwargs.pop('verbose', False)
+        eta_twist = kwargs.pop('eta_twist', 0)
+        if not eta_twist and self.nvars() == 1 and weight <= 3:
             dim = self.cusp_forms_dimension(weight)
             if not dim:
                 return []
@@ -510,7 +521,7 @@ class JacobiForms:
         if verbose:
             print('I will look for the corresponding vector-valued cusp forms of weight %s.'% wt)
             print('-' * 60)
-        L = self.weilrep().cusp_forms_basis(wt, prec, verbose=verbose)
+        L = self.weilrep().cusp_forms_basis(wt, prec, verbose=verbose, eta_twist = eta_twist, **kwargs)
         if not L:
             return []
         if verbose:
@@ -520,7 +531,17 @@ class JacobiForms:
             return L.jacobi_forms()
         return [L[0].jacobi_form()]
 
-    def jacobi_forms_basis(self, weight, prec=0, try_theta_blocks=None, verbose=False):
+    def _odd_index_cusp_forms_basis(self, weight, prec):
+        ## TODO ##
+        S = self.index_matrix()
+        n = S.nrows()
+        v = vector([0] * n)
+        for i, a in enumerate(S.diagonal()):
+            if a % 2:
+                v[i] = 1
+        pass
+
+    def jacobi_forms_basis(self, weight, prec=0, try_theta_blocks=None, **kwargs):
         r"""
         Compute a basis of Jacobi forms.
 
@@ -533,6 +554,7 @@ class JacobiForms:
          - ``prec`` -- the precision of the Fourier expansions (with respect to the variable 'q')
          - ``try_theta_blocks`` -- if True then in weight 2 or 3 we first try to find theta blocks which span the space.
          - ``verbose`` -- boolean (default False); if True then we add commentary throughout the computation
+         - ``eta_twist`` -- integer (default 0); if this is 'k' then compute Jacobi forms that transform with the k^th power of the eta multiplier
 
         OUTPUT: a list of JacobiForm's
 
@@ -543,7 +565,9 @@ class JacobiForms:
             [1 + (w^-2 - 266 + w^2)*q + (-266*w^-2 - 26752*w^-1 - 81396 - 26752*w - 266*w^2)*q^2 + (-81396*w^-2 - 1225728*w^-1 - 2582328 - 1225728*w - 81396*w^2)*q^3 + (w^-4 - 26752*w^-3 - 2582328*w^-2 - 17211264*w^-1 - 29700762 - 17211264*w - 2582328*w^2 - 26752*w^3 + w^4)*q^4 + O(q^5), (w^-1 - 2 + w)*q + (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q^2 + (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q^3 + (-16*w^-3 - 272*w^-2 - 240*w^-1 + 1056 - 240*w - 272*w^2 - 16*w^3)*q^4 + O(q^5)]
 
         """
-        if self.nvars() == 1 and weight <= 3:
+        verbose = kwargs.pop('verbose', False)
+        eta_twist = kwargs.pop('eta_twist', 0)
+        if not eta_twist and self.nvars() == 1 and weight <= 3:
             if weight <= 1:
                 return []
             dim = self.dimension(weight)
@@ -566,7 +590,7 @@ class JacobiForms:
         if verbose:
             print('I will look for the corresponding vector-valued modular forms of weight %s.'% wt)
             print('-' * 60)
-        L = self.weilrep().modular_forms_basis(wt, prec, verbose=verbose)
+        L = self.weilrep().modular_forms_basis(wt, prec, verbose=verbose, eta_twist = eta_twist, **kwargs)
         if not L:
             return []
         if verbose:
@@ -578,7 +602,7 @@ class JacobiForms:
 
     basis = jacobi_forms_basis
 
-    def weak_forms_basis(self, weight, prec=0, verbose=False, convert_to_Jacobi_forms=True, debug = False):
+    def weak_forms_basis(self, weight, prec=0, verbose=False, convert_to_Jacobi_forms=True):
         r"""
         Compute a basis of weak Jacobi forms.
 
@@ -622,8 +646,6 @@ class JacobiForms:
         L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose)
         if not L:
             return []
-        if debug:
-            return L
         v_list = w.coefficient_vector_exponents(prec, 1 - (weight % 2), starting_from = -N, include_vectors = True)
         n = len(v_list)
         e = lambda i: vector([0] * i + [1] + [0] * (n - 1 - i))
@@ -739,7 +761,6 @@ class JacobiForm:
     - ``jacobiforms`` -- a JacobiForms instance attached to this Jacobi form (default None)
 
     """
-    #def __init__(self, weight, index_matrix, fourier_expansion, modform=None, weilrep=None, jacobiforms = None):
     def __init__(self, weight, index_matrix, fourier_expansion, **kwargs):
         try:
             self.__weight = ZZ(weight)
@@ -747,18 +768,21 @@ class JacobiForm:
             self.__weight = QQ(weight)
         self.__index_matrix = index_matrix
         self.__fourier_expansion = fourier_expansion
-        if 'weilrep' in kwargs:
+        try:
             self.__weilrep = kwargs['weilrep']
-        if 'modform' in kwargs:
+        except KeyError:
+            pass
+        try:
             modform = kwargs['modform']
             if modform is not None:
-                self.__theta = kwargs['modform']
-        if 'jacobiforms' in kwargs:
+                self.__theta = modform
+        except KeyError:
+            pass
+        try:
             self.__jacobiforms = kwargs['jacobiforms']
-        if 'w_scale' in kwargs:
-            self.__wscale = kwargs['w_scale']
-        else:
-            self.__wscale = 1
+        except KeyError:
+            pass
+        self.__wscale = kwargs.pop('w_scale', 1)
 
     def __repr__(self):
         try:
@@ -799,6 +823,9 @@ class JacobiForm:
             Univariate Laurent Polynomial Ring in w_0 over Rational Field
         """
         return self.fourier_expansion().base_ring()
+
+    def character(self):
+        return EtaCharacterPower(0)
 
     def coefficient_vector(self, starting_from=None, ending_with=None, correct=True):
         r"""
@@ -1332,9 +1359,7 @@ class JacobiForm:
 
     __rdiv__ = __rtruediv__
 
-    def __pow__(
-        self, other
-    ):  ## "tensor product" i.e. multiply together with separate abelian variables!
+    def __pow__(self, other):  ## "tensor product" i.e. multiply together with separate abelian variables!
         r"""
         Outer product of Jacobi forms.
 
@@ -1815,6 +1840,10 @@ class JacobiFormWithCharacter(JacobiForm):
 
     def hecke_U(self, N):
         f = super().hecke_U(N)
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+
+    def serre_derivative(self):
+        f = super().serre_derivative()
         return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
     def hecke_V(self, N):

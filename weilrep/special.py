@@ -262,7 +262,7 @@ class HermitianModularForm(OrthogonalModularForm):
         r"""
         Extract Fourier coefficients.
 
-        The exponent should be hermitian (in the case of trivial character) with integral diagonal and with off-diagonal entries in the dual lattice O_K'.
+        The exponent should be hermitian and (in the case of trivial character) have integral diagonal and off-diagonal entries contained in the dual lattice O_K'.
 
         EXAMPLES::
 
@@ -298,6 +298,14 @@ class HermitianModularForm(OrthogonalModularForm):
         except KeyError:
             return 0
 
+    def restrict_to_siegel(self):
+        r"""
+        Restrict the Hermitian modular form to the Siegel upper half-space. The result is a Siegel modular form.
+        """
+        f = self.pullback(vector([1, 0]))
+        return OrthogonalModularForm(self.weight(), f.weilrep(), f.true_fourier_expansion(), f.scale(), f.weyl_vector(), qexp_representation = 'siegel')
+
+
 class HermitianModularFormPositiveDefinite(HermitianModularForm, OrthogonalModularFormPositiveDefinite):
     pass
 
@@ -307,6 +315,7 @@ class HermitianModularFormWithLevel(HermitianModularForm, OrthogonalModularFormL
 class KohnenPlusSpace:
     r"""
     The Kohnen Plus space.
+    (Unfinished!!)
     """
 
     def __init__(self, level):
@@ -345,7 +354,7 @@ class KohnenPlusSpace:
         precn = prec // self.__N + 1
         return self._plus_form(self.__weilrep2.theta_series(precn, *args, **kwargs)).add_bigoh(prec)
 
-    def basis(self, k, prec, *args, **kwargs):
+    def basis(self, k, prec, *args, **kwargs): #fix
         precn = prec // self.__N + 1
         X = [self._plus_form(x).add_bigoh(prec) for x in self._weilrep(k).modular_forms_basis(k, precn, *args, **kwargs)]
         return X

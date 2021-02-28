@@ -63,7 +63,7 @@ sage_three_half = Integer(3) / Integer(2)
 from .jacobi_forms_class import JacobiForm, JacobiForms, JacobiFormWithCharacter
 from .lifts import OrthogonalModularForm, OrthogonalModularForms
 from .weilrep import WeilRep
-from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormWithCharacter, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import EtaCharacterPower, WeilRepModularForm, WeilRepModularFormWithCharacter, WeilRepModularFormsBasis
 
 
 
@@ -441,22 +441,30 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         k = self.weight()
         if self.scale() != 1:
             v = self.weyl_vector()
-            if v[0] in ZZ and v[-1] in ZZ: #ok we'll try this but it's not a good solution
-                prec = self.precision()
-                L = [O(q ** (prec - n)) for n in range(prec)]
-                coeffs = self.qs_coefficients()
-                for x, y in coeffs.items():
-                    a = x[0]
-                    c = x[2]
-                    b = x[1:-1]
-                    if nrows > 1:
-                        u = rb.monomial(*b)
-                    else:
-                        u = z**b[0]
-                    L[c] += (q ** a) * u * y
+            vfrac = frac(v[0])
+            if vfrac + vfrac and vfrac + vfrac != 1:
+                raise NotImplemented('Invalid character')
+            scale = denominator(vector(v[1:-1]))
+            prec = self.precision()
+            L = [O(q ** (prec - ceil(vfrac) - n)) for n in range(prec)]
+            coeffs = self.qs_coefficients()
+            for x, y in coeffs.items():
+                a = x[0]
+                c = x[2]
+                b = [scale * x for x in x[1:-1]]
+                if nrows > 1:
+                    u = rb.monomial(*b)
+                else:
+                    u = z**(b[0])
+                L[c - vfrac] += (q ** ZZ(a - vfrac)) * u * y
+            if vfrac:
+                d = bool(vfrac)
+                chi = EtaCharacterPower(24 * v[0])
+                self.__fourier_jacobi = [JacobiFormWithCharacter(k, (n  + d - vfrac) * S, j, qshift = vfrac, character = chi, w_scale = scale) for n, j in enumerate(L)]
+            else:
                 self.__fourier_jacobi = [JacobiForm(k, n * S, j) for n, j in enumerate(L)]
-                return self.__fourier_jacobi
-            raise NotImplementedError('Nontrivial character')
+            return self.__fourier_jacobi
+            #raise NotImplementedError('Nontrivial character')
         f = self.fourier_expansion()
         rb_old = f.base_ring()
         r_old = f.parent()
@@ -555,8 +563,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             d = {x: r_new.monomial(*a[i]) for i, x in enumerate(z)}
         else:
             z0, = r_new.gens()
-            d = {x: z0**a_cols[i][0] for i, x in enumerate(z)}
-        A = matrix(v)
+            d = {x: z0**A[0][i] for i, x in enumerate(z)}
         S = A * self.gram_matrix() * A.transpose()
         u = self.weyl_vector()
         u = vector([u[0]] + list(A * u[1:-1]) + [u[-1]])
