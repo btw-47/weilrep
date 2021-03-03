@@ -289,7 +289,7 @@ class WeilRepModularForm(object):
         if self.is_modular():
             if 0 < abs(z) < 1:
                 z = -1 / z
-                h = funct(z)
+                h = self.weilrep()._evaluate(0, -1, 1, 0) * funct(z)
                 chi = self.character()
                 if chi:
                     h *= cmath_exp(complex(0.0, two_pi * chi._k() / (-8)))
