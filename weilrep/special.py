@@ -345,19 +345,32 @@ class KohnenPlusSpace:
 
     ## Constructions of modular forms ##
 
+    def basis(self, k, prec, *args, **kwargs): #fix?
+        cusp_forms = kwargs.pop('cusp_forms', 0)
+        N = self.__N
+        precn = prec // self.__N + 1
+        w = self._weilrep(k)
+        if cusp_forms:
+            X = w.cusp_forms_basis(k, precn, *args, **kwargs)
+        else:
+            X = w.basis(k, precn, *args, **kwargs)
+        X = [KohnenPlusSpaceForm(k, N, self._plus_form(x).add_bigoh(prec), x) for x in X]
+        return X
+    modular_forms_basis = basis
+
+    def cusp_forms_basis(self, k, prec, *args, **kwargs):
+        kwargs['cusp_forms'] = 1
+        return self.basis(k, prec, *args, **kwargs)
+
     def eisenstein_series(self, k, prec, *args, **kwargs):
         precn = prec // self.__N + 1
         return self._plus_form(self._weilrep(k).eisenstein_series(k, precn, *args, **kwargs)).add_bigoh(prec)
-
 
     def theta_series(self, prec, *args, **kwargs):
         precn = prec // self.__N + 1
         return self._plus_form(self.__weilrep2.theta_series(precn, *args, **kwargs)).add_bigoh(prec)
 
-    def basis(self, k, prec, *args, **kwargs): #fix
-        precn = prec // self.__N + 1
-        X = [self._plus_form(x).add_bigoh(prec) for x in self._weilrep(k).modular_forms_basis(k, precn, *args, **kwargs)]
-        return X
+
 
 class HalfIntegralWeightModularForm(object):
 
@@ -390,4 +403,4 @@ class KohnenPlusSpaceForm(HalfIntegralWeightModularForm):
     def involution(self):
         return HalfIntegralWeightModularForm(self.weight(), self.level(), self.vvmf()[0][2])
 
-cohen_eisenstein_series = lambda *args: KohnenPlusSpace(4).eisenstein_series(*args)
+cohen_eisenstein_series = lambda *x: KohnenPlusSpace(4).eisenstein_series(*x)

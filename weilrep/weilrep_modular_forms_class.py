@@ -66,20 +66,23 @@ sage_one_half = Integer(1) / Integer(2)
 
 
 class WeilRepModularForm(object):
-
     r"""
     The WeilRepModularForm class represents vector-valued modular forms which transform with the dual Weil representation.
 
     INPUT:
 
-    A WeilRepModularForm is constructed by c alling WeilRepModularForm(k, S, X), where
+    A WeilRepModularForm is constructed by calling WeilRepModularForm(k, S, X), where
+
     - ``k`` -- a weight (half integer)
+
     - ``S`` -- a symmetric integral matrix with even diagonal and nonzero determinant (this is not checked)
+
     - ``X`` -- a list of lists: X = [[g_0, n_0, f_0], [g_1, n_1, f_1], ...] where each element [g, n, f] consists of
         - ``g`` -- a vector of length = size of S
         - ``n`` -- a rational number for which n + g*S*g/2 is integral
         - ``f`` -- a power series with rational Fourier coefficients
         The vectors g are assumed to be sorted in the order they appear in WeilRep(S).ds(). (We do not check this!)
+
     - ``weilrep`` -- optional (default None). This should be set if the VVMF was created by a WeilRep instance.
 
     OUTPUT: WeilRepModularForm(k, S, [[g, n, f], ...]) represents a vector-valued modular form of weight k for the Weil representation attached to the Gram matrix S, whose Fourier expansion takes the form \sum_g q^n f(q) e_g.
@@ -87,17 +90,15 @@ class WeilRepModularForm(object):
     NOTE: WeilRepModularForm's should not (and by default cannot) be constructed this way. If you have to create a vector-valued modular form 'from scratch' then you need to import this class explicitly.
 
     NOTE: The class is automatically changed to WeilRepModularFormPositiveDefinite or WeilRepModularFormLorentzian if appropriate.
-
     """
-
     def __init__(self, weight, gram_matrix, fourier_expansions, weilrep = None):
-        self.__weight = weight
-        self.__gram_matrix = gram_matrix
-        self.__fourier_expansions = fourier_expansions
         if weilrep is None:
             from .weilrep import WeilRep
             weilrep = WeilRep(gram_matrix)
         self.__weilrep = weilrep
+        self.__weight = weight
+        self.__gram_matrix = gram_matrix
+        self.__fourier_expansions = fourier_expansions
         if weilrep.is_positive_definite():
             from .positive_definite import WeilRepModularFormPositiveDefinite
             self.__class__ = WeilRepModularFormPositiveDefinite
@@ -105,11 +106,16 @@ class WeilRepModularForm(object):
             from .lorentz import WeilRepModularFormLorentzian
             self.__class__ = WeilRepModularFormLorentzian
 
-    def __repr__(self): #represent as a list of pairs (g, f) where g is in the discriminant group and f is a q-series with fractional exponents
+    def __repr__(self): #when printed
+        r"""
+        Format a WeilRepModularForm as a list of pairs [g, f] where g is a discriminant group representative and f is a q-series with fractional exponents.
+
+        In the special case of the empty lattice ( not merely a unimodular lattice; only the rank-zero 'empty' lattice WeilRep([]) ) the output instead *mimics* a power series in the variable 'q'.
+        """
         try:
             return self.__qexp_string
         except AttributeError:
-            r = r'((?<!\w)q(?!\w)(\^-?\d+)?)|((?<!\^)\d+\s)'
+            r = r'((?<!\w)q(?!\w)(\^-?\d+)?)|((?<!\^)\d+\s)' #identify exponents that are non integral
             X = self.__fourier_expansions
             z = X[0]
             def a(x):
@@ -122,8 +128,13 @@ class WeilRepModularForm(object):
                     except TypeError:
                         return 'q^(%s)'%(1 + x)
                 return b
-            if self.weilrep():
-                s = '\n'.join(['[%s, %s]'%(x[0], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
+            w = self.weilrep()
+            if w:
+                if w._is_hermitian_weilrep():
+                    ds = w.hds()
+                    s = '\n'.join(['[%s, %s]'%(ds[i], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(ds[i], x[2]) for i, x in enumerate(X)])
+                else:
+                    s = '\n'.join(['[%s, %s]'%(x[0], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
             elif z[1]:
                 s = sub(r, a(z[1]), str(z[2]))
             else:
@@ -132,6 +143,11 @@ class WeilRepModularForm(object):
             return s
 
     def _latex_(self):
+        r'''
+        LaTeX output.
+
+        This outputs self's Fourier expansion as an {align*} environment with one component per line. It should be copy-and-paste-able into LaTeX.
+        '''
         X = self.fourier_expansion()
         r = r'q(\^-?\d+)?|\*|((?<!\^)\d+\s)'
         def a(x):
@@ -163,10 +179,128 @@ class WeilRepModularForm(object):
     ## basic attributes
 
     def base_ring(self):
+        r"""
+        The ring of coefficients
+        """
         return self.fourier_expansion()[0][2].base_ring()
 
     def character(self):
+        r"""
+        Return self's character.
+
+        This determines the possible twist by a multiple of the eta multiplier. By default this is the trivial character (i.e. the 0th power of the Eta multiplier); if it is not then we should not be in this class anyway!
+        """
         return EtaCharacterPower(0)
+
+    def coefficient_vector(self, starting_from=None, ending_with=None, inclusive = True, G = None, set_v = None):
+        r"""
+        Return self's Fourier coefficients as a vector.
+
+        INPUT:
+        - ``starting_from`` -- the minimal exponent whose coefficient is included in the vector (default self's valuation)
+        - ``ending_with`` -- the maximal exponent whose coefficient is included in the vector (default self's precision)
+        - ``inclusive`` -- boolean (default True). If True then we include coefficients exactly the value of 'ending_with' if they are known
+        - ``set_v`` -- vector (default None). If a vector v is given then we *set* the coefficient vector of self to v. (this should only be used internally)
+
+        OUTPUT: a vector of rational numbers
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[2,1],[1,2]])).eisenstein_series(3, 5).coefficient_vector()
+            (1, 27, 72, 216, 270, 459, 720, 1080, 936, 1350)
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(matrix([[2,1],[1,2]]))
+            sage: w.cusp_forms_basis(9,5)[0].coefficient_vector()
+            (0, 1, -6, -10, 90, 8, -540, 310, 1488, -1750)
+
+        """
+        if not set_v is None:
+            self.__coefficient_vector = set_v
+            return None
+        if not (starting_from or ending_with):
+            try:
+                return self.__coefficient_vector
+            except:
+                pass
+        elif (not starting_from) and (ending_with == self.weight() / 12):
+            try:
+                return self.__coefficient_vector_sturm_bound
+            except: #this will probably be triggered anyway
+                pass
+        if G is None:
+            w = self.weilrep()
+            G = w.rds()
+        symm = self.is_symmetric()
+        prec = self.precision()
+        X = [x for x in self.fourier_expansion()]
+        X.sort(key = lambda x: x[1])
+        Y = []
+        def b(n):
+            if inclusive:
+                return starting_from <= n <= ending_with
+            else:
+                return starting_from <= n < ending_with
+        if ending_with is None:
+            ending_with = prec + 1
+        elif ending_with > prec + 1:
+            raise ValueError('Insufficient precision')
+        if starting_from is None:
+            starting_from = self.valuation()
+        for n in range(floor(starting_from),ceil(ending_with)+1):
+            for x in X:
+                if b(n + x[1]) and (x[0] in G) and (symm or x[0].denominator() > 2):
+                    try:
+                        Y.append(x[2][n])
+                    except:
+                        pass
+        v = vector(Y)
+        if not (starting_from or ending_with):
+            self.__coefficient_vector = v
+        elif (not starting_from) and (ending_with == self.weight() / 12):
+            self.__coefficient_vector_sturm_bound = v
+        return v
+
+    def coefficients(self):#returns a dictionary of self's Fourier coefficients
+        r"""
+        Return a DefaultDict of self's Fourier coefficients.
+
+        The result of f.coefficients() is a defaultdict 'd' for which calling d[(g1,...,gn, \lambda)] yields the Fourier coefficient of q^{\lambda} * e_{g1,...,gn} in f. Here (g1,...gn) should be an element of the dual lattice L' which is reduced modulo L (i.e. an element of self's weilrep's method ds()).
+
+        WARNING: if the coefficient is unknown (due to low precision, or because the coefficient is formatted incorrectly) then this returns 0!
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(matrix([[4]]))
+            sage: f = w.eisenstein_series(7/2, 5)
+            sage: f.coefficients()[tuple([1/4, 7/8])]
+            64
+        """
+        try:
+            return self.__coefficients
+        except AttributeError:
+            def f():
+                return 0
+            self.__coefficients = defaultdict(f, {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents()})
+            return self.__coefficients
+
+    def components(self):
+        r"""
+        Return the components of our Fourier expansion as a dictionary.
+
+        NOTE: this requires the component vectors to be passed as tuples and to be reduced mod ZZ, i.e. g = (g_0,...,g_d) with 0 <= g_i < 1
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(-matrix([[2,1],[1,2]])).theta_series(5)
+            sage: w.components()[0,0]
+            1 + 6*q + 6*q^3 + 6*q^4 + O(q^5)
+
+        """
+        return {tuple(x[0]):x[2] for x in self.fourier_expansion()}
 
     def denominator(self):
         r"""
@@ -181,6 +315,15 @@ class WeilRepModularForm(object):
     def fourier_expansion(self):
         r"""
         Return the Fourier expansion.
+
+        This is a list of lists [g, n, f] where g is a coset in the discriminant group; 'n' is an offset (the exponents that appear in f should be multiplied by q^n); and f is a power series in the variable 'q'.
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = WeilRep(matrix([[2,1], [1, 2]]))
+            sage: w.eisenstein_series(3, 5).fourier_expansion()
+            [((0, 0), 0, 1 + 72*q + 270*q^2 + 720*q^3 + 936*q^4 + O(q^5)), ((2/3, 2/3), -1/3, 27*q + 216*q^2 + 459*q^3 + 1080*q^4 + 1350*q^5 + O(q^6)), ((1/3, 1/3), -1/3, 27*q + 216*q^2 + 459*q^3 + 1080*q^4 + 1350*q^5 + O(q^6))]
         """
         return self.__fourier_expansions
 
@@ -226,13 +369,16 @@ class WeilRepModularForm(object):
             return self.__inverse_gram_matrix
 
     def __nonzero__(self):
+        r"""
+        Determine whether 'self' is not identically zero.
+        """
         return any(x[2] for x in self.fourier_expansion())
 
     __bool__ = __nonzero__
 
     def weight(self):
         r"""
-        Return the weight
+        Return the weight.
         """
         return self.__weight
 
@@ -246,25 +392,32 @@ class WeilRepModularForm(object):
             self.__weilrep = WeilRep(self.gram_matrix())
             return self.__weilrep
 
-    def n(self):
+    ## methods relating to numerical evaluation or plots ##
+
+    @cached_method
+    def _cached_call(self, z, q = False, isotherm = False, f = None):
         r"""
-        Replace self's Fourier coefficients by numerical approximations.
-
-        EXAMPLES::
-
-            sage: from weilrep import *
-            sage: smf_j().n()
-            1.00000000000000*q^-1 + 744.000000000000 + 196884.000000000*q + 2.14937600000000e7*q^2 + 8.64299970000000e8*q^3 + 2.02458562560000e10*q^4 + 3.33202640600000e11*q^5 + 4.25202330009600e12*q^6 + 4.46569940719350e13*q^7 + 4.01490886656000e14*q^8 + 3.17644022978442e15*q^9 + 2.25673933095936e16*q^10 + 1.46211911499519e17*q^11 + 8.74313719685775e17*q^12 + 4.87201011179814e18*q^13 + 2.54978273894105e19*q^14 + 1.26142916465782e20*q^15 + 5.93121772421445e20*q^16 + 2.66284241315078e21*q^17 + 1.14599127884448e22*q^18 + O(q^19)
+        Apply __call__() but save the result in some cases. This should not be called directly.
         """
-        def n(f):
-            val, prec = f.valuation(), f.prec()
-            s = r([y.n() for y in f.list()]).add_bigoh(prec)
-            if val >= 0:
-                return s
-            return (q ** val) * s
-        r, q = PowerSeriesRing(RR, 'q').objgen()
-        prec = self.precision()
-        return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], n(x[2])) for x in self.fourier_expansion()], weilrep = self.weilrep())
+        s = self.__call__(z, q = q, funct = self._cached_call)
+        if f is not None:
+            s = f(s)
+            if isotherm:
+                if s == 0.0:
+                    return s
+                else:
+                    c = abs(s)
+                    return 2 * s * math.frexp(c)[0] / c
+        elif isotherm:
+            v = [0] * len(s)
+            for i, x in enumerate(s):
+                if x == 0.0:
+                    v[i] = x
+                else:
+                    c = abs(x)
+                    v[i] = 2 * x * math.frexp(c)[0] / c
+            return v
+        return s
 
     def __call__(self, z, q = False, funct = None):
         r"""
@@ -400,27 +553,25 @@ class WeilRepModularForm(object):
                 v[i] = eps * v[indices[i]]
         return v
 
-    @cached_method
-    def _cached_call(self, z, q = False, isotherm = False, f = None):
-        s = self.__call__(z, q = q, funct = self._cached_call)
-        if f is not None:
-            s = f(s)
-            if isotherm:
-                if s == 0.0:
-                    return s
-                else:
-                    c = abs(s)
-                    return 2 * s * math.frexp(c)[0] / c
-        elif isotherm:
-            v = [0] * len(s)
-            for i, x in enumerate(s):
-                if x == 0.0:
-                    v[i] = x
-                else:
-                    c = abs(x)
-                    v[i] = 2 * x * math.frexp(c)[0] / c
-            return v
-        return s
+    def n(self):
+        r"""
+        Replace self's Fourier coefficients by numerical approximations.
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: smf_j().n()
+            1.00000000000000*q^-1 + 744.000000000000 + 196884.000000000*q + 2.14937600000000e7*q^2 + 8.64299970000000e8*q^3 + 2.02458562560000e10*q^4 + 3.33202640600000e11*q^5 + 4.25202330009600e12*q^6 + 4.46569940719350e13*q^7 + 4.01490886656000e14*q^8 + 3.17644022978442e15*q^9 + 2.25673933095936e16*q^10 + 1.46211911499519e17*q^11 + 8.74313719685775e17*q^12 + 4.87201011179814e18*q^13 + 2.54978273894105e19*q^14 + 1.26142916465782e20*q^15 + 5.93121772421445e20*q^16 + 2.66284241315078e21*q^17 + 1.14599127884448e22*q^18 + O(q^19)
+        """
+        def n(f):
+            val, prec = f.valuation(), f.prec()
+            s = r([y.n() for y in f.list()]).add_bigoh(prec)
+            if val >= 0:
+                return s
+            return (q ** val) * s
+        r, q = PowerSeriesRing(RR, 'q').objgen()
+        prec = self.precision()
+        return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0], x[1], n(x[2])) for x in self.fourier_expansion()], weilrep = self.weilrep())
 
     def plot(self, x_range = [-1, 1], y_range = [0.01, 2], isotherm = True, show = True, **kwargs):
         r"""
@@ -505,20 +656,6 @@ class WeilRepModularForm(object):
             self.__precision = min([floor(x[2].prec() + x[1]) for x in X])
             return self.__precision
 
-    def reduce_precision(self, prec, in_place = False):
-        r"""
-        Reduce self's precision.
-        """
-        prec = floor(prec)
-        X = self.__fourier_expansions
-        q, = X[0][2].parent().gens()
-        X = [(x[0], x[1], x[2] + O(q**(prec - floor(x[1])))) for x in X]
-        if in_place:
-            self.__fourier_expansions = X
-            self.__precision = prec
-        else:
-            return WeilRepModularForm(self.__weight, self.__gram_matrix, X, weilrep = self.weilrep())
-
     def principal_part(self):
         r"""
         Return the principal part of self's Fourier expansion as a WeilRepModularFormPrincipalPart object.
@@ -536,6 +673,29 @@ class WeilRepModularForm(object):
             self.__principal_part = WeilRepModularFormPrincipalPart(self.weilrep(), self.principal_part_coefficients())
             return self.__principal_part
 
+    def reduce_precision(self, prec, in_place = False):
+        r"""
+        Reduce self's precision.
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(matrix([[2,1], [1, 2]]))
+            sage: w.eisenstein_series(3, 10).reduce_precision(5)
+            [(0, 0), 1 + 72*q + 270*q^2 + 720*q^3 + 936*q^4 + O(q^5)]
+            [(2/3, 2/3), 27*q^(2/3) + 216*q^(5/3) + 459*q^(8/3) + 1080*q^(11/3) + 1350*q^(14/3) + O(q^(17/3))]
+            [(1/3, 1/3), 27*q^(2/3) + 216*q^(5/3) + 459*q^(8/3) + 1080*q^(11/3) + 1350*q^(14/3) + O(q^(17/3))]
+        """
+        prec = floor(prec)
+        X = self.__fourier_expansions
+        q, = X[0][2].parent().gens()
+        X = [(x[0], x[1], x[2] + O(q**(prec - floor(x[1])))) for x in X]
+        if in_place:
+            self.__fourier_expansions = X
+            self.__precision = prec
+        else:
+            return WeilRepModularForm(self.__weight, self.__gram_matrix, X, weilrep = self.weilrep())
+
     def valuation(self, exact = False):
         r"""
         Return the lowest exponent in our Fourier expansion with a nonzero coefficient (rounded down).
@@ -551,142 +711,80 @@ class WeilRepModularForm(object):
             X = self.fourier_expansion()
             try:
                 self.__exact_valuation = min([x[2].valuation() + x[1] for x in X if x[2]])
-            except ValueError: #probably trying to take valuation of 0
+            except ValueError: #this probably means you are trying to take the valuation of something identically zero
                 self.__exact_valuation = 0 #for want of a better value
             self.__valuation = floor(self.__exact_valuation)
             if exact:
                 return self.__exact_valuation
             return self.__valuation
 
-    def depth(self):
+    ## default methods ##
+    # methods which are not interesting in the context of holomorphic modular forms but are added for compatibility #
+
+    def complex_conjugate(self):
+        r"""
+        Return the modular complex conjugate of self.
+
+        If f(\tau) has weight k then this is the form
+
+        y^k * \overline{f(\tau)}
+        where \tau = x + iy. This is a (non holomorphic) modular form of weight -k.
+        """
+        from .mock import WeilRepMixedModularForm
+        val = self.valuation()
+        if val >= 0:
+            r = PowerSeriesRing(QQ, ['q', 'qbar'])
+        else:
+            r = LaurentSeriesRing(QQ, ['q', 'qbar'])
+        q, qbar = r.gens()
+        X = self.fourier_expansion()
+        k = self.weight()
+        w = self.weilrep().dual()
+        return WeilRepMixedModularForm(k, k, w.gram_matrix(), [(x[0], x[1], r(x[2]).subs({q:qbar})) for x in X], w)
+
+    def completion(self): #completion of a quasimodular form to an almost-holomorphic modular form; default self
+        return self
+
+    def depth(self): #depth of a quasimodular form; default zero
         return 0
 
-    def _terms(self):
-        return [self]
-
-    def completion(self):
+    def holomorphic_part(self): #holomorphic part of a harmonic Maass form; default self
         return self
 
     def is_cusp_form(self):
+        r"""
+        Determine whether self is a cusp form.
+
+        Since WeilRepModularForm's transform under the full group SL2(\ZZ) (with multiplier) this is equivalent to asking whether any Fourier coefficients in negative or zero exponent are nonzero.
+        """
         return self.valuation(exact = True) > 0
 
     def is_holomorphic(self):
+        r"""
+        Determine whether self is a holomorphic modular form.
+
+        Since WeilRepModularForm's transform under the full group SL2(\ZZ) (with multiplier) this is equivalent to asking whether any Fourier coefficients in negative exponent are nonzero.
+
+        NOTE: we do not test whether 'self' is actually holomorphic on the upper half-plane. It is not difficult to construct meromorphic (vector-valued) modular forms for which this fails but in practice these are not relevant.
+        """
         return self.valuation(exact = True) >= 0
 
-    def holomorphic_part(self):
-        return self
-
-    def is_modular(self):
+    def is_modular(self): #whether self is a modular form. default True; to be overridden for quasimodular forms etc.
         return True
 
-    def is_quasimodular(self):
+    def is_quasimodular(self): #whether self is a quasimodular form. default True; to be overridden for more exotic objects
         return True
 
     def is_symmetric(self):
         r"""
         Determines whether the components f_{\gamma} in our Fourier expansion satisfy f_{\gamma} = f_{-\gamma} or f_{\gamma} = -f_{\gamma}.
-        This can be read off the weight.
+        This can be read off of the weight.
         """
         try:
             return self.__is_symmetric
         except AttributeError:
             self.__is_symmetric = [1,None,0,None][(Integer(2*self.weight()) + self.weilrep().signature()) % 4]
             return self.__is_symmetric
-
-    def coefficient_vector(self, starting_from=None, ending_with=None, inclusive = True, G = None, set_v = None):
-        r"""
-        Return self's Fourier coefficients as a vector.
-
-        INPUT:
-        - ``starting_from`` -- the minimal exponent whose coefficient is included in the vector (default self's valuation)
-        - ``ending_with`` -- the maximal exponent whose coefficient is included in the vector (default self's precision)
-        - ``inclusive`` -- boolean (default True). If True then we include coefficients exactly the value of 'ending_with' if they are known
-        - ``set_v`` -- vector (default None). If a vector v is given then we *set* the coefficient vector of self to v. (this should only be used internally)
-
-        OUTPUT: a vector of rational numbers
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[2,1],[1,2]])).eisenstein_series(3, 5).coefficient_vector()
-            (1, 27, 72, 216, 270, 459, 720, 1080, 936, 1350)
-
-            sage: from weilrep import WeilRep
-            sage: w = WeilRep(matrix([[2,1],[1,2]]))
-            sage: w.cusp_forms_basis(9,5)[0].coefficient_vector()
-            (0, 1, -6, -10, 90, 8, -540, 310, 1488, -1750)
-
-        """
-        if not set_v is None:
-            self.__coefficient_vector = set_v
-            return None
-        if not (starting_from or ending_with):
-            try:
-                return self.__coefficient_vector
-            except:
-                pass
-        elif (not starting_from) and (ending_with == self.weight() / 12):
-            try:
-                return self.__coefficient_vector_sturm_bound
-            except: #this will probably be triggered anyway
-                pass
-        if G is None:
-            w = self.weilrep()
-            G = w.rds()
-        symm = self.is_symmetric()
-        prec = self.precision()
-        X = [x for x in self.fourier_expansion()]
-        X.sort(key = lambda x: x[1])
-        Y = []
-        def b(n):
-            if inclusive:
-                return starting_from <= n <= ending_with
-            else:
-                return starting_from <= n < ending_with
-        if ending_with is None:
-            ending_with = prec + 1
-        elif ending_with > prec + 1:
-            raise ValueError('Insufficient precision')
-        if starting_from is None:
-            starting_from = self.valuation()
-        for n in range(floor(starting_from),ceil(ending_with)+1):
-            for x in X:
-                if b(n + x[1]) and (x[0] in G) and (symm or x[0].denominator() > 2):
-                    try:
-                        Y.append(x[2][n])
-                    except:
-                        pass
-        v = vector(Y)
-        if not (starting_from or ending_with):
-            self.__coefficient_vector = v
-        elif (not starting_from) and (ending_with == self.weight() / 12):
-            self.__coefficient_vector_sturm_bound = v
-        return v
-
-    def coefficients(self):#returns a dictionary of self's Fourier coefficients
-        try:
-            return self.__coefficients
-        except AttributeError:
-            def f():
-                return 0
-            self.__coefficients = defaultdict(f, {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents()})
-            return self.__coefficients
-
-    def components(self):
-        r"""
-        Return the components of our Fourier expansion as a dictionary.
-
-        NOTE: this requires the component vectors to be passed as tuples and to be reduced mod ZZ, i.e. g = (g_0,...,g_d) with 0 <= g_i < 1
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: w = WeilRep(-matrix([[2,1],[1,2]])).theta_series(5)
-            sage: w.components()[0,0]
-            1 + 6*q + 6*q^3 + 6*q^4 + O(q^5)
-
-        """
-        return {tuple(x[0]):x[2] for x in self.fourier_expansion()}
 
     def principal_part_coefficients(self):
         r"""
@@ -696,9 +794,15 @@ class WeilRepModularForm(object):
             return 0
         return defaultdict(f, {tuple(list(x[0])+[n+x[1]]):x[2][n] for x in self.fourier_expansion() for n in x[2].exponents() if n <= 0})
 
-    ## arithmetic operations
+    def _terms(self): #y-expansion of a quasimodular form; default [self]
+        return [self]
+
+    ## arithmetic operations ##
 
     def __add__(self, other):
+        r"""
+        Addition of vector-valued modular forms.
+        """
         from .mock import WeilRepQuasiModularForm
         if not other:
             return self
@@ -720,35 +824,60 @@ class WeilRepModularForm(object):
         finally:
             return X_plus_Y
 
-    __radd__ = __add__
+    def __and__(self, other):
+        r"""
+        Apply a trace map.
 
-    def __neg__(self):
-        X = self.fourier_expansion()
-        neg_X = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],-x[2]) for x in X], weilrep = self.weilrep())
-        try: #keep coefficient vectors
-            negX.coefficient_vector(setv = -self.__coefficient_vector)
-        finally:
-            return neg_X
+        The & operator takes two modular forms for Weil representations that are duals of one another and takes the trace of their tensor product to obtain a scalar-valued modular form.
 
-    def __sub__(self, other):
-        from .mock import WeilRepQuasiModularForm
-        if not other:
-            return self
-        elif isinstance(other, WeilRepQuasiModularForm):
-            return other.__sub__(self).__neg__()
-        elif not self.gram_matrix() == other.gram_matrix():
-            raise ValueError('Incompatible Gram matrices')
-        elif not self.weight() == other.weight():
-            raise ValueError('Incompatible weights')
-        X = self.fourier_expansion()
-        Y = other.fourier_expansion()
-        X_minus_Y = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]-Y[i][2]) for i,x in enumerate(X)], weilrep = self.weilrep())
-        try: #keep coefficient vectors
-            v2 = other.__dict__['_WeilRepModularForm__coefficient_vector']
-            v1 = self.__coefficient_vector
-            X_minus_Y.coefficient_vector(setv = v1 - v2)
-        finally:
-            return X_minus_Y
+        OUTPUT: a power series in 'q'
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: e1 = WeilRep(matrix([[2, 1], [1, 2]])).eisenstein_series(3, 5)
+            sage: e2 = WeilRep(matrix([[-2, -1], [-1, -2]])).eisenstein_series(5, 5)
+            sage: e1 & e2
+            1 + 480*q + 61920*q^2 + 1050240*q^3 + 7926240*q^4 + O(q^5)
+        """
+        if isinstance(other, WeilRepModularForm):
+            w = self.weilrep()
+            minus_w = other.weilrep()
+            if not w.dual() == minus_w:
+                raise NotImplementedError
+            f1 = self.fourier_expansion()
+            f2 = other.fourier_expansion()
+            dsdict = w.ds_dict()
+            r, q = LaurentSeriesRing(QQ, 'q').objgen()
+            h = 0 + O(q ** self.precision())
+            for g, o, x in f2:
+                j = dsdict[tuple(g)]
+                g1, o1, y = f1[j]
+                h += r(q**(o + o1)) * x * y
+            return h
+        raise NotImplementedError
+
+    def __eq__(self,other):
+        if isinstance(other,WeilRepModularForm) and self.weilrep() == other.weilrep():
+            x = self.fourier_expansion()
+            y = other.fourier_expansion()
+            return all(h[1][2] == y[h[0]][2] for h in enumerate(x))
+        return False
+
+    def __invert__(self):
+        r"""
+        Multiplicative inverse of self.
+
+        This is not meaningful (as far as I know) unless 'self' is a scalar-valued modular form.
+        """
+        if self.gram_matrix():
+            return NotImplemented
+        x = self.fourier_expansion()[0]
+        if x[1]:
+            N, j = -1-x[1], 1
+        else:
+            N, j = 0, 0
+        return WeilRepModularForm(-self.weight(), self.gram_matrix(), [(x[0], N, (~x[2]).shift(j))])
 
     def __mul__(self, other, w=None): #tensor product!
         r"""
@@ -837,9 +966,76 @@ class WeilRepModularForm(object):
                 return X_times_other
         return NotImplemented
 
+    __radd__ = __add__
+
+    def __neg__(self):
+        r"""
+        Negative of a vector-valued modular form.
+        """
+        X = self.fourier_expansion()
+        neg_X = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],-x[2]) for x in X], weilrep = self.weilrep())
+        try: #keep coefficient vectors
+            negX.coefficient_vector(setv = -self.__coefficient_vector)
+        finally:
+            return neg_X
+
+    def __pow__(self, other):
+        r"""
+        Compute tensor powers of self.
+
+        This computes tensor powers of the form
+
+        f^n = f \otimes f \otimes ... \otimes f
+
+        If f is a modular form of weight k for the Weil representation attached to L then f^n is a modular form of weight n*k for the Weil representation attached to n*L = L + ... + L.
+
+        NOTE: 'n' i.e. 'other' must be positive.
+        """
+        if other in ZZ and other >= 1:
+            if other == 1:
+                return self
+            elif other == 2:
+                return self * self
+            else:
+                nhalf = other // 2
+                return (self ** nhalf) * (self ** (other - nhalf))
+        else:
+            raise NotImplementedError
+
+    def __rdiv__(self, other): #divide 'other' by 'self'
+        return (~self).__mul__(other)
+    __rtruediv__ = __rdiv__
+
+    def __sub__(self, other):
+        r"""
+        Subtract vector-valued modular forms.
+        """
+        from .mock import WeilRepQuasiModularForm
+        if not other:
+            return self
+        elif isinstance(other, WeilRepQuasiModularForm):
+            return other.__sub__(self).__neg__()
+        elif not self.gram_matrix() == other.gram_matrix():
+            raise ValueError('Incompatible Gram matrices')
+        elif not self.weight() == other.weight():
+            raise ValueError('Incompatible weights')
+        X = self.fourier_expansion()
+        Y = other.fourier_expansion()
+        X_minus_Y = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]-Y[i][2]) for i,x in enumerate(X)], weilrep = self.weilrep())
+        try: #keep coefficient vectors
+            v2 = other.__dict__['_WeilRepModularForm__coefficient_vector']
+            v1 = self.__coefficient_vector
+            X_minus_Y.coefficient_vector(setv = v1 - v2)
+        finally:
+            return X_minus_Y
     __rmul__ = __mul__
 
     def __truediv__(self, other):
+        r"""
+        Division of vector-valued modular forms.
+
+        NOTE: Attempting this will generally raise an error since dividing vector-valued modular forms is not well-defined. If you are dividing by a scalar modular form ( i.e. a WeilRepModularForm for WeilRep([]) ) then the __rdiv__ method should kick in and everything should be OK.
+        """
         X = self.fourier_expansion()
         if is_ModularFormElement(other):
             if not other.level() == 1:
@@ -853,75 +1049,7 @@ class WeilRepModularForm(object):
             finally:
                 return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]/other) for x in X], weilrep = self.weilrep())
         return NotImplemented
-
     __div__ = __truediv__
-
-    def __rdiv__(self, other):
-        return (~self).__mul__(other)
-
-    __rtruediv__ = __rdiv__
-
-    def __invert__(self):
-        if self.gram_matrix():
-            return NotImplemented
-        x = self.fourier_expansion()[0]
-        if x[1]:
-            N, j = -1-x[1], 1
-        else:
-            N, j = 0, 0
-        return WeilRepModularForm(-self.weight(), self.gram_matrix(), [(x[0], N, (~x[2]).shift(j))])
-
-    def __and__(self, other):
-        r"""
-        Apply a trace map.
-
-        The & operator takes two modular forms for Weil representations that are duals of one another and traces them to a scalar-valued modular form.
-
-        OUTPUT: a power series in 'q'
-
-        EXAMPLE::
-
-            sage: from weilrep import WeilRep
-            sage: e1 = WeilRep(matrix([[2, 1], [1, 2]])).eisenstein_series(3, 5)
-            sage: e2 = WeilRep(matrix([[-2, -1], [-1, -2]])).eisenstein_series(5, 5)
-            sage: e1 & e2
-            1 + 480*q + 61920*q^2 + 1050240*q^3 + 7926240*q^4 + O(q^5)
-        """
-        if isinstance(other, WeilRepModularForm):
-            w = self.weilrep()
-            minus_w = other.weilrep()
-            if not w.dual() == minus_w:
-                raise NotImplementedError
-            f1 = self.fourier_expansion()
-            f2 = other.fourier_expansion()
-            dsdict = w.ds_dict()
-            r, q = LaurentSeriesRing(QQ, 'q').objgen()
-            h = 0 + O(q ** self.precision())
-            for g, o, x in f2:
-                j = dsdict[tuple(g)]
-                g1, o1, y = f1[j]
-                h += r(q**(o + o1) * x * y)
-            return h
-        raise NotImplementedError
-
-    def __eq__(self,other):
-        if isinstance(other,WeilRepModularForm) and self.weilrep() == other.weilrep():
-            x = self.fourier_expansion()
-            y = other.fourier_expansion()
-            return all(h[1][2] == y[h[0]][2] for h in enumerate(x))
-        return False
-
-    def __pow__(self, other):
-        if other in ZZ and other >= 1:
-            if other == 1:
-                return self
-            elif other == 2:
-                return self * self
-            else:
-                nhalf = other // 2
-                return (self ** nhalf) * (self ** (other - nhalf))
-        else:
-            raise NotImplementedError
 
     ## other operations
 
@@ -1014,6 +1142,15 @@ class WeilRepModularForm(object):
     def derivative(self):
         r"""
         Compute the derivative of self as a quasimodular form.
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep([-2])
+            sage: f = w.eisenstein_series(5/2, 10)
+            sage: f.derivative()
+            [(0), -70*q - 240*q^2 - 720*q^3 - 2200*q^4 - 2640*q^5 - 4320*q^6 - 6720*q^7 - 8640*q^8 - 15750*q^9 + O(q^10)]
+            [(1/2), -5/2*q^(1/4) - 60*q^(5/4) - 1125/2*q^(9/4) - 780*q^(13/4) - 2040*q^(17/4) - 2520*q^(21/4) - 15125/2*q^(25/4) - 5220*q^(29/4) - 11880*q^(33/4) - 11100*q^(37/4) + O(q^(45/4))]
         """
         from .mock import WeilRepQuasiModularForm
         S = self.gram_matrix()
@@ -1043,6 +1180,17 @@ class WeilRepModularForm(object):
         Apply the Nth Hecke projection map.
 
         This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
+
+        NOTE: the Gram matrix must be of the form N^2 * S where S is a valid Gram matrix (integral with even diagonal) otherwise this is not defined.
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep([-8])
+            sage: f = w.eisenstein_series(5/2, 10)
+            sage: f.hecke_P(2)
+            [(0), 1/2 - 35*q - 60*q^2 - 120*q^3 - 275*q^4 - 264*q^5 - 360*q^6 - 480*q^7 - 540*q^8 - 875*q^9 + O(q^10)]
+            [(1/2), -5*q^(1/4) - 24*q^(5/4) - 125*q^(9/4) - 120*q^(13/4) - 240*q^(17/4) - 240*q^(21/4) - 605*q^(25/4) - 360*q^(29/4) - 720*q^(33/4) - 600*q^(37/4) + O(q^(41/4))]
         """
         from .weilrep import WeilRep
         S = self.gram_matrix()
@@ -1181,6 +1329,26 @@ class WeilRepModularForm(object):
         Apply the index-raising Hecke operator U_N.
 
         This is the same as conjugating by N times the identity matrix.
+
+        INPUT:
+        - ``N`` -- a natural number
+
+        OUTPUT: WeilRepModularForm
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep([2])
+            sage: f = w.eisenstein_series(7/2, 10)
+            sage: f.hecke_U(2)
+            [(0), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + 7560*q^5 + 11592*q^6 + 16704*q^7 + 24948*q^8 + 31878*q^9 + O(q^10)]
+            [(1/8), O(q^(175/16))]
+            [(1/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + 12096*q^(23/4) + 13664*q^(27/4) + 24192*q^(31/4) + 27216*q^(35/4) + 44352*q^(39/4) + O(q^(43/4))]
+            [(3/8), O(q^(167/16))]
+            [(1/2), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + 7560*q^5 + 11592*q^6 + 16704*q^7 + 24948*q^8 + 31878*q^9 + O(q^10)]
+            [(5/8), O(q^(167/16))]
+            [(3/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + 12096*q^(23/4) + 13664*q^(27/4) + 24192*q^(31/4) + 27216*q^(35/4) + 44352*q^(39/4) + O(q^(43/4))]
+            [(7/8), O(q^(175/16))]
         """
         return self.conjugate(N * identity_matrix(self.gram_matrix().nrows()))
 
@@ -1286,7 +1454,22 @@ class WeilRepModularForm(object):
                 Y[j] = [g, big_offset, eps * Y[i][2]]
         return WeilRepModularForm(self.weight(), N*S, Y )
 
+    def lowering_operator(self, _weight = None):
+        r"""
+        Apply the Maass lowering operator.
+
+        For holomorphic forms the result is zero.
+        """
+        if _weight is None:
+            _weight = self.weight() - 2
+        return self.weilrep().zero(_weight, self.precision())
+
     def pullback(self, *v):
+        r"""
+        Compute the pullback of self to the lattice spanned by *v.
+
+        This computes the theta-contraction of 'self' to an arbitrary sublattice.
+        """
         A = matrix(ZZ, matrix(v).transpose().echelon_form(transformation = True)[1].inverse())
         n = A.nrows() - len(v)
         f = self.conjugate(A)
@@ -1304,21 +1487,11 @@ class WeilRepModularForm(object):
         """
         return self.derivative().completion()
 
-    def lowering_operator(self, _weight = None):
-        r"""
-        Apply the Maass lowering operator.
-
-        For holomorphic forms the result is zero.
-        """
-        if _weight is None:
-            _weight = self.weight() - 2
-        return self.weilrep().zero(_weight, self.precision())
-
     def reduce_lattice(self, z = None, z_prime = None, zeta = None, return_vectors = False):
         r"""
         Compute self's image under lattice reduction.
 
-        This implements the lattice-reduction map from isotropic lattices of signature (b^+, b^-) to signature (b^+ - 1, b^- - 1). In Borcherds' notation ([B], Chapter 5) this takes the form F_M as input and outputs the form F_K.
+        This implements the lattice-reduction map from isotropic lattices of signature (b^+, b^-) to signature (b^+ - 1, b^- - 1). In Borcherds' notation (Chapter 5 of 'Automorphic forms with singularities on Grassmannians') this takes the form F_M as input and outputs the form F_K.
 
         NOTE: If it is possible to choose zeta with <z, zeta> = 1 then this method yields a smaller-rank lattice with an equivalent discriminant form and it preserves Fourier coefficients. (This is always possible if we have an isotropic lattice of square-free discriminant.) Otherwise if L is the original lattice and K is the result lattice then |L'/L| = N^2 * |K'/K| where <z, zeta> = N.
 
@@ -1469,35 +1642,14 @@ class WeilRepModularForm(object):
                 f /= a
         return f
 
-    def complex_conjugate(self):
-        r"""
-        Return the modular complex conjugate of self.
-
-        If f(\tau) has weight k then this is the form
-
-        y^k * \overline{f(\tau)}
-        where \tau = x + iy. This is a (non holomorphic) modular form of weight -k.
-        """
-        from .mock import WeilRepMixedModularForm
-        val = self.valuation()
-        if val >= 0:
-            r = PowerSeriesRing(QQ, ['q', 'qbar'])
-        else:
-            r = LaurentSeriesRing(QQ, ['q', 'qbar'])
-        q, qbar = r.gens()
-        X = self.fourier_expansion()
-        k = self.weight()
-        w = self.weilrep().dual()
-        return WeilRepMixedModularForm(k, k, w.gram_matrix(), [(x[0], x[1], r(x[2]).subs({q:qbar})) for x in X], w)
-
-    def xi(self):
+    def shadow(self):
         r"""
         Apply the Bruinier--Funke 'xi' operator.
 
         The result is zero as WeilRepModularForm's are assumed to be holomorphic.
         """
         return self.weilrep().dual().zero(2 - self.weight(), self.precision())
-    shadow = xi
+    xi = shadow
 
     def shadow_multiplier(self):
         return Integer(1)
@@ -1675,7 +1827,7 @@ class WeilRepModularForm(object):
                 Y[i] = g, -offset, eps * Y[_indices[i]][2]
         return WeilRepModularForm(QQ(self.weight() + sage_one_half + odd), S, Y, weilrep = weilrep)
 
-def smf(weight, f):
+def smf(weight, f): #scalar modular forms
     r"""
     Construct WeilRepModularForms for the empty matrix from q-series.
 
@@ -1829,6 +1981,9 @@ class WeilRepModularFormsBasis:
     def gram_matrix(self):
         return self.__weilrep.gram_matrix()
 
+    def index(self, x):
+        return self.__basis.index(x)
+
     def is_symmetric(self): #whether self's modular forms are symmetric
         return self.__weilrep.is_symmetric_weight(self.__weight)
 
@@ -1951,10 +2106,20 @@ class WeilRepModularFormsBasis:
         The output is a string of the form (i, x.principal_part()) for x in X joined by newlines.
         """
         w = self.weilrep()
+        try:
+            d = w._hds_dict()
+            n = w.norm_list()
+            w.h_sorted_ds = sorted(w.hds(), key = lambda x: -n[d[tuple(x)]])
+        except AttributeError:
+            pass
         norm_dict = w.norm_dict()
         w.sorted_ds = sorted(w.ds(), key = lambda x: -norm_dict[tuple(x)])
         s = '\n'.join(['%d %s'%(i, str(x.principal_part())) for i, x in enumerate(self)])
         del(w.sorted_ds)
+        try:
+            del(w.h_sorted_ds)
+        except AttributeError:
+            pass
         return s
 
     def rank(self, starting_from = 0):
@@ -2168,7 +2333,7 @@ def theta_product(f, g, _check = True):
     r"""
     Computes the theta-product of f and g.
 
-    Suppose f and g are vector-valued modular forms for a WeilRep of signature (p, q) and Witt index q. The theta-product (cf [Ma]) f *_I g (with respect to a maximal isotropic lattice I) is defined by
+    This is defined following the prepring 'Algebra of Borcherds products' by S. Ma. [Ma] Suppose f and g are vector-valued modular forms for a WeilRep of signature (p, q) and Witt index q. The theta-product f *_I g (with respect to a maximal isotropic lattice I) is defined by applying the following steps
     1) lattice reduction of f
     2) theta contraction of f
     (after which the result is a scalar modular form)
@@ -2200,6 +2365,13 @@ class WeilRepModularFormPrincipalPart:
         self.__weilrep = weilrep
         self.__coeffs = coeffs_dict
 
+    def _latex_(self):
+        try:
+            return self.__latex
+        except AttributeError:
+            s = str(self)
+            return self.__latex
+
     def __repr__(self):
         try:
             return self.__string
@@ -2208,9 +2380,22 @@ class WeilRepModularFormPrincipalPart:
             w = self.weilrep()
             norm_dict = w.norm_dict()
             try:
-                sorted_ds = w.sorted_ds
+                h_norm_dict = w._h_norm_dict()
+                u = True
             except AttributeError:
-                sorted_ds = sorted(w.ds(), key = lambda x: -norm_dict[tuple(x)])
+                u = False
+            if u:
+                try:
+                    sorted_uds = w.h_sorted_ds
+                except AttributeError:
+                    sorted_uds = sorted(w.hds(), key = lambda x: -h_norm_dict[tuple(x)])
+                d = w._hds_to_ds()
+                sorted_ds = [d[tuple(x)] for x in sorted_uds]
+            else:
+                try:
+                    sorted_ds = w.sorted_ds
+                except AttributeError:
+                    sorted_ds = sorted(w.ds(), key = lambda x: -norm_dict[tuple(x)])
             val = self.valuation()
             g = vector([0] * (w.gram_matrix().nrows()))
             try:
@@ -2219,10 +2404,20 @@ class WeilRepModularFormPrincipalPart:
                 if val >= 0:
                     return 'None'
                 C0 = 0
+            if u:
+                g = vector([0 * w.complex_gram_matrix().nrows()])
             s = str(C0)+'*e_%s'%g
             l = str(C0)+'\\mathfrak{e}_{%s}'%g
             sorted_ds.append(sorted_ds.pop(0))
+            try:
+                sorted_uds.append(sorted_uds.pop(0))
+            except NameError:
+                pass
             for i, g in enumerate(sorted_ds):
+                try:
+                    h = sorted_uds[i]
+                except NameError:
+                    h = g
                 j = norm_dict[tuple(g)]
                 for n in srange(1 - val):
                     if j or n:
@@ -2230,23 +2425,16 @@ class WeilRepModularFormPrincipalPart:
                             C = coeffs[tuple(list(g) + [j - n])]
                             if C:
                                 if C != 1:
-                                    s += ' + %s*q^(%s)e_%s'%(C, (j - n), g)
-                                    l += ' + %sq^{%s}\\mathfrak{e}_{%s}'%(C, (j - n), g)
+                                    s += ' + %s*q^(%s)e_%s'%(C, (j - n), h)
+                                    l += ' + %sq^{%s}\\mathfrak{e}_{%s}'%(C, (j - n), h)
                                 else:
-                                    s += ' + q^(%s)e_%s'%((j - n), g)
-                                    l += ' + q^{%s}\\mathfrak{e}_{%s}'%((j - n), g)
+                                    s += ' + q^(%s)e_%s'%((j - n), h)
+                                    l += ' + q^{%s}\\mathfrak{e}_{%s}'%((j - n), h)
                         except KeyError:
                             pass
             self.__string = s
             self.__latex = l
             return s
-
-    def _latex_(self):
-        try:
-            return self.__latex
-        except AttributeError:
-            s = str(self)
-            return self.__latex
 
     def coeffs(self):
         return self.__coeffs
@@ -2264,7 +2452,7 @@ class WeilRepModularFormPrincipalPart:
 class EtaCharacterPower:
     r"""
     A power of the Eta character.
-    This class contains no information other than the power, which can be recovered with _k()
+    The power mod 24 can be recovered with _k()
     """
     def __init__(self, k):
         k = ZZ(k) % 24
@@ -2273,27 +2461,29 @@ class EtaCharacterPower:
     def __repr__(self):
         return '%d%s power of the eta multiplier'%(self._k(), self._th())
 
+    ## arithmetic ##
+
     def __bool__(self):
         return bool(self.__k)
 
-    def __mul__(self, other):
-        return EtaCharacterPower(self._k() + other._k())
-
-    __rmul__ = __mul__
-
     def __div__(self, other):
         return EtaCharacterPower(self._k() - other._k())
-
     __truediv__ = __div__
+
+    def __eq__(self, other):
+        return self._k() == other._k()
 
     def __invert__(self):
         return EtaCharacterPower(-self._k())
 
+    def __mul__(self, other):
+        return EtaCharacterPower(self._k() + other._k())
+    __rmul__ = __mul__
+
     def __pow__(self, N):
         return EtaCharacterPower(N * self._k())
 
-    def __eq__(self, other):
-        return self._k() == other._k()
+    ## other ##
 
     def _k(self):
         return self.__k
@@ -2340,11 +2530,25 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         f = super().__add__(other)
         return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
 
-    def __sub__(self, other):
-        if self.character() != other.character():
-            return NotImplemented
-        f = super().__sub__(other)
-        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
+    def __div__(self, other):
+        f = super().__div__(other)
+        try:
+            k = other.character()
+            x = self.character() / k
+        except AttributeError:
+            x = self.character()
+        try:
+            x = other.is_modular()
+            if not x:
+                return NotImplemented
+        except AttributeError:
+            pass
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = x)
+    __truediv__ = __div__
+
+    def __invert__(self):
+        f = super().__invert__()
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = ~self.character())
 
     def __mul__(self, other):
         try:
@@ -2362,25 +2566,7 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         except AttributeError:
             x = self.character()
         return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = x)
-
     __rmul__ = __mul__
-
-    def __div__(self, other):
-        f = super().__div__(other)
-        try:
-            k = other.character()
-            x = self.character() / k
-        except AttributeError:
-            x = self.character()
-        try:
-            x = other.is_modular()
-            if not x:
-                return NotImplemented
-        except AttributeError:
-            pass
-        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = x)
-
-    __truediv__ = __div__
 
     def __pow__(self, N):
         f = super().__pow__(N)
@@ -2392,12 +2578,13 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
 
     def __rdiv__(self, other):
         return (~self).__mul__(other)
-
     __rtruediv__ = __rdiv__
 
-    def __invert__(self):
-        f = super().__invert__()
-        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = ~self.character())
+    def __sub__(self, other):
+        if self.character() != other.character():
+            return NotImplemented
+        f = super().__sub__(other)
+        return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep = f.weilrep(), character = self.character())
 
     def derivative(self):
         f = super().derivative()

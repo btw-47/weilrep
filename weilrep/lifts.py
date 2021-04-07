@@ -440,6 +440,9 @@ class OrthogonalModularForm(object):
             elif s == 'siegel':
                 from .special import ParamodularForm
                 self.__class__ = ParamodularForm
+            elif s == 'unitary':
+                from .unitary import UnitaryModularForm
+                self.__class__ = UnitaryModularForm
 
 
     ## basic attributes
@@ -535,7 +538,7 @@ class OrthogonalModularForm(object):
         r"""
         Return a dictionary of self's known Fourier coefficients.
 
-        The input into the dictionary should be a tuple of the form (a, b_0, ..., b_d, c). The output will then be the Fourier coefficient of the monomial x^a r_0^(b_0)...r_d^(b_d) t^c.
+        The input into the dictionary should be a tuple of the form (a, b, c_0, ..., c_n). The output will then be the Fourier coefficient of the monomial t^a x^b r_0^(c_0)...r_n^(c_n).
         """
         L = {}
         d = self.scale()
@@ -551,16 +554,13 @@ class OrthogonalModularForm(object):
                         if nrows > 2:
                             if nrows > 3:
                                 for j_r, y in h.dict().items():
-                                    #g = tuple([j_x/d] + list(vector(ZZ, j_r) / d) + [j_t / d])
                                     g = tuple([j_t / d, j_x / d] + list(vector(ZZ, j_r) / d))
                                     L[g] = y
                             else:
                                 for j_r, y in h.dict().items():
-                                    #g = tuple([j_x/d, j_r/d, j_t / d])
                                     g = tuple([j_t / d, j_x / d, j_r / d])
                                     L[g] = y
                         else:
-                            #g = tuple([j_x/d, j_t /d])
                             g = tuple([j_t / d, j_x / d])
                             L[g] = h
                 else:
@@ -703,6 +703,22 @@ class OrthogonalModularForm(object):
             raise ValueError('Not a valid exponent')
         return OrthogonalModularForm(other * self.weight(), self.__weilrep, self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector(), qexp_representation = self.qexp_representation())
 
+    def n(self):
+        d = self.coefficients()
+        f = self.true_fourier_expansion()
+        t, = f.parent().gens()
+        n = self.nvars()
+        if n > 1:
+            rb, x = f.base_ring().objgen()
+            if n > 2:
+                r = rb.base_ring()
+                f = sum(a.n() * x**g[1] * r.monomial(*g[2:]) * t**g[0] for g, a in d.items()).add_bigoh(f.prec())
+            else:
+                f = sum(a.n() * x**g[1] * t**g[0] for g, a in d.items()).add_bigoh(f.prec())
+        else:
+            f = sum(a.n() * t**g[0] for g, a in d.items()).add_bigoh(f.prec())
+        return OrthogonalModularForm(self.weight(), self.__weilrep, f, scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+
 def orthogonal_eisenstein_series(k, S, prec, w = None):
     r"""
     Computes the "orthogonal Eisenstein series" as the theta-lift of the vector-valued Eisenstein series E_{k, 0} (if it exists). We renormalize such that the constant term is 1.
@@ -728,7 +744,7 @@ def orthogonal_eisenstein_series(k, S, prec, w = None):
 
 
 
-def jacobian(X):
+def jacobian(*X):
     r"""
     Compute the Jacobian (Rankin--Cohen--Ibukiyama) operator.
 
@@ -744,6 +760,9 @@ def jacobian(X):
         (r^-1 - r)*q^3*s^2 + (-r^-1 + r)*q^2*s^3 + (-r^-3 - 69*r^-1 + 69*r + r^3)*q^4*s^2 + (r^-3 + 69*r^-1 - 69*r - r^3)*q^2*s^4 + O(q, s)^7
     """
     N = len(X)
+    if N == 1:
+        X = X[0]
+        N = len(X)
     Xref = X[0]
     nvars = Xref.nvars()
     f = Xref.true_fourier_expansion()
@@ -782,7 +801,7 @@ def jacobian(X):
             L.extend(r_deriv)
     return OrthogonalModularForm(k, Xref.weilrep(), matrix(L).determinant(), scale = new_scale, weylvec = v, qexp_representation = Xref.qexp_representation())
 
-def omf_matrix(X):
+def omf_matrix(*X):
     r"""
     Convert the Fourier coefficients of a list of orthogonal modular forms X into a matrix.
 
@@ -790,8 +809,16 @@ def omf_matrix(X):
     """
     if not X:
         return matrix([])
-    nrows = X[0].nvars()
-    k = X[0].weight()
+    N = len(X)
+    if N == 1:
+        try:
+            Y = X[0]
+            Xref = Y[0]
+            X = Y
+        except IndexError:
+            Xref = X[0]
+    nrows = Xref.nvars()
+    k = Xref.weight()
     prec = min(x.precision() for x in X)
     Xcoeffs = [x.coefficients(prec = prec) for x in X]
     Xitems = [set(xcoeffs.keys()) for xcoeffs in Xcoeffs]
@@ -813,24 +840,24 @@ def omf_matrix(X):
         M.append(L)
     return matrix(M)
 
-def omf_pivots(X):
+def omf_pivots(*X):
     r"""
     Compute a set of pivot indices in the list of orthogonal modular forms X.
     """
-    return list(omf_matrix(X).transpose().pivots())
+    return list(omf_matrix(*X).transpose().pivots())
 
-def omf_rank(X):
+def omf_rank(*X):
     r"""
     Compute the rank of the space spanned by the list of orthogonal modular forms X.
 
     WARNING: we only check the rank up to the *minimal precision of all elements of X*. For best results let X be a list of forms with the same (sufficiently high) precision!
     """
-    return omf_matrix(X).rank()
+    return omf_matrix(*X).rank()
 
-def omf_relations(X):
+def omf_relations(*X):
     r"""
     Compute all linear relations among the list of orthogonal modular forms X.
 
     WARNING: we only check the relations up to the *minimal precision of all elements of X*. For best results let X be a list of forms with the same (sufficiently high) precision!
     """
-    return omf_matrix(X).kernel()
+    return omf_matrix(*X).kernel()

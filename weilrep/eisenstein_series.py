@@ -39,117 +39,7 @@ from sage.rings.rational_field import QQ
 
 
 
-
-
-@cached_function
-def local_normal_form_with_change_vars(S,p):
-    r"""
-    Diagonalize the quadratic form with Gram matrix S over Q_p, p != 2.
-
-    This is copied from the function local_normal_form() (specialized to odd primes). The only difference is that it keeps track of a change-of-basis matrix to the local normal form.
-
-    INPUT:
-    - ``S`` -- a symmetric integral matrix with even diagonal and nonzero determinant
-    - ``p`` -- an odd prime
-
-    OUTPUT: a tuple D, P where
-    - ``D`` -- a diagonal quadratic form over ZZ
-    - ``P`` -- an integral matrix with determinant coprime to p such that P * S * P.transpose() = D.matrix()
-
-    NOTE: in general P is not invertible over ZZ; only over the p-adic numbers!
-
-    EXAMPLES::
-
-        sage: local_normal_form_with_change_vars(matrix([[2,1],[1,2]]),3)
-        (
-        Quadratic form in 2 variables over Integer Ring with coefficients: 
-        [ 1 0 ]                                                            
-        [ * 3 ]                                                            ,
-        <BLANKLINE>
-        [ 1  0]
-        [-1  2]
-        )
-    """
-    #
-    Q = QuadraticForm(S)
-    I = list(range(Q.dim()))
-    M = identity_matrix(QQ,Q.dim())
-    Q_Jordan = DiagonalQuadraticForm(ZZ,[])
-    while Q.dim() > 0:
-        n = Q.dim()
-        (min_i, min_j) = Q.find_entry_with_minimal_scale_at_prime(p)
-        if min_i == min_j:
-            Q.swap_variables(0, min_i, in_place = True)
-            M.swap_rows(I[0],I[min_i])
-        else:
-            min_val = valuation(Q[min_i, min_j], p)
-            Q.swap_variables(0, min_i, in_place = True)
-            Q.swap_variables(1, min_j, in_place = True)
-            M.swap_rows(I[0],I[min_i])
-            M.swap_rows(I[1],I[min_j])
-            Q.add_symmetric(1, 0, 1, in_place = True)
-            M.add_multiple_of_row(I[0],I[1],1)
-        a = 2 * Q[0,0]
-        for j in range(1, n):
-            b = Q[0, j]
-            g = GCD(a, b)
-            Q.multiply_variable(a//g, j, in_place = True)
-            Q.add_symmetric(-b//g, j, 0, in_place = True)
-            M.rescale_row(I[j],a/g)
-            M.add_multiple_of_row(I[j],I[0],-b//g)
-        Q_Jordan = Q_Jordan + Q.extract_variables(range(1))
-        I.remove(I[0])
-        Q = Q.extract_variables(range(1, n))
-    return Q_Jordan, M
-
-
-def isospectral_normal_form(Q, L, p):
-    r"""
-    Computes an isospectral normal form of the quadratic polynomial Q + L modulo the odd prime p, where Q is a quadratic form and L is a linear form.
-
-    An ``isospectral normal form`` is a quadratic polynomial of the form
-        P(x_1,...,x_n) = a_1 x_1^2 + ... + a_(n-1) x_(n-1)^2 + b_n x_n + c
-    with the following property: for every integer N, the number of zeros of the equations
-        Q(x_1,...,x_n) + L(x_1,...,x_n) = N
-    and
-        P(x_1,...,x_n) = N
-    modulo any power of p are the same.
-
-    ALGORITHM: We use Section 4.9 of [CKW]. Essentially this is repeated use of either Hensel's lemma or completing the square.
-
-    INPUT:
-    - ``Q`` -- a quadratic form
-    - ``L`` a vector
-    - ``p`` an odd prime
-
-    OUTPUT: a tuple consisting of
-    - ``quads`` -- a list of the coefficients [a_1,...,a_(n-1)] of the quadratic part
-    - ``lins_gcd`` -- the linear coefficient b_n
-    - ``const`` -- the constant term c
-
-    EXAMPLES::
-
-        sage: Q = QuadraticForm(matrix([[2,1],[1,2]]))
-        sage: L = vector([1,2])
-        sage: p = 3
-        sage: isospectral_normal_form(Q,L,p)
-        ([1, 3], 0, -1/4)
-
-    """
-    D, P = local_normal_form_with_change_vars(Q.matrix(),p)
-    L = P * L
-    linear_gcd = 0
-    const = 0
-    quads = []
-    for j in range(Q.dim()):
-        a = D[j, j]
-        b = L[j] / 2
-        if b.valuation(p) < a.valuation(p):
-            linear_gcd = GCD(linear_gcd, b)
-        else:
-            quads.append(a)
-            const = const - b * b / (4 * a)
-    return quads, linear_gcd, const
+## odd primes ##
 
 @cached_function
 def iard(a, r, d, p, t, m):
@@ -299,6 +189,116 @@ def igusa_zetas(Q,L,c,p,t):
             else:
                 Z_vec.append(f0)
         return vector(Z_vec)
+
+def isospectral_normal_form(Q, L, p):
+    r"""
+    Computes an isospectral normal form of the quadratic polynomial Q + L modulo the odd prime p, where Q is a quadratic form and L is a linear form.
+
+    An ``isospectral normal form`` is a quadratic polynomial of the form
+        P(x_1,...,x_n) = a_1 x_1^2 + ... + a_(n-1) x_(n-1)^2 + b_n x_n + c
+    with the following property: for every integer N, the number of zeros of the equations
+        Q(x_1,...,x_n) + L(x_1,...,x_n) = N
+    and
+        P(x_1,...,x_n) = N
+    modulo any power of p are the same.
+
+    ALGORITHM: We use Section 4.9 of [CKW]. Essentially this is repeated use of either Hensel's lemma or completing the square.
+
+    INPUT:
+    - ``Q`` -- a quadratic form
+    - ``L`` a vector
+    - ``p`` an odd prime
+
+    OUTPUT: a tuple consisting of
+    - ``quads`` -- a list of the coefficients [a_1,...,a_(n-1)] of the quadratic part
+    - ``lins_gcd`` -- the linear coefficient b_n
+    - ``const`` -- the constant term c
+
+    EXAMPLES::
+
+        sage: Q = QuadraticForm(matrix([[2,1],[1,2]]))
+        sage: L = vector([1,2])
+        sage: p = 3
+        sage: isospectral_normal_form(Q,L,p)
+        ([1, 3], 0, -1/4)
+
+    """
+    D, P = local_normal_form_with_change_vars(Q.matrix(),p)
+    L = P * L
+    linear_gcd = 0
+    const = 0
+    quads = []
+    for j in range(Q.dim()):
+        a = D[j, j]
+        b = L[j] / 2
+        if b.valuation(p) < a.valuation(p):
+            linear_gcd = GCD(linear_gcd, b)
+        else:
+            quads.append(a)
+            const = const - b * b / (4 * a)
+    return quads, linear_gcd, const
+
+@cached_function
+def local_normal_form_with_change_vars(S,p):
+    r"""
+    Diagonalize the quadratic form with Gram matrix S over Q_p, p != 2.
+
+    This is copied from the function local_normal_form() (specialized to odd primes). The only difference is that it keeps track of a change-of-basis matrix to the local normal form.
+
+    INPUT:
+    - ``S`` -- a symmetric integral matrix with even diagonal and nonzero determinant
+    - ``p`` -- an odd prime
+
+    OUTPUT: a tuple D, P where
+    - ``D`` -- a diagonal quadratic form over ZZ
+    - ``P`` -- an integral matrix with determinant coprime to p such that P * S * P.transpose() = D.matrix()
+
+    NOTE: in general P is not invertible over ZZ; only over the p-adic numbers!
+
+    EXAMPLES::
+
+        sage: local_normal_form_with_change_vars(matrix([[2,1],[1,2]]),3)
+        (
+        Quadratic form in 2 variables over Integer Ring with coefficients: 
+        [ 1 0 ]                                                            
+        [ * 3 ]                                                            ,
+        <BLANKLINE>
+        [ 1  0]
+        [-1  2]
+        )
+    """
+    #
+    Q = QuadraticForm(S)
+    I = list(range(Q.dim()))
+    M = identity_matrix(QQ,Q.dim())
+    Q_Jordan = DiagonalQuadraticForm(ZZ,[])
+    while Q.dim() > 0:
+        n = Q.dim()
+        (min_i, min_j) = Q.find_entry_with_minimal_scale_at_prime(p)
+        if min_i == min_j:
+            Q.swap_variables(0, min_i, in_place = True)
+            M.swap_rows(I[0],I[min_i])
+        else:
+            min_val = valuation(Q[min_i, min_j], p)
+            Q.swap_variables(0, min_i, in_place = True)
+            Q.swap_variables(1, min_j, in_place = True)
+            M.swap_rows(I[0],I[min_i])
+            M.swap_rows(I[1],I[min_j])
+            Q.add_symmetric(1, 0, 1, in_place = True)
+            M.add_multiple_of_row(I[0],I[1],1)
+        a = 2 * Q[0,0]
+        for j in range(1, n):
+            b = Q[0, j]
+            g = GCD(a, b)
+            Q.multiply_variable(a//g, j, in_place = True)
+            Q.add_symmetric(-b//g, j, 0, in_place = True)
+            M.rescale_row(I[j],a/g)
+            M.add_multiple_of_row(I[j],I[0],-b//g)
+        Q_Jordan = Q_Jordan + Q.extract_variables(range(1))
+        I.remove(I[0])
+        Q = Q.extract_variables(range(1, n))
+    return Q_Jordan, M
+
 
 @cached_function
 def twonf_with_change_vars(Q):

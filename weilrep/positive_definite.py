@@ -78,7 +78,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
         r"""
         Nearly-holomorphic modular forms of this weight lift to Borcherds products.
         """
-        return -self.nrows() / 2
+        return 1 - self.nvars() / 2
 
     def nvars(self):
         r"""
@@ -464,7 +464,6 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             else:
                 self.__fourier_jacobi = [JacobiForm(k, n * S, j) for n, j in enumerate(L)]
             return self.__fourier_jacobi
-            #raise NotImplementedError('Nontrivial character')
         f = self.fourier_expansion()
         rb_old = f.base_ring()
         r_old = f.parent()
@@ -583,7 +582,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             sage: m = OrthogonalModularForms(matrix([[2]]))
             sage: X = m.borcherds_input_Qbasis(1, 10)
             sage: X[1].borcherds_lift().witt()
-            2*q^(5/2)*s^(3/2) + (-2)*q^(3/2)*s^(5/2) + (-120)*q^(7/2)*s^(3/2) + 120*q^(3/2)*s^(7/2) + 3420*q^(9/2)*s^(3/2) + (-389988)*q^(7/2)*s^(5/2) + 389988*q^(5/2)*s^(7/2) + (-3420)*q^(3/2)*s^(9/2) + (-61360)*q^(11/2)*s^(3/2) + (-19505280)*q^(9/2)*s^(5/2) + 19505280*q^(5/2)*s^(9/2) + 61360*q^(3/2)*s^(11/2) + 773490*q^(13/2)*s^(3/2) + 180216090*q^(11/2)*s^(5/2) + 1837196280*q^(9/2)*s^(7/2) + (-1837196280)*q^(7/2)*s^(9/2) + (-180216090)*q^(5/2)*s^(11/2) + (-773490)*q^(3/2)*s^(13/2) + O(q, s)^9
+            2*q^(5/2)*s^(3/2) - 2*q^(3/2)*s^(5/2) - 120*q^(7/2)*s^(3/2) + 120*q^(3/2)*s^(7/2) + 3420*q^(9/2)*s^(3/2) - 389988*q^(7/2)*s^(5/2) + 389988*q^(5/2)*s^(7/2) - 3420*q^(3/2)*s^(9/2) - 61360*q^(11/2)*s^(3/2) - 19505280*q^(9/2)*s^(5/2) + 19505280*q^(5/2)*s^(9/2) + 61360*q^(3/2)*s^(11/2) + 773490*q^(13/2)*s^(3/2) + 180216090*q^(11/2)*s^(5/2) + 1837196280*q^(9/2)*s^(7/2) - 1837196280*q^(7/2)*s^(9/2) - 180216090*q^(5/2)*s^(11/2) - 773490*q^(3/2)*s^(13/2) + O(q, s)^9
 
             sage: from weilrep import *
             sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]]))
@@ -595,6 +594,9 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             u, v = x.polynomial_construction()
             return u.map_coefficients(a) * (x.parent().gens()[0]**v)
         f = self.true_fourier_expansion().map_coefficients(b)
+        rb, x = LaurentPolynomialRing(QQ, 'x').objgen()
+        r, t = PowerSeriesRing(rb, 't').objgen()
+        f = r(f)
         from .lorentz import WeilRepLorentzian, OrthogonalModularFormLorentzian
         S = matrix([[-2, 1], [1, 0]])
         return OrthogonalModularFormLorentzian(self.weight(), WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0], self.weyl_vector()[-1]]), qexp_representation = 'PD+II')
@@ -923,37 +925,32 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                     n = a_times_c - v_norm
                     if val <= n < prec0:
                         big_v = vector([a] + list(v) + [c])
-                        #if GCD(big_v) == 1:
-                        if True:
-                            if v and not (a or c):
-                                j = next(j for j, v_j in enumerate(v) if v_j)
-                                if v[j] > 0:
-                                    v = -v
-                            big_tuple = tuple(list(g_frac) + [n])
-                            try:
-                                C = coeffs[big_tuple]
-                                if C:
-                                    if nrows > 1:
-                                        m = rb.monomial(*v)
+                        if v and not (a or c):
+                            j = next(j for j, v_j in enumerate(v) if v_j)
+                            if v[j] > 0:
+                                v = -v
+                        big_tuple = tuple(list(g_frac) + [n])
+                        try:
+                            C = coeffs[big_tuple]
+                            if C:
+                                if nrows > 1:
+                                    m = rb.monomial(*v)
+                                else:
+                                    m = rb_zero ** v[0]
+                                if (a or c) and c >= 0:
+                                    u = t**a_plus_c * x**(c - a)
+                                    if v:
+                                        f += C * (E.subs({t : u*m}) * (1 - u * m + h)**(-k) + eps * E.subs({t : u * ~m}) * (1 - u * ~m + h)**(-k))
                                     else:
-                                        m = rb_zero ** v[0]
-                                    if (a or c) and c >= 0:
-                                        u = t**a_plus_c * x**(c - a)
-                                        if v:
-                                            #f += C * ((1 - u * (m + ~m - u) + h)**(-k) - 1)
-                                            f += C * (E.subs({t : u*m}) * (1 - u * m + h)**(-k) + eps * E.subs({t : u * ~m}) * (1 - u * ~m + h)**(-k))
-                                        else:
-                                            f += C  * E.subs({t : u}) * (1 - u + h)**(-k)
-                                    elif n and v:
-                                        print(a, c, v, m, C)
-                                        #u = x**(c - a) * m
-                                        f += C * E.subs({t : m}) * frb(1 - m)**(-k)
-                            except KeyError:
-                                if n > prec:
-                                    prec = a_plus_c
-                                    h = O(t ** prec)
-                                    f += h
-                                pass
+                                        f += C  * E.subs({t : u}) * (1 - u + h)**(-k)
+                                elif n and v:
+                                    f += C * E.subs({t : m}) * frb(1 - m)**(-k)
+                        except KeyError:
+                            if n > prec:
+                                prec = a_plus_c
+                                h = O(t ** prec)
+                                f += h
+                            pass
         try:
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError, TypeError):
@@ -1107,6 +1104,9 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                                         for k in range(1, bound):
                                             try:
                                                 exponent_k = coeffs[tuple([frac(y) for y in k * g] + [n * (k * k)])]
+                                                if not exponent_k in ZZ:
+                                                    print('oops!', t0, k, a, v, c, exponent_k, m)
+                                                    raise KeyError
                                                 p *= (1 - t0 ** k) ** exponent_k
                                                 excluded_vectors.add(tuple(k * big_v))
                                             except KeyError:

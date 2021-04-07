@@ -74,6 +74,8 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             self.__class__ = WeilRepQuasiModularForm
             self.__terms = terms[j:]
             self.__depth = l - j
+        else:
+            self.__class__ = WeilRepModularForm
 
     def __add__(self, other):
         r"""

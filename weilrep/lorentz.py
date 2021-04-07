@@ -403,6 +403,11 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
     """
 
     def __init__(self, N):
+        if not N in ZZ:
+            from .unitary import HermitianRescaledHyperbolicPlane
+            self.__class__ = HermitianRescaledHyperbolicPlane
+            HermitianRescaledHyperbolicPlane.__init__(self, N)
+            return None
         self.__N = N
         S = matrix([[0, N], [N, 0]])
         self._WeilRep__gram_matrix = S
@@ -1085,7 +1090,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             prec = min(prec, isqrt(4 * (prec0+val)))
         prec += 1
         wt = self.weight()
-        coeffs = X.coefficients()
+        coeffs = dict(X.coefficients())
         S = w._lorentz_gram_matrix()
         s_0 = w.orthogonalized_gram_matrix()
         nrows = Integer(S.nrows())

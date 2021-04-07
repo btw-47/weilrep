@@ -27,8 +27,10 @@ class WeilRepMorphism:
     This class represents morphisms of discriminant forms.
 
     INPUT:
-    Construct a WeilRepAutomorphism using WeilRepAutomorphism(w1, w2, f), where
-    - `` w1 ``, `` w2 `` -- a WeilRep instance
+    Construct a WeilRepMorphism using WeilRepMorphism(w1, w2, f), where
+
+    - `` w1 ``, `` w2 `` -- WeilRep instances
+
     - `` f `` -- a function that inputs a vector in w1.ds() and outputs another vector in w2.ds()
 
     f is meant to be an morphism, i.e. f(x+y) = f(x) + f(y) and  Q2(f(x)) = Q1(x) for all x, y if Q1 is the quadratic form of w1 and Q2 of w2.
@@ -53,7 +55,7 @@ class WeilRepMorphism:
                 Z_inv[j] = i
             else:
                 Z_inv = None
-        self.__indices = Z
+        self.__indices = tuple(Z)
         self.__inverse = Z_inv
         if w1 == w2:
             self.__class__ = WeilRepAutomorphism
@@ -104,6 +106,9 @@ class WeilRepMorphism:
             return all(f1(x) == f2(x) for x in w.ds())
         return False
 
+    def __hash__(self):
+        return hash(self.f())
+
     def __invert__(self):
         Z = self.__inverse
         if not Z:
@@ -134,7 +139,9 @@ class WeilRepAutomorphism(WeilRepMorphism):
 
     INPUT:
     Construct a WeilRepAutomorphism using WeilRepAutomorphism(w, f), where
+
     - `` w `` -- a WeilRep instance
+
     - `` f `` -- a function that inputs a vector in w.ds() and outputs another vector in w.ds()
 
     f is supposed to be an automorphism, i.e. a bijection and Q(f(x)) = Q(x) for all x if Q is the quadratic form of w. We check this at initialization.
@@ -147,9 +154,16 @@ class WeilRepAutomorphism(WeilRepMorphism):
         return self.input_weilrep()
 
     def __repr__(self):
-        ds = self.weilrep().ds()
+        w = self.weilrep()
         f = self.f()
-        return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in ds]))
+        try:
+            d = w._unitary_ds_to_ds()
+            d2 = w._ds_to_unitary_ds()
+            uds = self.weilrep().unitary_ds()
+            return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, d2[tuple(f(d[tuple(x)]))]) for x in uds]))
+        except AttributeError:
+            ds = self.weilrep().ds()
+            return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in ds]))
 
     def __pow__(self, n):
         r"""
@@ -166,10 +180,15 @@ class WeilRepAutomorphism(WeilRepMorphism):
 
 class WeilRepAutomorphismGroup:
 
-    def __init__(self, weilrep, G, group):
+    def __init__(self, weilrep, G, group, name = None):
         self.__weilrep = weilrep
         self.__G = G
         self.__group = group
+        self.__name = name
+        if name:
+            setG = set(G)
+            self.__indices = [G.index(x) for x in setG]
+            self.__G = [G[i] for i in self.__indices]
 
     def __iter__(self):
         for x in self.__G:
@@ -182,6 +201,8 @@ class WeilRepAutomorphismGroup:
         return len(self.__G)
 
     def __repr__(self):
+        if self.__name:
+            return '%s of %s'%(self.__name, self.weilrep())
         return 'Automorphism group of %s'%self.weilrep()
 
     def weilrep(self):
@@ -208,7 +229,10 @@ class WeilRepAutomorphismGroup:
         X = [x for x in X.rows() if x[0] == 1]
         Y = G.conjugacy_classes()
         Z = [list(chain.from_iterable([[ZZ(x)]*len(Y[i]) for i, x in enumerate(x)])) for x in X]
-        return [[1]*len(G)] + [z for z in Z if any(x != 1 for x in z)]
+        Z = [[1]*len(G)] + [z for z in Z if any(x != 1 for x in z)]
+        if self.__name:
+            return [[z[i] for i in self.__indices] for z in Z]
+        return Z
 
     def index(self, x):
         return self.__G.index(x)

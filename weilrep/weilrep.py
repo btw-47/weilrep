@@ -1,6 +1,6 @@
 r"""
 
-Sage code for spaces of vector-valued modular forms
+Sage code for finite Weil representations and spaces of vector-valued modular forms
 
 AUTHORS:
 
@@ -84,25 +84,36 @@ sage_nine_half = Integer(9) / Integer(2)
 
 class WeilRep(object):
     r"""
-    The WeilRep class represents the module of vector-valued modular forms whi ch transform with the dual Weil representation.
+    The WeilRep class represents the dual Weil representation attached to an even integral lattice.
 
     INPUT:
 
     A WeilRep instance is constructed by calling WeilRep(S), where
+
     - ``S`` -- a symmetric integral matrix with even diagonal and nonzero determinant (this is not checked), OR
-    - ``S`` -- a nondegenerate quadratic form
+
+    - ``S`` -- a nondegenerate quadratic form, OR
+
+    - ``S`` -- the Gram matrix of an even integral Hermitian lattice defined over the maximal order in an imaginary-quadratic number field. (In this case the output is a HermitianWeilRep)
 
     OUTPUT: WeilRep
     """
 
-    def __init__(self, S):
+    def __init__(self, S, **kwargs):
         if not S:
             S = matrix([])
         try:
             if isinstance(S.parent(), MatrixSpace):
-                S = matrix(ZZ, S)
-                self.__gram_matrix = S
-                self.__quadratic_form = QuadraticForm(S)
+                K = S.base_ring()
+                if K == ZZ or K == QQ:
+                    S = matrix(ZZ, S)
+                    self.__gram_matrix = S
+                    self.__quadratic_form = QuadraticForm(S)
+                else:
+                    from .unitary import HermitianWeilRep
+                    self.__class__ = HermitianWeilRep
+                    self.__init__(S, **kwargs)
+                    return None
             elif isinstance(S, QuadraticForm):
                 self.__quadratic_form = S
                 self.__gram_matrix = S.matrix()
@@ -129,13 +140,45 @@ class WeilRep(object):
             self.__class__ = WeilRepLorentzian
 
     def __repr__(self):
-        #when printed:
         return 'Weil representation associated to the Gram matrix\n%s' % (self.gram_matrix())
 
+    ## basic operations: rescalings and direct sum of lattices
+
+    def __add__(self, other, **kwargs):
+        r"""
+        Direct sums of Weil representations.
+
+        This corresponds to the direct sum of lattices.
+        """
+        if isinstance(other, WeilRep):
+            return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+        return NotImplemented
+    __radd__ = __add__
+
     def __bool__(self):
+        r"""
+        Test whether self is *not* the one-dimensional Weil representation associated to the rank zero lattice.
+
+        NOTE: it is not enough for the discriminant form to be trivial! We are testing whether the lattice itself is trivial.
+        """
         return self.gram_matrix().nrows().__bool__()
 
-    ## rescale, add weilrep's
+    def __call__(self, N):
+        r"""
+        If ``N`` is an integer, then: Rescale the underlying lattice.
+        If ``N`` is a matrix in SL_2(ZZ), then: return a matrix representation of \rho(N) (with respect to the canonical basis e_x, x \in L'/L, in the order determined by self's method ds()) where \rho is the Weil representation attached to self's lattice.
+        """
+        try:
+            N = Integer(N)
+            w = WeilRep( N * self.gram_matrix())
+            return w
+        except TypeError:
+            a, b, c, d = tuple(ZZ(x) for x in N.list())
+            if not a*d == 1 + b*c:
+                raise ValueError('Matrix is not in SL_2(ZZ)') from None
+            if self.signature() % 2: #odd rank -> not a representation of SL_2(Z) -> better be careful
+                return self._evaluate_metaplectic(a, b, c, d)[0]
+            return self._evaluate(a, b, c, d)
 
     def dual(self):
         r"""
@@ -163,34 +206,16 @@ class WeilRep(object):
             self.__dual = w
             return w
 
-    def __call__(self, N):
-        r"""
-        If ``N`` is an integer, then: Rescale the underlying lattice.
-        If ``N`` is a matrix in SL_2(ZZ), then: return a matrix representation of \rho(N) (with respect to the canonical basis e_x, x \in L'/L, in the order determined by self's method ds()) where \rho is the Weil representation attached to self's lattice.
-        """
-        try:
-            N = Integer(N)
-            w = WeilRep( N * self.gram_matrix())
-            return w
-        except TypeError:
-            a, b, c, d = tuple(ZZ(x) for x in N.list())
-            if not a*d == 1 + b*c:
-                raise ValueError('Matrix is not in SL_2(ZZ)') from None
-            if self.signature() % 2: #odd rank -> not a representation of SL_2(Z) -> better be careful
-                return self._evaluate_metaplectic(a, b, c, d)[0]
-            return self._evaluate(a, b, c, d)
-
-    def __add__(self, other, **kwargs):
-        if isinstance(other, WeilRep):
-            return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
-        return NotImplemented
-
-    __radd__ = __add__
-
     def __hash__(self): #just in case ??
+        r"""
+        Create a hash from the Gram matrix.
+        """
         return hash(tuple(self.gram_matrix().coefficients()))
 
     def __mul__(self, N):
+        r"""
+        Repeated direct sum.
+        """
         if N == 1:
             return self
         elif N == 2:
@@ -200,28 +225,9 @@ class WeilRep(object):
             return self.__mul__(Nhalf) + self.__mul__(N - Nhalf)
         else:
             return NotImplemented
-
     __rmul__ = __mul__
 
     ## basic attributes
-
-    def gram_matrix(self):
-        return self.__gram_matrix
-
-    def quadratic_form(self):
-        return self.__quadratic_form
-
-    def signature(self):
-        r"""
-        Return the signature of the underlying quadratic form.
-        """
-        try:
-            return self.__signature
-        except AttributeError:
-            self.__true_signature = self.quadratic_form().signature()
-            self.__is_positive_definite = self.__true_signature == self.__gram_matrix.nrows()
-            self.__signature = self.__true_signature % 8
-            return self.__signature
 
     def discriminant(self):
         r"""
@@ -249,68 +255,11 @@ class WeilRep(object):
 
     def __eq__(self, other):
         r"""
-        Test whether self and other are equal.
+        Test whether self and other are equal. (Whether they have the same Gram matrix.)
 
-        We do not check whether 'other' is actually a WeilRep. (Hopefully this doesn't matter!)
+        NOTE: We do not check whether 'other' is actually a WeilRep.
         """
         return self.gram_matrix() == other.gram_matrix()
-
-    def __ne__(self, other):
-        return not(self.__eq__(other))
-
-    def is_lorentzian(self):
-        r"""
-        Test whether self has signature (n, 1) for some n.
-
-        (Note n=0 is allowed.)
-        """
-        try:
-            return self.__is_lorentzian
-        except AttributeError:
-            signature = self.signature()
-            self.__is_lorentzian = self.__true_signature + 2 == self.__gram_matrix.nrows()
-            return self.__is_lorentzian
-
-    def is_lorentzian_plus_II(self):
-        r"""
-        Test whether self is of the form L + II(n) for some Lorentzian WeilRep L.
-
-        Always returns False. When we construct L+II(n) this method is overwritten to sometimes be True. (In other words we are not testing here whether L is Lorentzian + II_{1, 1} up to isometry.)
-        """
-        return False
-
-    def is_positive_definite(self):
-        r"""
-        Test whether self has signature (n, 0) for some n.
-        """
-        try:
-            return self.__is_positive_definite
-        except AttributeError:
-            self.__is_positive_definite = self.__quadratic_form.is_positive_definite()
-            return self.__is_positive_definite
-
-    def is_symmetric_weight(self, weight):
-        r"""
-        Computes whether the given weight is symmetric.
-
-        INPUT:
-        - ``weight`` -- a half-integer
-
-        OUTPUT: 1, if all modular forms of this weight are symmetric. 0, if all modular forms of this weight are antisymmetric. None, otherwise.
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[2,1],[1,4]])).is_symmetric_weight(4)
-            0
-
-        """
-        i = (Integer(weight + weight) + self.signature()) % 4
-        if i == 0:
-            return 1
-        elif i == 2:
-            return 0
-        return None
 
     def _evaluate(self, a, b, c, d): #bad
         r"""
@@ -491,6 +440,81 @@ class WeilRep(object):
                 self.__valsm[A] = X
                 return X
 
+    def gram_matrix(self):
+        return self.__gram_matrix
+
+    def is_lorentzian(self):
+        r"""
+        Test whether self has signature (n, 1) for some n.
+
+        (Note n=0 is allowed.)
+        """
+        try:
+            return self.__is_lorentzian
+        except AttributeError:
+            signature = self.signature()
+            self.__is_lorentzian = self.__true_signature + 2 == self.__gram_matrix.nrows()
+            return self.__is_lorentzian
+
+    def is_lorentzian_plus_II(self):
+        r"""
+        Test whether self is of the form L + II(n) for some Lorentzian WeilRep L.
+
+        Always returns False. When we construct L+II(n) this method is overwritten to sometimes be True. (In other words we are not testing here whether L is Lorentzian + II_{1, 1} up to isometry.)
+        """
+        return False
+
+    def is_positive_definite(self):
+        r"""
+        Test whether self has signature (n, 0) for some n.
+        """
+        try:
+            return self.__is_positive_definite
+        except AttributeError:
+            self.__is_positive_definite = self.__quadratic_form.is_positive_definite()
+            return self.__is_positive_definite
+
+    def is_symmetric_weight(self, weight):
+        r"""
+        Computes whether the given weight is symmetric.
+
+        INPUT:
+        - ``weight`` -- a half-integer
+
+        OUTPUT: 1, if all modular forms of this weight are symmetric. 0, if all modular forms of this weight are antisymmetric. None, otherwise.
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[2,1],[1,4]])).is_symmetric_weight(4)
+            0
+
+        """
+        i = (Integer(weight + weight) + self.signature()) % 4
+        if i == 0:
+            return 1
+        elif i == 2:
+            return 0
+        return None
+
+    def __ne__(self, other):
+        return not(self.__eq__(other))
+
+    def quadratic_form(self):
+        return self.__quadratic_form
+
+    def signature(self):
+        r"""
+        Return the signature of the underlying quadratic form.
+        """
+        try:
+            return self.__signature
+        except AttributeError:
+            self.__true_signature = self.quadratic_form().signature()
+            self.__is_positive_definite = self.__true_signature == self.__gram_matrix.nrows()
+            self.__signature = self.__true_signature % 8
+            return self.__signature
+
     ## methods for the discriminant form
 
     def coefficient_vector_exponents(self, prec, symm, starting_from = 0, include_vectors = False):
@@ -498,9 +522,13 @@ class WeilRep(object):
         Interpret the ``coefficient vectors`` of modular forms for this Weil representation.
 
         INPUT:
+
         - ``prec`` -- the precision
+
         - ``symm`` -- 0 if we work with anti-symmetric modular forms and 1 otherwise
+
         - ``starting_from`` -- valuation of the modular form (default 0)
+
         - ``include_vectors`` -- a boolean (default False)
 
         OUTPUT: if include_vectors = False then this outputs a list of exponents [n_0, n_1, ...] such that if a modular form of this representation has ``coefficient vector`` (c_0, c_1, ...) (see weilrep_modular_forms_class.sage) then its Fourier expansion takes the form c_0 q^(n_0) e_(g_0) + c_1 q^(n_1) e_(g_1) + ... If include_vectors = True then we output the list of lists [[g_0,n_0], [g_1,n_1]...] instead.
@@ -613,7 +641,7 @@ class WeilRep(object):
                 self.__ds_dict = ds_dict
                 return self.__ds_dict
 
-    def embiggen(self, b, m):
+    def _embiggen(self, b, m):
         r"""
         Construct a WeilRep for a bigger matrix.
 
@@ -625,7 +653,7 @@ class WeilRep(object):
 
             sage: from weilrep import WeilRep
             sage: w = WeilRep(matrix([[-12]]))
-            sage: w.embiggen(vector([1/12]), 1/24)
+            sage: w._embiggen(vector([1/12]), 1/24)
             Weil representation associated to the Gram matrix
             [-12  -1]
             [ -1   0]
@@ -635,6 +663,9 @@ class WeilRep(object):
         shift_m = m + b*tilde_b/2
         tilde_b = matrix(tilde_b)
         return WeilRep(block_matrix(ZZ,[[S, tilde_b.transpose()], [tilde_b, 2*shift_m]], subdivide = False))
+
+    def _is_hermitian_weilrep(self):
+        return False
 
     def level(self):
         r"""
@@ -830,47 +861,265 @@ class WeilRep(object):
             raise ValueError('This modular form does not lie in the correct plus/minus subspace')
         return WeilRepModularForm(mf.weight(), self.gram_matrix(), Y, weilrep = self)
 
-    def _eisenstein_series_weight_one_constant_term(self):
-        r"""
-        Correct the constant term in the Eisenstein series of weight one.
+    def eisenstein_newform(self, k, b, prec, allow_small_weight = False, print_exact = False):
+        ## WARNING!! This is not fully tested and very likely has bugs!! it is also slow! ##
 
-        Not meant to be called directly.
+        r"""
+        Compute Eisenstein newforms.
+
+        This computes the sum:
+        \sum_{\chi} E_{k, \beta, \chi}
+        over all primitive Dirichlet characters \chi modulo the denominator of \beta.
+
+        ALGORITHM: We use the formula of Theorem 1.4 of [Sch] for the Eisenstein series with character E_{k, \beta, \chi}. Their Fourier coefficients are computed numerically. We recover the (rational) power series using known bounds on the denominators of the Fourier coefficients.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``b`` -- a vector in self's discriminant group
+        - ``prec`` -- the precision
+        - ``allow_small_weight`` -- boolean (default False); if True then we do not check whether the weight is > 2
+        - ``print_exact`` -- boolean (default False); if True then print some debugging information
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[18]])).eisenstein_newform(5/2, vector([1/3]), 5)
+            [(0), O(q^5)]
+            [(1/18), 72*q^(35/36) + 120*q^(71/36) + 396*q^(107/36) + 384*q^(143/36) + 804*q^(179/36) + O(q^(215/36))]
+            [(1/9), -54*q^(8/9) - 156*q^(17/9) - 276*q^(26/9) - 504*q^(35/9) - 660*q^(44/9) + O(q^(53/9))]
+            [(1/6), -4*q^(3/4) + 24*q^(7/4) - 36*q^(11/4) - 48*q^(15/4) + 168*q^(19/4) + O(q^(23/4))]
+            [(2/9), 24*q^(5/9) + 108*q^(14/9) + 264*q^(23/9) + 438*q^(32/9) + 540*q^(41/9) + O(q^(50/9))]
+            [(5/18), -12*q^(11/36) - 72*q^(47/36) - 276*q^(83/36) - 264*q^(119/36) - 672*q^(155/36) + O(q^(191/36))]
+            [(1/3), 2 - 12*q + 18*q^2 + 28*q^3 - 108*q^4 + O(q^5)]
+            [(7/18), 24*q^(23/36) + 156*q^(59/36) + 192*q^(95/36) + 516*q^(131/36) + 480*q^(167/36) + O(q^(203/36))]
+            [(4/9), -6*q^(2/9) - 84*q^(11/9) - 216*q^(20/9) - 312*q^(29/9) - 528*q^(38/9) + O(q^(47/9))]
+            [(1/2), O(q^(23/4))]
+            [(5/9), 6*q^(2/9) + 84*q^(11/9) + 216*q^(20/9) + 312*q^(29/9) + 528*q^(38/9) + O(q^(47/9))]
+            [(11/18), -24*q^(23/36) - 156*q^(59/36) - 192*q^(95/36) - 516*q^(131/36) - 480*q^(167/36) + O(q^(203/36))]
+            [(2/3), -2 + 12*q - 18*q^2 - 28*q^3 + 108*q^4 + O(q^5)]
+            [(13/18), 12*q^(11/36) + 72*q^(47/36) + 276*q^(83/36) + 264*q^(119/36) + 672*q^(155/36) + O(q^(191/36))]
+            [(7/9), -24*q^(5/9) - 108*q^(14/9) - 264*q^(23/9) - 438*q^(32/9) - 540*q^(41/9) + O(q^(50/9))]
+            [(5/6), 4*q^(3/4) - 24*q^(7/4) + 36*q^(11/4) + 48*q^(15/4) - 168*q^(19/4) + O(q^(23/4))]
+            [(8/9), 54*q^(8/9) + 156*q^(17/9) + 276*q^(26/9) + 504*q^(35/9) + 660*q^(44/9) + O(q^(53/9))]
+            [(17/18), -72*q^(35/36) - 120*q^(71/36) - 396*q^(107/36) - 384*q^(143/36) - 804*q^(179/36) + O(q^(215/36))]
         """
-        d = -self.discriminant()
-        d0 = fundamental_discriminant(d)
-        f = [[x, y, 0] for x, y in self.norm_dict().items()]
-        e = 0
-        c = ~isqrt(d // d0)
-        for p in prime_divisors(d):
-            if kronecker_symbol(d0, p) == 1:
-                e += 1
-                c /= (1 - ~p)
-            elif d0 % p:
-                c *= 2 / (1 + ~p)
-        t, = PolynomialRing(QQ, 't').gens()
-        if self.signature() == 2:
-            c = -c
+
+        def l_value(k, psi0):
+            psi = psi0.primitive_character()
+            f_psi = psi.conductor()
+            l_value_bar = CC(-psi.bar().bernoulli(k) / k)
+            delta = psi.is_odd()
+            L_val = l_value_bar * (2 * RRpi / f_psi)**k * CC(psi.gauss_sum_numerical(prec = lazy_bound)) / (2 * CC(1j)**delta * RR(cos(math.pi * (k - delta) / 2)) * RR(k).gamma())
+            for p in prime_divisors(psi0.modulus() / f_psi):
+                L_val = L_val * (1 - psi(p) / (p **k))
+            return L_val
+        def lazy_l_value(g, n, S, p, k, u = None):
+            L = 2 * g * S
+            c = g * S * g + 2*n
+            return L_values(2 * g * S, [c], S, p, k, t = u)[0]
+        #check input
+        prec = ceil(prec)
+        if prec <= 0:
+            raise ValueError('Precision must be at least 0')
+        if k <= 2 and not allow_small_weight and (k < 2 or self.discriminant().is_squarefree()):
+            raise ValueError('Weight must be at least 5/2')
+        symm = self.is_symmetric_weight(k)
+        if symm is None:
+            raise ValueError('Invalid weight in Eisenstein series')
+        #setup
         S = self.gram_matrix()
-        n = Integer(S.nrows() / 2)
-        for i, x in enumerate(f):
-            if not x[1]:
-                g0 = vector(x[0])
-                g = vector(ZZ, 2 * vector(x[0]) * S)
-                u = c
-                e0 = e
-                for p in prime_divisors(d):
-                    z = L_values(g, [Integer(-g*g0 / 2)], S, p, 0, t)[0]
-                    pn = p ** n
-                    try:
-                        h = z(pn)
-                    except ZeroDivisionError:
-                        z *= (1 - t / pn)
-                        h = z(pn)
-                        e0 -= 1
-                    u *= h
-                if not e0:
-                    f[i][2] = u
-        return WeilRepModularForm(1, S, f, weilrep = self)
+        e = S.nrows()
+        if e % 2:
+            denom = lcm([2*k-1, self.discriminant(), max(bernoulli(Integer(2*k - 1)).numerator(), 1)])
+            for p in self.discriminant().prime_divisors():
+                denom = lcm(denom, p ** (Integer(2*k - 1)) - 1)
+        else:
+            denom = lcm([k, self.discriminant(), max(bernoulli(k).numerator(), 1)])
+            for p in self.discriminant().prime_divisors():
+                denom = lcm(denom, p ** k - 1)
+        if print_exact:
+            print('denominator: ', denom)
+        lazy_bound = max(4 * ceil(log(prec + 2) * (k - 1) + log(denom) + log(60) + log(k+1)), 53)
+        RR = RealField(lazy_bound)
+        CC = RR.complex_field()
+        N_b = denominator(b)
+        N_b_factor = factor(N_b)
+        chi_list = [chi for chi in DirichletGroup(N_b) if chi.is_primitive() and chi.is_even() == symm]
+        if not chi_list:
+            raise ValueError('Not a newform')
+        chi_decompositions = [chi.decomposition() for chi in chi_list]
+        chi_gauss_sums = [chi.gauss_sum_numerical(prec = lazy_bound) for chi in chi_list]
+        ds = self.ds()
+        indices = self.rds(indices = True)
+        discr = self.discriminant()
+        sqrt_discr = sqrt(RR(discr))
+        RRpi = RR.pi()
+        RRgamma_k = RR(k).gamma()
+        first_factor = (RR(2) ** (k+1)) * RRpi**k * CC(1j) ** (k + self.signature() / 2) / (sqrt_discr * RRgamma_k)
+        norm_list = self.norm_list()
+        RPoly, t = PolynomialRing(QQ, 't').objgen()
+        X = []
+        R, q = PowerSeriesRing(QQ, 'q').objgen()
+        for i, g in enumerate(ds):
+            if indices[i] is None:
+                offset = norm_list[i]
+                prec_g = prec - floor(offset)
+                coeff_list = []
+                for n_ceil in range(1, prec_g):
+                    n = n_ceil + offset
+                    N_bSg = Integer(N_b * (b * S * g))
+                    gcd_b_gb = GCD(N_b, N_bSg)
+                    N_g = prod([p ** d for (p, d) in factor(N_b) if gcd_b_gb % p == 0])
+                    N_g_prime = N_b // N_g
+                    D_g = DirichletGroup(N_g)
+                    D_g_prime = DirichletGroup(N_g_prime)
+                    chi_g_list = [prod([D_g(psi) for psi in chi_decompositions[i] if N_g % psi.modulus() == 0]) for i in range(len(chi_list))]
+                    L_s = [[D_g_prime(psi) for psi in chi_decompositions[i] if N_g % psi.modulus()] for i in range(len(chi_list))]
+                    chi_g_prime_list = [prod(L) if L else lambda x:1 for L in L_s]
+                    front_factor = first_factor * RR(n) ** (k-1)
+                    eps_factors = [chi_gauss_sums[i] * chi_g_prime(N_bSg)**(-1) / N_g for i, chi_g_prime in enumerate(chi_g_prime_list)]
+                    D = Integer(2 * N_g * N_g * n * S.determinant())
+                    bad_primes = (D).prime_divisors()
+                    if e % 2 == 1:
+                        D0 = fundamental_discriminant(D * (-1)**((e+1)/2))
+                    else:
+                        D0 = fundamental_discriminant((-1)**(e/2) * S.determinant())
+                    main_terms = [RR(1)]*len(chi_list)
+                    chi0 = kronecker_character(D0)
+                    for p in bad_primes:
+                        main_term_L_val = lazy_l_value(g, n, S, p, k, u = t)
+                        p_power = p ** Integer(1 + e/2 - k)
+                        Euler_factors = [CC(main_term_L_val(chi(p)*p_power)) if chi(p) else 1 for chi in chi_list]
+                        chi0_p = CC(chi0(p))
+                        if e % 2:
+                            p_pow_2 = RR(p ** Integer(1 / 2 - k))
+                            for i in range(len(chi_list)):
+                                chi_p = CC(chi_list[i](p))
+                                main_terms[i] *= ( (1 - chi_p * chi0_p * p_pow_2) * Euler_factors[i] / (1 - (chi_p * p_pow_2) ** 2))#.n()
+                        else:
+                            for i in range(len(chi_list)):
+                                main_terms[i] *= Euler_factors[i] / (1 - chi_list[i](p) * chi0_p * (p ** (-k)))
+                    if e % 2:
+                        for i, chi in enumerate(chi_list):
+                            G = DirichletGroup(lcm(chi.modulus(), chi0.modulus()))
+                            main_terms[i] *= CC(l_value(Integer(k - sage_one_half), G(chi)*G(chi0)))
+                            main_terms[i] /= CC(l_value(Integer(2*k - 1), chi * chi))
+                    else:
+                        for i, chi in enumerate(chi_list):
+                            G = DirichletGroup(lcm(chi.modulus(), chi0.modulus()))
+                            main_terms[i] /= CC(l_value(Integer(k), G(chi)*G(chi0)))
+                    finite_parts = [1 for _ in chi_list]
+                    for p in prime_divisors(gcd_b_gb):
+                        p_sum = 0
+                        p_power_N_b = p ** (N_b.valuation(p))
+                        vp_g = gcd_b_gb.valuation(p)
+                        w_p = 1 + 2 * (2*N_b * N_g * n).valuation(p)
+                        N_g_over_p = N_g / (p ** N_g.valuation(p))
+                        Dp_prime = DirichletGroup(N_g_over_p)
+                        Dp = DirichletGroup(p ** N_g.valuation(p))
+                        L_s = [[Dp_prime(psi) for psi in chi_decomposition if not N_g_over_p % psi.modulus()] for chi_decomposition in chi_decompositions]
+                        chi_p_prime_list = [prod(L) if L else lambda x:1 for L in L_s]
+                        chi_p_list = [prod([Dp(psi) for psi in chi_decomposition if not psi.modulus() % p]) for chi_decomposition in chi_decompositions]
+                        s = vector([0] * len(chi_list))
+                        for alpha in range(w_p + 1):
+                            p_alpha = p ** alpha
+                            p_pow_list = [CC(chi_p_prime(p_alpha)) * (p_alpha ** (1 - e/2 - k)) for chi_p_prime in chi_p_prime_list]
+                            p_e_alpha = (p_alpha ** e) / p
+                            s_alpha = vector([0]*len(chi_list))
+                            for v in range(p_power_N_b):
+                                new_g = g - v * (N_b // p_power_N_b) * b
+                                for u in range(p_power_N_b):
+                                    if u % p:
+                                        LvalueSeries = RPoly(lazy_l_value(new_g, n + p_alpha * v * u / p_power_N_b , S, p, k, u = t))
+                                        s_alpha += CC(p_e_alpha * (p * LvalueSeries[alpha] - LvalueSeries[alpha - 1])) * vector(CC(chi_p.bar()(u)) for chi_p in chi_p_list)
+                            s = s + vector(p_pow_list[i] * s_alpha[i] for i in range(len(p_pow_list)))
+                        for i in range(len(finite_parts)):
+                            finite_parts[i] *= s[i]
+                    coeff = (front_factor * sum(eps_factors[i] * main_terms[i] * finite_parts[i] for i in range(len(chi_list))))
+                    coeff_numerator = RR(coeff.real()) * denom
+                    if print_exact:
+                        print(g, n, 'exact: ', coeff_numerator, front_factor.n(), eps_factors[0].n(), main_terms[0].n(), finite_parts[0].n())
+                    coeff = round(coeff_numerator) / denom
+                    coeff_list.append(coeff)
+                f = q * R(coeff_list) + O(q ** prec_g)
+                const_term = Integer(0)
+                for n in range(N_b):
+                    if denominator(g - n * b) == 1:
+                        const_term = const_term + 2 * sum(chi(n).n() for chi in chi_list)
+                const_term = round(const_term.real() * denom) / denom
+                f = f + const_term
+                X.append([g, offset, f])
+            else:
+                eps = 1 if symm else -1
+                X.append([g, norm_list[indices[i]], eps * X[indices[i]][2]])
+        return WeilRepModularForm(k, S, X, weilrep = self)
+
+    def eisenstein_oldform(self, k, b, prec, **kwargs):
+        r"""
+        Compute certain Eisenstein oldforms.
+
+        This computes the sum over E_{k, \beta} where \beta runs through all multiples of ``b`` in self's discriminant group.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``b`` -- an element of self's discriminant group with integral norm
+        - ``prec`` -- precision
+
+        OUTPUT: WeilRepModularForm
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[8]])).eisenstein_oldform(7/2, vector([1/2]), 5)
+            [(0), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + O(q^5)]
+            [(1/8), O(q^(95/16))]
+            [(1/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^(23/4))]
+            [(3/8), O(q^(87/16))]
+            [(1/2), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + O(q^5)]
+            [(5/8), O(q^(87/16))]
+            [(3/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^(23/4))]
+            [(7/8), O(q^(95/16))]
+        """
+        eps = 1 if self.is_symmetric_weight(k) else -1
+        E = self.eisenstein_series(k, prec, **kwargs)
+        d_b = denominator(b)
+        if d_b == 1:
+            return E
+        q, = PowerSeriesRing(QQ, 'q').gens()
+        def a(E):
+            w = E.weilrep()
+            S = w.gram_matrix()
+            ds = w.ds()
+            indices = w.rds(indices = True)
+            norm_list = w.norm_list()
+            X = E.components()
+            Y = [None] * len(ds)
+            for i, g in enumerate(ds):
+                if indices[i] is None:
+                    g_b = frac(g * S * b)
+                    if g_b:
+                        Y[i] = g, norm_list[i], O(q ** (prec - floor(norm_list[i])))
+                    else:
+                        f = sum(X[tuple(map(frac, g + j * b))] for j in range(d_b))
+                        Y[i] = g, norm_list[i], f
+                else:
+                    Y[i] = g, norm_list[i], eps*Y[indices[i]][2]
+            return Y
+        Y = a(E)
+        S = self.gram_matrix()
+        if k > 2:
+            return WeilRepModularForm(k, S, Y, weilrep = self)
+        elif k == 2:
+            s = self._eisenstein_series_shadow(prec)
+            if s:
+                return WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * a(s) / isqrt(self.discriminant()), WeilRepModularForm(k, S, Y, weilrep = self)], weilrep = self)
+            return WeilRepModularForm(k, S, Y, weilrep = self)
+        else:
+            s = self._eisenstein_series_shadow_wt_three_half(prec)
+            if s:
+                multiplier = 1 / (pi * sqrt(self.discriminant() // 2))
+                return WeilRepMockModularForm(k, self.gram_matrix(), Y, WeilRepModularForm(1/2, -S, a(s), s.weilrep()) / 16, shadow_multiplier = multiplier, weilrep = self)
+            return WeilRepModularForm(k, S, Y, weilrep = self)
 
     def eisenstein_series(self, k, prec, allow_small_weight = False, components = None, _flag = None):
         r"""
@@ -976,13 +1225,13 @@ class WeilRep(object):
                 pass
             if 1 < k <= 2 and not allow_small_weight: #weight 3/2, 2
                 if k == 2:
-                    s = self.eisenstein_series_shadow(prec)
+                    s = self._eisenstein_series_shadow(prec)
                     if s:
                         self.__eisenstein[k] = prec, WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * s / sqrt(self.discriminant()), self.eisenstein_series(k, prec, allow_small_weight = True)], weilrep = self)
                     else:
                         self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
                 else:
-                    s = self.eisenstein_series_shadow_wt_three_half(prec)
+                    s = self._eisenstein_series_shadow_wt_three_half(prec)
                     if s:
                         multiplier = 1 / (pi * sqrt(self.discriminant() // 2))
                         self.__eisenstein[k] = prec, WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True).fourier_expansion(), s / 16, shadow_multiplier = multiplier, weilrep = self)
@@ -1303,267 +1552,49 @@ class WeilRep(object):
                     self.__eisenstein[k] = prec, e
                 return e
 
-    def eisenstein_newform(self, k, b, prec, allow_small_weight = False, print_exact = False):
-        ## WARNING!! This is not fully tested and very likely has bugs!! it is also slow! ##
-
+    def _eisenstein_series_weight_one_constant_term(self):
         r"""
-        Compute Eisenstein newforms.
+        Correct the constant term in the Eisenstein series of weight one.
 
-        This computes the sum:
-        \sum_{\chi} E_{k, \beta, \chi}
-        over all primitive Dirichlet characters \chi modulo the denominator of \beta.
-
-        ALGORITHM: We use the formula of Theorem 1.4 of [Sch] for the Eisenstein series with character E_{k, \beta, \chi}. Their Fourier coefficients are computed numerically. We recover the (rational) power series using known bounds on the denominators of the Fourier coefficients.
-
-        INPUT:
-        - ``k`` -- the weight
-        - ``b`` -- a vector in self's discriminant group
-        - ``prec`` -- the precision
-        - ``allow_small_weight`` -- boolean (default False); if True then we do not check whether the weight is > 2
-        - ``print_exact`` -- boolean (default False); if True then print some debugging information
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[18]])).eisenstein_newform(5/2, vector([1/3]), 5)
-            [(0), O(q^5)]
-            [(1/18), 72*q^(35/36) + 120*q^(71/36) + 396*q^(107/36) + 384*q^(143/36) + 804*q^(179/36) + O(q^(215/36))]
-            [(1/9), -54*q^(8/9) - 156*q^(17/9) - 276*q^(26/9) - 504*q^(35/9) - 660*q^(44/9) + O(q^(53/9))]
-            [(1/6), -4*q^(3/4) + 24*q^(7/4) - 36*q^(11/4) - 48*q^(15/4) + 168*q^(19/4) + O(q^(23/4))]
-            [(2/9), 24*q^(5/9) + 108*q^(14/9) + 264*q^(23/9) + 438*q^(32/9) + 540*q^(41/9) + O(q^(50/9))]
-            [(5/18), -12*q^(11/36) - 72*q^(47/36) - 276*q^(83/36) - 264*q^(119/36) - 672*q^(155/36) + O(q^(191/36))]
-            [(1/3), 2 - 12*q + 18*q^2 + 28*q^3 - 108*q^4 + O(q^5)]
-            [(7/18), 24*q^(23/36) + 156*q^(59/36) + 192*q^(95/36) + 516*q^(131/36) + 480*q^(167/36) + O(q^(203/36))]
-            [(4/9), -6*q^(2/9) - 84*q^(11/9) - 216*q^(20/9) - 312*q^(29/9) - 528*q^(38/9) + O(q^(47/9))]
-            [(1/2), O(q^(23/4))]
-            [(5/9), 6*q^(2/9) + 84*q^(11/9) + 216*q^(20/9) + 312*q^(29/9) + 528*q^(38/9) + O(q^(47/9))]
-            [(11/18), -24*q^(23/36) - 156*q^(59/36) - 192*q^(95/36) - 516*q^(131/36) - 480*q^(167/36) + O(q^(203/36))]
-            [(2/3), -2 + 12*q - 18*q^2 - 28*q^3 + 108*q^4 + O(q^5)]
-            [(13/18), 12*q^(11/36) + 72*q^(47/36) + 276*q^(83/36) + 264*q^(119/36) + 672*q^(155/36) + O(q^(191/36))]
-            [(7/9), -24*q^(5/9) - 108*q^(14/9) - 264*q^(23/9) - 438*q^(32/9) - 540*q^(41/9) + O(q^(50/9))]
-            [(5/6), 4*q^(3/4) - 24*q^(7/4) + 36*q^(11/4) + 48*q^(15/4) - 168*q^(19/4) + O(q^(23/4))]
-            [(8/9), 54*q^(8/9) + 156*q^(17/9) + 276*q^(26/9) + 504*q^(35/9) + 660*q^(44/9) + O(q^(53/9))]
-            [(17/18), -72*q^(35/36) - 120*q^(71/36) - 396*q^(107/36) - 384*q^(143/36) - 804*q^(179/36) + O(q^(215/36))]
+        Not meant to be called directly.
         """
-
-        def l_value(k, psi0):
-            psi = psi0.primitive_character()
-            f_psi = psi.conductor()
-            l_value_bar = CC(-psi.bar().bernoulli(k) / k)
-            delta = psi.is_odd()
-            L_val = l_value_bar * (2 * RRpi / f_psi)**k * CC(psi.gauss_sum_numerical(prec = lazy_bound)) / (2 * CC(1j)**delta * RR(cos(math.pi * (k - delta) / 2)) * RR(k).gamma())
-            for p in prime_divisors(psi0.modulus() / f_psi):
-                L_val = L_val * (1 - psi(p) / (p **k))
-            return L_val
-        def lazy_l_value(g, n, S, p, k, u = None):
-            L = 2 * g * S
-            c = g * S * g + 2*n
-            return L_values(2 * g * S, [c], S, p, k, t = u)[0]
-        #check input
-        prec = ceil(prec)
-        if prec <= 0:
-            raise ValueError('Precision must be at least 0')
-        if k <= 2 and not allow_small_weight and (k < 2 or self.discriminant().is_squarefree()):
-            raise ValueError('Weight must be at least 5/2')
-        symm = self.is_symmetric_weight(k)
-        if symm is None:
-            raise ValueError('Invalid weight in Eisenstein series')
-        #setup
+        d = -self.discriminant()
+        d0 = fundamental_discriminant(d)
+        f = [[x, y, 0] for x, y in self.norm_dict().items()]
+        e = 0
+        c = ~isqrt(d // d0)
+        for p in prime_divisors(d):
+            if kronecker_symbol(d0, p) == 1:
+                e += 1
+                c /= (1 - ~p)
+            elif d0 % p:
+                c *= 2 / (1 + ~p)
+        t, = PolynomialRing(QQ, 't').gens()
+        if self.signature() == 2:
+            c = -c
         S = self.gram_matrix()
-        e = S.nrows()
-        if e % 2:
-            denom = lcm([2*k-1, self.discriminant(), max(bernoulli(Integer(2*k - 1)).numerator(), 1)])
-            for p in self.discriminant().prime_divisors():
-                denom = lcm(denom, p ** (Integer(2*k - 1)) - 1)
-        else:
-            denom = lcm([k, self.discriminant(), max(bernoulli(k).numerator(), 1)])
-            for p in self.discriminant().prime_divisors():
-                denom = lcm(denom, p ** k - 1)
-        if print_exact:
-            print('denominator: ', denom)
-        lazy_bound = max(4 * ceil(log(prec + 2) * (k - 1) + log(denom) + log(60) + log(k+1)), 53)
-        RR = RealField(lazy_bound)
-        CC = RR.complex_field()
-        N_b = denominator(b)
-        N_b_factor = factor(N_b)
-        chi_list = [chi for chi in DirichletGroup(N_b) if chi.is_primitive() and chi.is_even() == symm]
-        if not chi_list:
-            raise ValueError('Not a newform')
-        chi_decompositions = [chi.decomposition() for chi in chi_list]
-        chi_gauss_sums = [chi.gauss_sum_numerical(prec = lazy_bound) for chi in chi_list]
-        ds = self.ds()
-        indices = self.rds(indices = True)
-        discr = self.discriminant()
-        sqrt_discr = sqrt(RR(discr))
-        RRpi = RR.pi()
-        RRgamma_k = RR(k).gamma()
-        first_factor = (RR(2) ** (k+1)) * RRpi**k * CC(1j) ** (k + self.signature() / 2) / (sqrt_discr * RRgamma_k)
-        norm_list = self.norm_list()
-        RPoly, t = PolynomialRing(QQ, 't').objgen()
-        X = []
-        R, q = PowerSeriesRing(QQ, 'q').objgen()
-        for i, g in enumerate(ds):
-            if indices[i] is None:
-                offset = norm_list[i]
-                prec_g = prec - floor(offset)
-                coeff_list = []
-                for n_ceil in range(1, prec_g):
-                    n = n_ceil + offset
-                    N_bSg = Integer(N_b * (b * S * g))
-                    gcd_b_gb = GCD(N_b, N_bSg)
-                    N_g = prod([p ** d for (p, d) in factor(N_b) if gcd_b_gb % p == 0])
-                    N_g_prime = N_b // N_g
-                    D_g = DirichletGroup(N_g)
-                    D_g_prime = DirichletGroup(N_g_prime)
-                    chi_g_list = [prod([D_g(psi) for psi in chi_decompositions[i] if N_g % psi.modulus() == 0]) for i in range(len(chi_list))]
-                    L_s = [[D_g_prime(psi) for psi in chi_decompositions[i] if N_g % psi.modulus()] for i in range(len(chi_list))]
-                    chi_g_prime_list = [prod(L) if L else lambda x:1 for L in L_s]
-                    front_factor = first_factor * RR(n) ** (k-1)
-                    eps_factors = [chi_gauss_sums[i] * chi_g_prime(N_bSg)**(-1) / N_g for i, chi_g_prime in enumerate(chi_g_prime_list)]
-                    D = Integer(2 * N_g * N_g * n * S.determinant())
-                    bad_primes = (D).prime_divisors()
-                    if e % 2 == 1:
-                        D0 = fundamental_discriminant(D * (-1)**((e+1)/2))
-                    else:
-                        D0 = fundamental_discriminant((-1)**(e/2) * S.determinant())
-                    main_terms = [RR(1)]*len(chi_list)
-                    chi0 = kronecker_character(D0)
-                    for p in bad_primes:
-                        main_term_L_val = lazy_l_value(g, n, S, p, k, u = t)
-                        p_power = p ** Integer(1 + e/2 - k)
-                        Euler_factors = [CC(main_term_L_val(chi(p)*p_power)) if chi(p) else 1 for chi in chi_list]
-                        chi0_p = CC(chi0(p))
-                        if e % 2:
-                            p_pow_2 = RR(p ** Integer(1 / 2 - k))
-                            for i in range(len(chi_list)):
-                                chi_p = CC(chi_list[i](p))
-                                main_terms[i] *= ( (1 - chi_p * chi0_p * p_pow_2) * Euler_factors[i] / (1 - (chi_p * p_pow_2) ** 2))#.n()
-                        else:
-                            for i in range(len(chi_list)):
-                                main_terms[i] *= Euler_factors[i] / (1 - chi_list[i](p) * chi0_p * (p ** (-k)))
-                    if e % 2:
-                        for i, chi in enumerate(chi_list):
-                            G = DirichletGroup(lcm(chi.modulus(), chi0.modulus()))
-                            main_terms[i] *= CC(l_value(Integer(k - sage_one_half), G(chi)*G(chi0)))
-                            main_terms[i] /= CC(l_value(Integer(2*k - 1), chi * chi))
-                    else:
-                        for i, chi in enumerate(chi_list):
-                            G = DirichletGroup(lcm(chi.modulus(), chi0.modulus()))
-                            main_terms[i] /= CC(l_value(Integer(k), G(chi)*G(chi0)))
-                    finite_parts = [1 for _ in chi_list]
-                    for p in prime_divisors(gcd_b_gb):
-                        p_sum = 0
-                        p_power_N_b = p ** (N_b.valuation(p))
-                        vp_g = gcd_b_gb.valuation(p)
-                        w_p = 1 + 2 * (2*N_b * N_g * n).valuation(p)
-                        N_g_over_p = N_g / (p ** N_g.valuation(p))
-                        Dp_prime = DirichletGroup(N_g_over_p)
-                        Dp = DirichletGroup(p ** N_g.valuation(p))
-                        L_s = [[Dp_prime(psi) for psi in chi_decomposition if not N_g_over_p % psi.modulus()] for chi_decomposition in chi_decompositions]
-                        chi_p_prime_list = [prod(L) if L else lambda x:1 for L in L_s]
-                        chi_p_list = [prod([Dp(psi) for psi in chi_decomposition if not psi.modulus() % p]) for chi_decomposition in chi_decompositions]
-                        s = vector([0] * len(chi_list))
-                        for alpha in range(w_p + 1):
-                            p_alpha = p ** alpha
-                            p_pow_list = [CC(chi_p_prime(p_alpha)) * (p_alpha ** (1 - e/2 - k)) for chi_p_prime in chi_p_prime_list]
-                            p_e_alpha = (p_alpha ** e) / p
-                            s_alpha = vector([0]*len(chi_list))
-                            for v in range(p_power_N_b):
-                                new_g = g - v * (N_b // p_power_N_b) * b
-                                for u in range(p_power_N_b):
-                                    if u % p:
-                                        LvalueSeries = RPoly(lazy_l_value(new_g, n + p_alpha * v * u / p_power_N_b , S, p, k, u = t))
-                                        s_alpha += CC(p_e_alpha * (p * LvalueSeries[alpha] - LvalueSeries[alpha - 1])) * vector(CC(chi_p.bar()(u)) for chi_p in chi_p_list)
-                            s = s + vector(p_pow_list[i] * s_alpha[i] for i in range(len(p_pow_list)))
-                        for i in range(len(finite_parts)):
-                            finite_parts[i] *= s[i]
-                    coeff = (front_factor * sum(eps_factors[i] * main_terms[i] * finite_parts[i] for i in range(len(chi_list))))
-                    coeff_numerator = RR(coeff.real()) * denom
-                    if print_exact:
-                        print(g, n, 'exact: ', coeff_numerator, front_factor.n(), eps_factors[0].n(), main_terms[0].n(), finite_parts[0].n())
-                    coeff = round(coeff_numerator) / denom
-                    coeff_list.append(coeff)
-                f = q * R(coeff_list) + O(q ** prec_g)
-                const_term = Integer(0)
-                for n in range(N_b):
-                    if denominator(g - n * b) == 1:
-                        const_term = const_term + 2 * sum(chi(n).n() for chi in chi_list)
-                const_term = round(const_term.real() * denom) / denom
-                f = f + const_term
-                X.append([g, offset, f])
-            else:
-                eps = 1 if symm else -1
-                X.append([g, norm_list[indices[i]], eps * X[indices[i]][2]])
-        return WeilRepModularForm(k, S, X, weilrep = self)
+        n = Integer(S.nrows() / 2)
+        for i, x in enumerate(f):
+            if not x[1]:
+                g0 = vector(x[0])
+                g = vector(ZZ, 2 * vector(x[0]) * S)
+                u = c
+                e0 = e
+                for p in prime_divisors(d):
+                    z = L_values(g, [Integer(-g*g0 / 2)], S, p, 0, t)[0]
+                    pn = p ** n
+                    try:
+                        h = z(pn)
+                    except ZeroDivisionError:
+                        z *= (1 - t / pn)
+                        h = z(pn)
+                        e0 -= 1
+                    u *= h
+                if not e0:
+                    f[i][2] = u
+        return WeilRepModularForm(1, S, f, weilrep = self)
 
-    def eisenstein_oldform(self, k, b, prec, **kwargs):
-        r"""
-        Compute certain Eisenstein oldforms.
-
-        This computes the sum over E_{k, \beta} where \beta runs through all multiples of ``b`` in self's discriminant group.
-
-        INPUT:
-        - ``k`` -- the weight
-        - ``b`` -- an element of self's discriminant group with integral norm
-        - ``prec`` -- precision
-
-        OUTPUT: WeilRepModularForm
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[8]])).eisenstein_oldform(7/2, vector([1/2]), 5)
-            [(0), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + O(q^5)]
-            [(1/8), O(q^(95/16))]
-            [(1/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^(23/4))]
-            [(3/8), O(q^(87/16))]
-            [(1/2), 1 + 126*q + 756*q^2 + 2072*q^3 + 4158*q^4 + O(q^5)]
-            [(5/8), O(q^(87/16))]
-            [(3/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^(23/4))]
-            [(7/8), O(q^(95/16))]
-        """
-        eps = 1 if self.is_symmetric_weight(k) else -1
-        E = self.eisenstein_series(k, prec, **kwargs)
-        d_b = denominator(b)
-        if d_b == 1:
-            return E
-        q, = PowerSeriesRing(QQ, 'q').gens()
-        def a(E):
-            w = E.weilrep()
-            S = w.gram_matrix()
-            ds = w.ds()
-            indices = w.rds(indices = True)
-            norm_list = w.norm_list()
-            X = E.components()
-            Y = [None] * len(ds)
-            for i, g in enumerate(ds):
-                if indices[i] is None:
-                    g_b = frac(g * S * b)
-                    if g_b:
-                        Y[i] = g, norm_list[i], O(q ** (prec - floor(norm_list[i])))
-                    else:
-                        f = sum(X[tuple(map(frac, g + j * b))] for j in range(d_b))
-                        Y[i] = g, norm_list[i], f
-                else:
-                    Y[i] = g, norm_list[i], eps*Y[indices[i]][2]
-            return Y
-        Y = a(E)
-        S = self.gram_matrix()
-        if k > 2:
-            return WeilRepModularForm(k, S, Y, weilrep = self)
-        elif k == 2:
-            s = self.eisenstein_series_shadow(prec)
-            if s:
-                return WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * a(s) / isqrt(self.discriminant()), WeilRepModularForm(k, S, Y, weilrep = self)], weilrep = self)
-            return WeilRepModularForm(k, S, Y, weilrep = self)
-        else:
-            s = self.eisenstein_series_shadow_wt_three_half(prec)
-            if s:
-                multiplier = 1 / (pi * sqrt(self.discriminant() // 2))
-                return WeilRepMockModularForm(k, self.gram_matrix(), Y, WeilRepModularForm(1/2, -S, a(s), s.weilrep()) / 16, shadow_multiplier = multiplier, weilrep = self)
-            return WeilRepModularForm(k, S, Y, weilrep = self)
-
-    def eisenstein_series_shadow(self, prec):
+    def _eisenstein_series_shadow(self, prec):
         r"""
         Compute the shadow of the weight two Eisenstein series (if it exists).
 
@@ -1577,14 +1608,14 @@ class WeilRep(object):
         EXAMPLES::
 
             sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[2,0],[0,-2]])).eisenstein_series_shadow(5)
+            sage: WeilRep(matrix([[2,0],[0,-2]]))._eisenstein_series_shadow(5)
             [(0, 0), 1 + O(q^5)]
             [(1/2, 0), O(q^(23/4))]
             [(0, 1/2), O(q^(21/4))]
             [(1/2, 1/2), 1 + O(q^5)]
 
             sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[8,0],[0,-2]])).eisenstein_series_shadow(5)
+            sage: WeilRep(matrix([[8,0],[0,-2]]))._eisenstein_series_shadow(5)
             [(0, 0), 1 + O(q^5)]
             [(1/8, 0), O(q^(95/16))]
             [(1/4, 0), O(q^(23/4))]
@@ -1636,7 +1667,7 @@ class WeilRep(object):
                     X[i] = g, 0, o_q_prec + prod(L_values(L, [-c], -S, p, 2)[0] / (1 + 1/p) for p in bad_primes)
         return WeilRepModularForm(0, S, X, weilrep = self)
 
-    def eisenstein_series_shadow_wt_three_half(self, prec):
+    def _eisenstein_series_shadow_wt_three_half(self, prec):
         r"""
         Compute the shadow of the weight 3/2 Eisenstein series (if it exists).
 
@@ -1932,7 +1963,7 @@ class WeilRep(object):
         - ``b`` -- a vector for which b*S is integral (where S is our Gram matrix)
         - ``m`` -- a rational number for which m + b*S*b/2 is a positive integer
         - ``prec`` -- precision (natural number)
-        - ``weilrep`` -- WeilRep (optional) the result of self.embiggen(b, m) if known
+        - ``weilrep`` -- WeilRep (optional) the result of self._embiggen(b, m) if known
         - ``fix`` -- boolean (default True) if false then do not fix the result in weight 2 or 5/2
 
         OUTPUT: WeilRepModularForm
@@ -1973,7 +2004,7 @@ class WeilRep(object):
             except TypeError:
                 return X #result was ok
             q, = PowerSeriesRing(QQ, 'q').gens()
-            theta = w.eisenstein_series_shadow(prec+1).theta_contraction(components = _components).fourier_expansion()
+            theta = w._eisenstein_series_shadow(prec+1).theta_contraction(components = _components).fourier_expansion()
             Y = X.fourier_expansion()
             Z = [None] * len(theta)
             for i in range(len(theta)):
@@ -1997,7 +2028,7 @@ class WeilRep(object):
         - ``b`` -- a vector for which b*S is integral (where S is our Gram matrix)
         - ``m`` -- a rational number for which m + b*S*b/2 is a positive integer
         - ``prec`` -- precision (natural number)
-        - ``weilrep`` -- WeilRep (default None) should be the result of self.embiggen(b, m)
+        - ``weilrep`` -- WeilRep (default None) should be the result of self._embiggen(b, m)
         - ``fix`` -- boolean (default True) if false then we do not fix the result in weights 3 or 7/2
 
         NOTE: if b has order 2 in our discriminant group then this is zero!
@@ -2052,7 +2083,7 @@ class WeilRep(object):
             except TypeError:
                 return X
             q, = PowerSeriesRing(QQ, 'q').gens()
-            theta = w.eisenstein_series_shadow(prec+1).theta_contraction(odd = True).fourier_expansion()
+            theta = w._eisenstein_series_shadow(prec+1).theta_contraction(odd = True).fourier_expansion()
             Y = X.fourier_expansion()
             Z = [None] * len(theta)
             for i in range(len(theta)):
@@ -2110,7 +2141,7 @@ class WeilRep(object):
         else:
             raise NotImplementedError #to be fixed
             q, = PowerSeriesRing(QQ, 'q').gens()
-            theta = w.eisenstein_series_shadow(prec+1).theta_contraction().theta_contraction(components = _components).fourier_expansion()
+            theta = w._eisenstein_series_shadow(prec+1).theta_contraction().theta_contraction(components = _components).fourier_expansion()
             Y = X.fourier_expansion()
             Z = [None] * len(theta)
             for i in range(len(theta)):
@@ -2316,31 +2347,59 @@ class WeilRep(object):
 
     ## dimensions of spaces of modular forms associated to this representation
 
-    def rank(self, symm):
+    def borcherds_obstructions(self, weight, prec, reverse = True, verbose = False):
         r"""
-        Compute the rank of self's modular forms as a module over the ring M_*(SL_2(Z)) of scalar-valued modular forms.
-
-        INPUT:
-        - ``symm`` -- boolean: if True then we consider the module of symmetric forms, if False then antisymmetric forms
-
-        OUTPUT: a natural number
+        Compute a basis of the Borcherds obstruction space.
 
         EXAMPLES::
 
             sage: from weilrep import WeilRep
-            sage: w = WeilRep(matrix([[4,0],[0,4]]))
-            sage: w.rank(0), w.rank(1)
-            (6, 10)
-
+            sage: WeilRep(matrix([[-8]])).borcherds_obstructions(5/2, 5)
+            [(0), 1 - 24*q - 72*q^2 - 96*q^3 - 358*q^4 + O(q^5)]
+            [(7/8), -1/2*q^(1/16) - 24*q^(17/16) - 72*q^(33/16) - 337/2*q^(49/16) - 192*q^(65/16) + O(q^(81/16))]
+            [(3/4), -5*q^(1/4) - 24*q^(5/4) - 125*q^(9/4) - 120*q^(13/4) - 240*q^(17/4) + O(q^(21/4))]
+            [(5/8), -25/2*q^(9/16) - 121/2*q^(25/16) - 96*q^(41/16) - 168*q^(57/16) - 264*q^(73/16) + O(q^(89/16))]
+            [(1/2), -46*q - 48*q^2 - 144*q^3 - 192*q^4 + O(q^5)]
+            [(3/8), -25/2*q^(9/16) - 121/2*q^(25/16) - 96*q^(41/16) - 168*q^(57/16) - 264*q^(73/16) + O(q^(89/16))]
+            [(1/4), -5*q^(1/4) - 24*q^(5/4) - 125*q^(9/4) - 120*q^(13/4) - 240*q^(17/4) + O(q^(21/4))]
+            [(1/8), -1/2*q^(1/16) - 24*q^(17/16) - 72*q^(33/16) - 337/2*q^(49/16) - 192*q^(65/16) + O(q^(81/16))]
         """
-
-        try:
-            return [self.__antisymm_rank, self.__symm_rank][symm]
-        except AttributeError:
-            rds_list = self.rds()
-            self.__symm_rank = len(self.rds())
-            self.__antisymm_rank = self.__symm_rank - sum(self.__order_two_in_rds_list)
-            return [self.__antisymm_rank, self.__symm_rank][symm]
+        prec = ceil(prec)
+        d = self.discriminant()
+        if weight > 2 or (weight == 2 and ((d % 4 and d.is_squarefree()) or (d//4).is_squarefree())):
+            if verbose:
+                print('I am looking for obstructions to Borcherds products of weight %s.' %weight)
+            E = self.eisenstein_series(weight, prec)
+            if verbose:
+                print('I computed the Eisenstein series and will now compute cusp forms.')
+            L = [E]
+            L.extend(self.cusp_forms_basis(weight, prec, E = E, verbose = verbose))
+            return WeilRepModularFormsBasis(weight, L, self)
+        elif weight == 0:
+            if d == 1:
+                return self._invariants(prec)
+            return []
+        elif weight == sage_one_half:
+            X = self._weight_one_half_basis(prec)
+            n = self.norm_dict()
+            return WeilRepModularFormsBasis(sage_one_half, [x for x in X if not any(h[0] and h[2][0] for h in x.fourier_expansion())], self)
+        else:
+            if verbose:
+                print('I am going to compute the obstruction spaces in weights %s and %s.' %(weight+4, weight+6))
+            e4 = smf(-4, ~eisenstein_series_qexp(4,prec))
+            e6 = smf(-6, ~eisenstein_series_qexp(6,prec))
+            X1 = self.borcherds_obstructions(weight+4, prec, verbose = verbose)
+            X2 = self.borcherds_obstructions(weight+6, prec, verbose = verbose)
+            try:
+                V1 = span([(x * e4).coefficient_vector() for x in X1])
+                V2 = span([(x * e6).coefficient_vector() for x in X2])
+                V = (V1.intersection(V2)).echelonized_basis()
+                Y = [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V]
+                if reverse:
+                    Y.reverse()
+                return WeilRepModularFormsBasis(weight, Y, self)
+            except AttributeError:
+                return []
 
     def cusp_forms_dimension(self, weight, eta_twist = 0, force_Riemann_Roch = False, do_not_round = False):
         r"""
@@ -2442,63 +2501,45 @@ class WeilRep(object):
                 raise ValueError('Not yet implemented')
             return len(self.cusp_forms_basis(weight))
 
-    def modular_forms_dimension(self, weight, eta_twist = 0, force_Riemann_Roch = False, do_not_round = False):
-        r"""
-        Compute the dimension of spaces of modular forms.
 
-        This computes the dimension of the space of modular forms using Riemann-Roch. The formula is valid in weights >= 2. In weights 0,1/2,1,3/2 we compute a *basis* of the space and then take its length. (This is slow!)
+    def hilbert_series(self, polynomial = False, eta_twist = 0):
+        r"""
+        Compute the Hilbert series \sum_k dim M_{floor k}(rho) t^k.
 
         INPUT:
-        - ``weight`` -- the weight; a half-integer
-        - ``eta_twist`` -- an integer (default 0). This computes instead the dimension of modular forms after twisting the Weil representation by this power of the eta multiplier
-        - ``force_Riemann_Roch`` -- a boolean (default False). If True then we produce the output of the Riemann-Roch formula, regardless of whether this represents the dimension
-        - ``do_not_round`` -- a boolean (default False). If True then do not convert the output to an integer. (This is probably only useful for debugging.)
-
-        OUTPUT: the dimension of the space of modular forms of the given weight and eta twist as an integer (unless specified otherwise)
-
-        NOTE: the first time we compute any dimension, a lot of Gauss sums have to be computed. After this it should be fast.
+        - ``polynomial`` -- boolean (default False). If True then output the Hilbert Polynomial f * (1 - t^4) * (1 - t^6) instead.
 
         EXAMPLES::
 
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[2,1],[1,2]])).modular_forms_dimension(11)
-            2
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[4]])).modular_forms_dimension(21/2)
-            1
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[4]])).modular_forms_dimension(17/2, 2)
-            2
-
+            sage: from weilrep import *
+            sage: w = WeilRep(CartanMatrix(['D', 4]))
+            sage: w.hilbert_series()
+            (2*t^6 + t^4 + t^2)/(t^10 - t^6 - t^4 + 1)
         """
-        eta_twist %= 24
-        k = weight - eta_twist / 2
-        if k >= 2 or force_Riemann_Roch:
-            symm = self.is_symmetric_weight(k)
-            cusp_dim = self.cusp_forms_dimension(weight, eta_twist, force_Riemann_Roch = True, do_not_round = do_not_round)
-            return cusp_dim + self.__count_isotropic_vectors[eta_twist] + (symm - 1) * self.__count_isotropic_vectors_of_order_two[eta_twist]
-        elif weight < 0:
-            return 0
-        elif eta_twist:
-            raise ValueError('Not yet implemented')
-        elif weight == 0:
-            return self._invariants_dim()
-        elif weight == sage_three_half:
-            wdual = self.dual()
-            s = wdual.cusp_forms_dimension(sage_one_half, force_Riemann_Roch = True, do_not_round = do_not_round)
-            return len(wdual.cusp_forms_basis(sage_one_half, 1)) - s
-        else:
-            return len(self.modular_forms_basis(weight))
+        eps = Integer((self.signature() + eta_twist) % 2)
+        r, t = PolynomialRing(ZZ, 't').objgen()
+        d = []
+        p = []
+        discr = self.discriminant()
+        k = eps / 2
+        s = 0
+        while s < discr:
+            p.append(self.modular_forms_dimension(k, eta_twist = eta_twist))
+            d.append(p[-1])
+            if len(p) > 4:
+                p[-1] -= d[-5]
+                if len(p) > 6:
+                    p[-1] -= d[-7]
+                    if len(p) > 10:
+                        p[-1] += d[-11]
+            k += 1
+            s += p[-1]
+        if polynomial:
+            return r(p)
+        return r(p) / ((1 - t**4) * (1 - t**6))
 
-    def quasimodular_forms_dimension(self, weight):
-        r"""
-        Compute dimensions of quasimodular forms.
-
-        This is the sum dim M_k where k runs through weights less than 'weight' which are equal to 'weight' modulo 2*ZZ.
-        """
-        return sum(self.modular_forms_dimension(weight - 2*k) for k in range(floor(weight / 2) + 1))
+    def hilbert_polynomial(self, eta_twist = 0):
+        return self.hilbert_series(polynomial = True, eta_twist = eta_twist)
 
     def invariant_cusp_forms_dimension(self, weight, G = None, chi = None, force_Riemann_Roch = False, do_not_round = False):
         r"""
@@ -2598,91 +2639,192 @@ class WeilRep(object):
                 return len(self.invariant_cusp_forms_basis(weight, 1, G = G, chi = chi))
             return len(self.invariant_forms_basis(weight, 1, G = G, chi = chi))
 
-
-    def hilbert_series(self, polynomial = False):
+    def modular_forms_dimension(self, weight, eta_twist = 0, force_Riemann_Roch = False, do_not_round = False):
         r"""
-        Compute the Hilbert series \sum_k dim M_{floor k}(rho) t^k.
+        Compute the dimension of spaces of modular forms.
+
+        This computes the dimension of the space of modular forms using Riemann-Roch. The formula is valid in weights >= 2. In weights 0,1/2,1,3/2 we compute a *basis* of the space and then take its length. (This is slow!)
 
         INPUT:
-        - ``polynomial`` -- boolean (default False). If True then output the Hilbert Polynomial f * (1 - t^4) * (1 - t^6) instead.
+        - ``weight`` -- the weight; a half-integer
+        - ``eta_twist`` -- an integer (default 0). This computes instead the dimension of modular forms after twisting the Weil representation by this power of the eta multiplier
+        - ``force_Riemann_Roch`` -- a boolean (default False). If True then we produce the output of the Riemann-Roch formula, regardless of whether this represents the dimension
+        - ``do_not_round`` -- a boolean (default False). If True then do not convert the output to an integer. (This is probably only useful for debugging.)
+
+        OUTPUT: the dimension of the space of modular forms of the given weight and eta twist as an integer (unless specified otherwise)
+
+        NOTE: the first time we compute any dimension, a lot of Gauss sums have to be computed. After this it should be fast.
 
         EXAMPLES::
 
-            sage: from weilrep import *
-            sage: w = WeilRep(CartanMatrix(['D', 4]))
-            sage: w.hilbert_series()
-            (2*t^6 + t^4 + t^2)/(t^10 - t^6 - t^4 + 1)
-        """
-        eps = Integer(self.signature() % 2)
-        r, t = PolynomialRing(ZZ, 't').objgen()
-        d = []
-        p = []
-        discr = self.discriminant()
-        k = eps / 2
-        s = 0
-        while s < discr:
-            p.append(self.modular_forms_dimension(k))
-            d.append(p[-1])
-            if len(p) > 4:
-                p[-1] -= d[-5]
-                if len(p) > 6:
-                    p[-1] -= d[-7]
-                    if len(p) > 10:
-                        p[-1] += d[-11]
-            k += 1
-            s += p[-1]
-        if polynomial:
-            return r(p)
-        return r(p) / ((1 - t**4) * (1 - t**6))
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[2,1],[1,2]])).modular_forms_dimension(11)
+            2
 
-    def hilbert_polynomial(self):
-        return self.hilbert_series(polynomial = True)
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[4]])).modular_forms_dimension(21/2)
+            1
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[4]])).modular_forms_dimension(17/2, 2)
+            2
+
+        """
+        eta_twist %= 24
+        k = weight - eta_twist / 2
+        if k >= 2 or force_Riemann_Roch:
+            symm = self.is_symmetric_weight(k)
+            cusp_dim = self.cusp_forms_dimension(weight, eta_twist, force_Riemann_Roch = True, do_not_round = do_not_round)
+            return cusp_dim + self.__count_isotropic_vectors[eta_twist] + (symm - 1) * self.__count_isotropic_vectors_of_order_two[eta_twist]
+        elif weight < 0:
+            return 0
+        elif weight == 0 and not eta_twist:
+            return self._invariants_dim()
+        elif weight == sage_three_half and not eta_twist:
+            wdual = self.dual()
+            s = wdual.cusp_forms_dimension(sage_one_half, force_Riemann_Roch = True, do_not_round = do_not_round)
+            return len(wdual.cusp_forms_basis(sage_one_half, 1)) - s
+        else:
+            return len(self.modular_forms_basis(weight, prec = 2, eta_twist = eta_twist))
+
+    def quasimodular_forms_dimension(self, weight):
+        r"""
+        Compute dimensions of quasimodular forms.
+
+        This is the sum dim M_k where k runs through weights less than 'weight' which are equal to 'weight' modulo 2*ZZ.
+        """
+        return sum(self.modular_forms_dimension(weight - 2*k) for k in range(floor(weight / 2) + 1))
+
+    def rank(self, symm):
+        r"""
+        Compute the rank of self's modular forms as a module over the ring M_*(SL_2(Z)) of scalar-valued modular forms.
+
+        INPUT:
+        - ``symm`` -- boolean: if True then we consider the module of symmetric forms, if False then antisymmetric forms
+
+        OUTPUT: a natural number
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(matrix([[4,0],[0,4]]))
+            sage: w.rank(0), w.rank(1)
+            (6, 10)
+
+        """
+
+        try:
+            return [self.__antisymm_rank, self.__symm_rank][symm]
+        except AttributeError:
+            rds_list = self.rds()
+            self.__symm_rank = len(rds_list)
+            self.__antisymm_rank = self.__symm_rank - sum(self.__order_two_in_rds_list)
+            return [self.__antisymm_rank, self.__symm_rank][symm]
 
     ## bases of spaces associated to this representation
 
-    def _eisenstein_packet(self, k, prec, dim = None, include_E = False):#packet of cusp forms that can be computed using only Eisenstein series
+    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, symmetry_data = None, verbose = False, eta_twist = 0):
+        r"""
+        Compute bases of modular forms that vanish to a specified order at infinity.
+
+        ALGORITHM: We first try to reduce to lower weight by dividing by a power of the modular Delta function. Then compute the full cusp space and pick out the forms with given vanishing order. (This is easy because cusp_forms_basis computes an echelon form.)
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``N`` -- the minimum order of vanishing (default 0)
+        - ``prec`` -- the precision (default 0); will be raised to at least the Sturm bound
+        - ``inclusive`` -- boolean (default False); if True then we also exclude modular forms whose order of vanishing is *exactly* N
+        - ``inclusive_except_zero_component`` -- boolean (default False); if True then we exclude modular forms any of whose components (except the zero component) has order of vanishing exactly N
+        - ``keep_N`` -- boolean (default False); if True then we skip the first step of trying to reduce to lower weight (for internal use)
+        - ``symmetry_data`` -- default None. If not None then it should be a list [G, chi] where G is a group of automorphisms and chi : G --> C^* is a character. (See also invariant_forms_dimension().)
+        - ``verbose`` -- boolean (default False); if True then we add commentary.
+
+        OUTPUT: a list of WeilRepModularForms
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[-6]])).basis_vanishing_to_order(21/2, 3/4, 10)
+            [(0), -2*q + 24*q^2 - 56*q^3 - 588*q^4 + 4740*q^5 - 13680*q^6 + 8464*q^7 + 51768*q^8 - 137754*q^9 + O(q^10)]
+            [(5/6), 3*q^(13/12) - 45*q^(25/12) + 255*q^(37/12) - 519*q^(49/12) - 879*q^(61/12) + 5916*q^(73/12) - 5610*q^(85/12) - 18123*q^(97/12) + 34017*q^(109/12) + O(q^(121/12))]
+            [(2/3), -6*q^(4/3) + 102*q^(7/3) - 720*q^(10/3) + 2568*q^(13/3) - 3876*q^(16/3) - 3246*q^(19/3) + 20904*q^(22/3) - 22440*q^(25/3) - 4692*q^(28/3) + O(q^(31/3))]
+            [(1/2), q^(3/4) - 10*q^(7/4) + 3*q^(11/4) + 360*q^(15/4) - 1783*q^(19/4) + 1716*q^(23/4) + 11286*q^(27/4) - 35466*q^(31/4) + 1080*q^(35/4) + 148662*q^(39/4) + O(q^(43/4))]
+            [(1/3), -6*q^(4/3) + 102*q^(7/3) - 720*q^(10/3) + 2568*q^(13/3) - 3876*q^(16/3) - 3246*q^(19/3) + 20904*q^(22/3) - 22440*q^(25/3) - 4692*q^(28/3) + O(q^(31/3))]
+            [(1/6), 3*q^(13/12) - 45*q^(25/12) + 255*q^(37/12) - 519*q^(49/12) - 879*q^(61/12) + 5916*q^(73/12) - 5610*q^(85/12) - 18123*q^(97/12) + 34017*q^(109/12) + O(q^(121/12))]
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[0,2],[2,0]])).basis_vanishing_to_order(8, 1/2, 10)
+            [(0, 0), 8*q - 64*q^2 + 96*q^3 + 512*q^4 - 1680*q^5 - 768*q^6 + 8128*q^7 - 4096*q^8 - 16344*q^9 + O(q^10)]
+            [(0, 1/2), -8*q + 64*q^2 - 96*q^3 - 512*q^4 + 1680*q^5 + 768*q^6 - 8128*q^7 + 4096*q^8 + 16344*q^9 + O(q^10)]
+            [(1/2, 0), -8*q + 64*q^2 - 96*q^3 - 512*q^4 + 1680*q^5 + 768*q^6 - 8128*q^7 + 4096*q^8 + 16344*q^9 + O(q^10)]
+            [(1/2, 1/2), q^(1/2) + 12*q^(3/2) - 210*q^(5/2) + 1016*q^(7/2) - 2043*q^(9/2) + 1092*q^(11/2) + 1382*q^(13/2) - 2520*q^(15/2) + 14706*q^(17/2) - 39940*q^(19/2) + O(q^(21/2))]
+        """
+        if verbose:
+            print('I am now looking for modular forms of weight %s which vanish to order %s at infinity.' %(k, N))
+        if inclusive and inclusive_except_zero_component:
+            raise ValueError('At most one of "inclusive" and "inclusive_except_zero_component" may be true')
         try:
             k = Integer(k)
         except TypeError:
-            pass
-        j = floor((k - 1) / 2)
-        bd = floor(min(dim, j) if dim else j)
-        k_list = [k - (j + j) for j in srange(bd)]
-        E = self.eisenstein_series(k_list, ceil(prec))
-        X = []
-        e = E[0]
-        if include_E:
-            X.append(e)
-        if len(k_list) > 2:
-            e4 = smf(4, eisenstein_series_qexp(4, prec, normalization = 'constant'))
-            if len(k_list) > 3:
-                e6 = smf(6, eisenstein_series_qexp(6, prec, normalization = 'constant'))
-                y = e - e6 * E[3]
-                if y:
-                    X.append(y)
-            X = []
-        Y = []
-        Z = []
-        E.reverse()
-        for f in E:
-            if dim is None or len(Y) < dim:
-                temp = [y for y in Y]
-                Y = WeilRepModularFormsBasis(f.weight(), [f] + [x.serre_derivative(normalize_constant_term = True) for x in Y] + [e4 * z for z in Z], self)
-                Z = temp
+            k = QQ(k)
+        eta_twist = Integer(eta_twist % 24)
+        if eta_twist:
+            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 - N, prec = prec, inclusive = not inclusive, reverse = False, symmetry_data = symmetry_data, verbose = verbose)
+            from .weilrep_modular_forms_class import smf_eta
+            f = smf_eta(prec) ** eta_twist
+            return WeilRepModularFormsBasis(k, [x * f for x in X], self)
+        symm = self.is_symmetric_weight(k)
+        if symm is None:
+            return WeilRepModularFormsBasis(k, [], self)
+        sturm_bound = k/12
+        prec = max(prec,sturm_bound)
+        if N > sturm_bound:
+            return []
+        elif N == 0:
+            if inclusive:
+                if verbose:
+                    print('The vanishing condition is trivial so I am looking for all cusp forms.')
+                return self.cusp_forms_basis(k, prec, verbose = verbose, symmetry_data = symmetry_data)
             else:
-                j = f.weight() - 2
-                j = (k - j) // 2
-                if j % 2:
-                    Y = [y.serre_derivative(normalize_constant_term = True) for y in Y]
-                if j >= 2:
-                    e4j = e4 ** (j // 2)
-                    Y = [e4j * y for y in Y]
-                break
-        X = WeilRepModularFormsBasis(k, X + [e - y for y in Y], self)
-        X.remove_nonpivots()
-        if include_E:
-            return X
-        return e, X
+                if verbose:
+                    print('The vanishing condition is trivial so I am looking for all modular forms.')
+                return self.modular_forms_basis(k, prec, eisenstein = False, verbose = verbose, symmetry_data = symmetry_data)
+        elif N >= 1 and not keep_N:
+            frac_N = frac(N)
+            floor_N = floor(N)
+            computed_weight = k - 12*floor_N
+            if computed_weight <= 2:
+                frac_N += 1
+                floor_N -= 1
+            if frac_N < N:
+                smf_delta_N = smf(12*floor_N, delta_qexp(prec)^floor_N)
+                if verbose:
+                    print('I am going to find a basis of modular forms of weight %s which vanish to order %s at infinity and multiply them by Delta^%d.' %(computed_weight, frac_N, floor_N))
+                X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose, symmetry_data = symmetry_data)
+                return WeilRepModularFormsBasis(k, [x * smf_delta_N for x in X], self)
+        U = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True, symmetry_data = symmetry_data)
+        try:
+            cusp_forms, pivots = U
+            ell = len(cusp_forms)
+        except (TypeError, ValueError):
+            if inclusive:
+                return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) > N], self)
+            return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) >= N], self)
+        Y = self.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
+        try:
+            if inclusive:
+                j = next(i for i in range(ell) if Y[pivots[i]] > N)
+            elif inclusive_except_zero_component:
+                j = next(i for i in range(ell) if (Y[0][pivots[i]] >= N) and (Y[0][pivots[i]] > N or not Y[1][pivots[i]]))
+            else:
+                j = next(i for i in range(ell) if Y[pivots[i]] >= N)
+        except StopIteration:
+            return []
+        Z = WeilRepModularFormsBasis(k, cusp_forms[j:], self)
+        if type(Z) is list:
+            Z = WeilRepModularFormsBasis(k, Z, self)
+        Z.echelonize()
+        return Z
 
     def cusp_forms_basis(self, k, prec=None, verbose = False, E = None, dim = None, save_pivots = False, echelonize = True, symmetry_data = None, eta_twist = 0):#basis of cusp forms
         r"""
@@ -2880,7 +3022,7 @@ class WeilRep(object):
             norm_list = self.norm_list()
             b_list = [i for i in range(len(ds)) if not (indices[i] or norm_list[i])]
             def t_packet_1(X, k, m, b, max_dim, prec, verbose = False): #symmetric
-                w_new = self.embiggen(b, m)
+                w_new = self._embiggen(b, m)
                 if max_dim > 3 and k in ZZ:
                     z = w_new.cusp_forms_basis(k - sage_one_half, prec, echelonize = False, verbose = verbose, dim = max_dim).theta(weilrep = self)
                     if z and verbose:
@@ -2917,7 +3059,7 @@ class WeilRep(object):
                 del w_new
                 return X, rank
             def t_packet_2(X, k, m, b, max_dim, prec, verbose = False): #anti-symmetric
-                w_new = self.embiggen(b, m)
+                w_new = self._embiggen(b, m)
                 if max_dim > 3 and k >= 4:
                     z = w_new.cusp_forms_basis(k - sage_three_half, prec, echelonize = False, verbose = verbose, dim = max_dim).theta(weilrep = self, odd = True)
                     if z:
@@ -3036,413 +3178,49 @@ class WeilRep(object):
                 self.__cusp_forms_basis[k] = prec, X
                 return return_pivots()
 
-    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False, symmetry_data = None, eta_twist = 0):
-        r"""
-        Compute a basis of the space of modular forms.
-
-        ALGORITHM: If k is a symmetric weight, k >= 5/2, then we compute a basis from linear combinations of self's eisenstein_series() and pss(). If k is an antisymmetric weight, k >= 7/2, then we compute a basis from self's pssd(). Otherwise, we compute M_k as the intersection
-        M_k(\rho^*) = E_4^(-1) * M_{k+4}(\rho^*) intersect E_6^(-1) * M_{k+6}(\rho^*). (This is slow!!)
-        Note: Eisenstein series at nonzero cusps are not implemented yet so when the Eisenstein space has dim > 1 we instead compute the image in S_{k+12} of Delta * M_k. (This is even slower!!)
-        The basis is always converted to echelon form (in particular the Fourier coefficients are integers).
-
-        INPUT:
-        - ``k`` -- the weight (half-integer)
-        - ``prec`` -- precision (default None). If precision is not given then we use the Sturm bound.
-        - ``eisenstein`` -- boolean (default False). If True and weight >= 5/2 then the first element in the output is always the Eisenstein series (i.e. we do not pass to echelon form).
-        - ``verbose`` -- boolean (default False). If true then we add comments throughout the computation.
-
-        OUTPUT: a list of WeilRepModularForms
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[2,0],[0,4]])).modular_forms_basis(5, 10)
-            [(0, 0), 1 - 150*q - 2270*q^2 - 11820*q^3 - 36750*q^4 - 89888*q^5 - 188380*q^6 - 344640*q^7 - 589230*q^8 - 954210*q^9 + O(q^10)]
-            [(0, 1/4), -80*q^(7/8) - 1808*q^(15/8) - 9840*q^(23/8) - 32320*q^(31/8) - 82160*q^(39/8) - 171360*q^(47/8) - 320528*q^(55/8) - 559600*q^(63/8) - 891600*q^(71/8) - 1365920*q^(79/8) + O(q^(87/8))]
-            [(0, 1/2), -10*q^(1/2) - 740*q^(3/2) - 5568*q^(5/2) - 21760*q^(7/2) - 59390*q^(9/2) - 130980*q^(11/2) - 257600*q^(13/2) - 461056*q^(15/2) - 747540*q^(17/2) - 1166180*q^(19/2) + O(q^(21/2))]
-            [(0, 3/4), -80*q^(7/8) - 1808*q^(15/8) - 9840*q^(23/8) - 32320*q^(31/8) - 82160*q^(39/8) - 171360*q^(47/8) - 320528*q^(55/8) - 559600*q^(63/8) - 891600*q^(71/8) - 1365920*q^(79/8) + O(q^(87/8))]
-            [(1/2, 0), -40*q^(3/4) - 1440*q^(7/4) - 7720*q^(11/4) - 30496*q^(15/4) - 68520*q^(19/4) - 166880*q^(23/4) - 283600*q^(27/4) - 551040*q^(31/4) - 787200*q^(35/4) - 1396960*q^(39/4) + O(q^(43/4))]
-            [(1/2, 1/4), -24*q^(5/8) - 1000*q^(13/8) - 6880*q^(21/8) - 24840*q^(29/8) - 65880*q^(37/8) - 145352*q^(45/8) - 276600*q^(53/8) - 485960*q^(61/8) - 805280*q^(69/8) - 1233120*q^(77/8) + O(q^(85/8))]
-            [(1/2, 1/2), -368*q^(5/4) - 3520*q^(9/4) - 17040*q^(13/4) - 43840*q^(17/4) - 117440*q^(21/4) - 205440*q^(25/4) - 421840*q^(29/4) - 632000*q^(33/4) - 1117680*q^(37/4) + O(q^(41/4))]
-            [(1/2, 3/4), -24*q^(5/8) - 1000*q^(13/8) - 6880*q^(21/8) - 24840*q^(29/8) - 65880*q^(37/8) - 145352*q^(45/8) - 276600*q^(53/8) - 485960*q^(61/8) - 805280*q^(69/8) - 1233120*q^(77/8) + O(q^(85/8))]
-            ------------------------------------------------------------
-            [(0, 0), -12*q + 56*q^2 - 72*q^3 + 80*q^4 - 352*q^5 + 336*q^6 + 704*q^7 - 1056*q^8 + 540*q^9 + O(q^10)]
-            [(0, 1/4), 8*q^(7/8) - 24*q^(15/8) - 40*q^(23/8) + 160*q^(31/8) + 24*q^(39/8) - 272*q^(47/8) + 104*q^(55/8) - 360*q^(63/8) + 72*q^(71/8) + 1424*q^(79/8) + O(q^(87/8))]
-            [(0, 1/2), -2*q^(1/2) - 12*q^(3/2) + 112*q^(5/2) - 224*q^(7/2) + 90*q^(9/2) + 52*q^(11/2) - 112*q^(13/2) + 672*q^(15/2) - 452*q^(17/2) - 268*q^(19/2) + O(q^(21/2))]
-            [(0, 3/4), 8*q^(7/8) - 24*q^(15/8) - 40*q^(23/8) + 160*q^(31/8) + 24*q^(39/8) - 272*q^(47/8) + 104*q^(55/8) - 360*q^(63/8) + 72*q^(71/8) + 1424*q^(79/8) + O(q^(87/8))]
-            [(1/2, 0), 6*q^(3/4) - 16*q^(7/4) - 26*q^(11/4) + 48*q^(15/4) + 134*q^(19/4) + 80*q^(23/4) - 756*q^(27/4) - 320*q^(31/4) + 1920*q^(35/4) - 48*q^(39/4) + O(q^(43/4))]
-            [(1/2, 1/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^(85/8))]
-            [(1/2, 1/2), q^(1/4) + 8*q^(5/4) - 45*q^(9/4) - 8*q^(13/4) + 226*q^(17/4) - 96*q^(21/4) - 335*q^(25/4) + 88*q^(29/4) - 156*q^(33/4) + 456*q^(37/4) + O(q^(41/4))]
-            [(1/2, 3/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^(85/8))]
-        """
-        eta_twist = Integer(eta_twist % 24)
-        if eta_twist:
-            X = self.nearly_holomorphic_modular_forms_basis(weight - eta_twist / 2, eta_twist / 24, prec = prec, reverse = False, symmetry_data = symmetry_data, verbose = verbose)
-            from .weilrep_modular_forms_class import smf_eta
-            f = smf_eta(prec) ** eta_twist
-            return WeilRepModularFormsBasis(weight, [x * f for x in X], self)
-        if symmetry_data is not None:
-            return self.invariant_forms_basis(weight, prec = prec, G = symmetry_data[0], chi = symmetry_data[1], verbose = verbose)
-        prec = ceil(prec)
-        if not eisenstein:
-            try:
-                old_prec, X = copy(self.__modular_forms_basis[weight])
-                if old_prec >= prec or not X:
-                    if old_prec == prec or not X:
-                        return X
-                    X = WeilRepModularFormsBasis(weight, [x.reduce_precision(prec, in_place = False) for x in X], self)
-                    return X
-            except KeyError:
-                pass
-        symm = self.is_symmetric_weight(weight)
-        if symm is None:
-            return []
-        _ds = self.ds()
-        _indices = self.rds(indices = True)
-        _norm_list = self.norm_list()
+    def _eisenstein_packet(self, k, prec, dim = None, include_E = False):#packet of cusp forms that can be computed using only Eisenstein series
         try:
-            weight = Integer(weight)
+            k = Integer(k)
         except TypeError:
-            weight = QQ(weight)
-        sturm_bound = weight / 12
-        prec = max(prec, sturm_bound)
-        if weight == 0:
-            return self._invariants(prec)
-        elif weight == sage_one_half:
-            return self._weight_one_half_basis(prec)
-        b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and (self.__ds_denominators_list[i] < 5 or self.__ds_denominators_list[i] == 6)]
-        if weight > 3 or (symm and weight > 2):
-            dim1 = self.modular_forms_dimension(weight)
-            dim2 = self.cusp_forms_dimension(weight)
-            if verbose:
-                print('I need to find %d modular forms of weight %s to precision %d.' %(dim1, weight, prec))
-            if (symm and dim1 <= dim2 + len(b_list)):
-                if verbose:
-                    print('I found %d Eisenstein series.' %len(b_list))
-                    if dim2 > 0:
-                        print('I am now going to look for %d cusp forms of weight %s.' %(dim2, weight))
-                L = WeilRepModularFormsBasis(weight, [self.eisenstein_oldform(weight, _ds[i], prec) for i in b_list], self)
-                if eisenstein:
-                    L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0]))
-                    return L
-                else:
-                    X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])], self)
-                    X.extend(L)
-                    X.echelonize()
-                    self.__modular_forms_basis[weight] = prec, X
-                    return X
-            elif dim1 == dim2:
-                X = self.cusp_forms_basis(weight, prec, verbose = verbose)
-                self.__modular_forms_basis[weight] = prec, X
-                return X
+            pass
+        j = floor((k - 1) / 2)
+        bd = floor(min(dim, j) if dim else j)
+        k_list = [k - (j + j) for j in srange(bd)]
+        E = self.eisenstein_series(k_list, ceil(prec))
+        X = []
+        e = E[0]
+        if include_E:
+            X.append(e)
+        if len(k_list) > 2:
+            e4 = smf(4, eisenstein_series_qexp(4, prec, normalization = 'constant'))
+            if len(k_list) > 3:
+                e6 = smf(6, eisenstein_series_qexp(6, prec, normalization = 'constant'))
+                y = e - e6 * E[3]
+                if y:
+                    X.append(y)
+            X = []
+        Y = []
+        Z = []
+        E.reverse()
+        for f in E:
+            if dim is None or len(Y) < dim:
+                temp = [y for y in Y]
+                Y = WeilRepModularFormsBasis(f.weight(), [f] + [x.serre_derivative(normalize_constant_term = True) for x in Y] + [e4 * z for z in Z], self)
+                Z = temp
             else:
-                pass
-        p = self.discriminant()
-        if symm and p.is_prime() and p != 2:
-            if weight == 0:
-                return []
-            if verbose:
-                print('The discriminant is prime so I can construct modular forms via the Bruinier--Bundschuh lift.')
-            chi = DirichletGroup(p)[(p-1)//2]
-            mod_forms = ModularForms(chi, weight, prec = ceil(p*prec)).echelon_basis()
-            mod_sturm_bound = p * ceil(weight / 12)
-            sig = self.signature()
-            if (sig == 0 or sig == 6):
-                eps = -1
-            else:
-                eps = 1
-            m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker_symbol(i + 1, p) == eps] for x in mod_forms])
-            v_basis = m.kernel().basis()
-            L = [sum([mf * v[i] for i, mf in enumerate(mod_forms)]) for v in v_basis]
-            L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
-            X = WeilRepModularFormsBasis(weight, L, self)
-            self.__modular_forms_basis[weight] = prec, X
+                j = f.weight() - 2
+                j = (k - j) // 2
+                if j % 2:
+                    Y = [y.serre_derivative(normalize_constant_term = True) for y in Y]
+                if j >= 2:
+                    e4j = e4 ** (j // 2)
+                    Y = [e4j * y for y in Y]
+                break
+        X = WeilRepModularFormsBasis(k, X + [e - y for y in Y], self)
+        X.remove_nonpivots()
+        if include_E:
             return X
-        dim1 = self.modular_forms_dimension(weight+4)
-        dim2 = self.cusp_forms_dimension(weight+4)
-        if symm and (dim1 <= dim2 + len(b_list)):
-            if verbose:
-                print('I am going to compute the spaces of modular forms of weights %s and %s.' %(weight+4, weight+6))
-            prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
-            e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
-            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
-            X1 = self.modular_forms_basis(weight+4, prec, verbose = verbose)
-            X2 = self.modular_forms_basis(weight+6, prec, verbose = verbose)
-            if verbose:
-                print('I am now going to compute M_%s by intersecting the spaces E_4^(-1) * M_%s and E_6^(-1) * M_%s.' %(weight, weight +4, weight +6))
-            try:
-                V1 = span([(x * e4).coefficient_vector() for x in X1])
-                V2 = span([(x * e6).coefficient_vector() for x in X2])
-                V = (V1.intersection(V2)).basis()
-                X = WeilRepModularFormsBasis(weight, [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V], self)
-                X.echelonize()
-                self.__modular_forms_basis[weight] = prec, X
-                return X
-            except AttributeError:
-                X = WeilRepModularFormsBasis(weight, [], self)
-                self.__modular_forms_basis[weight] = prec, X
-                return X
-        else:
-            if verbose:
-                print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.' %weight)
-            return self.nearly_holomorphic_modular_forms_basis(weight, 0, prec, inclusive = True, reverse = False, force_N_positive = True, verbose = verbose)
-
-    basis = modular_forms_basis
-
-    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, symmetry_data = None, verbose = False, eta_twist = 0):
-        r"""
-        Compute bases of modular forms that vanish to a specified order at infinity.
-
-        ALGORITHM: We first try to reduce to lower weight by dividing by a power of the modular Delta function. Then compute the full cusp space and pick out the forms with given vanishing order. (This is easy because cusp_forms_basis computes an echelon form.)
-
-        INPUT:
-        - ``k`` -- the weight
-        - ``N`` -- the minimum order of vanishing (default 0)
-        - ``prec`` -- the precision (default 0); will be raised to at least the Sturm bound
-        - ``inclusive`` -- boolean (default False); if True then we also exclude modular forms whose order of vanishing is *exactly* N
-        - ``inclusive_except_zero_component`` -- boolean (default False); if True then we exclude modular forms any of whose components (except the zero component) has order of vanishing exactly N
-        - ``keep_N`` -- boolean (default False); if True then we skip the first step of trying to reduce to lower weight (for internal use)
-        - ``symmetry_data`` -- default None. If not None then it should be a list [G, chi] where G is a group of automorphisms and chi : G --> C^* is a character. (See also invariant_forms_dimension().)
-        - ``verbose`` -- boolean (default False); if True then we add commentary.
-
-        OUTPUT: a list of WeilRepModularForms
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[-6]])).basis_vanishing_to_order(21/2, 3/4, 10)
-            [(0), -2*q + 24*q^2 - 56*q^3 - 588*q^4 + 4740*q^5 - 13680*q^6 + 8464*q^7 + 51768*q^8 - 137754*q^9 + O(q^10)]
-            [(5/6), 3*q^(13/12) - 45*q^(25/12) + 255*q^(37/12) - 519*q^(49/12) - 879*q^(61/12) + 5916*q^(73/12) - 5610*q^(85/12) - 18123*q^(97/12) + 34017*q^(109/12) + O(q^(121/12))]
-            [(2/3), -6*q^(4/3) + 102*q^(7/3) - 720*q^(10/3) + 2568*q^(13/3) - 3876*q^(16/3) - 3246*q^(19/3) + 20904*q^(22/3) - 22440*q^(25/3) - 4692*q^(28/3) + O(q^(31/3))]
-            [(1/2), q^(3/4) - 10*q^(7/4) + 3*q^(11/4) + 360*q^(15/4) - 1783*q^(19/4) + 1716*q^(23/4) + 11286*q^(27/4) - 35466*q^(31/4) + 1080*q^(35/4) + 148662*q^(39/4) + O(q^(43/4))]
-            [(1/3), -6*q^(4/3) + 102*q^(7/3) - 720*q^(10/3) + 2568*q^(13/3) - 3876*q^(16/3) - 3246*q^(19/3) + 20904*q^(22/3) - 22440*q^(25/3) - 4692*q^(28/3) + O(q^(31/3))]
-            [(1/6), 3*q^(13/12) - 45*q^(25/12) + 255*q^(37/12) - 519*q^(49/12) - 879*q^(61/12) + 5916*q^(73/12) - 5610*q^(85/12) - 18123*q^(97/12) + 34017*q^(109/12) + O(q^(121/12))]
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[0,2],[2,0]])).basis_vanishing_to_order(8, 1/2, 10)
-            [(0, 0), 8*q - 64*q^2 + 96*q^3 + 512*q^4 - 1680*q^5 - 768*q^6 + 8128*q^7 - 4096*q^8 - 16344*q^9 + O(q^10)]
-            [(0, 1/2), -8*q + 64*q^2 - 96*q^3 - 512*q^4 + 1680*q^5 + 768*q^6 - 8128*q^7 + 4096*q^8 + 16344*q^9 + O(q^10)]
-            [(1/2, 0), -8*q + 64*q^2 - 96*q^3 - 512*q^4 + 1680*q^5 + 768*q^6 - 8128*q^7 + 4096*q^8 + 16344*q^9 + O(q^10)]
-            [(1/2, 1/2), q^(1/2) + 12*q^(3/2) - 210*q^(5/2) + 1016*q^(7/2) - 2043*q^(9/2) + 1092*q^(11/2) + 1382*q^(13/2) - 2520*q^(15/2) + 14706*q^(17/2) - 39940*q^(19/2) + O(q^(21/2))]
-        """
-        if verbose:
-            print('I am now looking for modular forms of weight %s which vanish to order %s at infinity.' %(k, N))
-        if inclusive and inclusive_except_zero_component:
-            raise ValueError('At most one of "inclusive" and "inclusive_except_zero_component" may be true')
-        try:
-            k = Integer(k)
-        except TypeError:
-            k = QQ(k)
-        eta_twist = Integer(eta_twist % 24)
-        if eta_twist:
-            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 - N, prec = prec, inclusive = not inclusive, reverse = False, symmetry_data = symmetry_data, verbose = verbose)
-            from .weilrep_modular_forms_class import smf_eta
-            f = smf_eta(prec) ** eta_twist
-            return WeilRepModularFormsBasis(k, [x * f for x in X], self)
-        symm = self.is_symmetric_weight(k)
-        if symm is None:
-            return WeilRepModularFormsBasis(k, [], self)
-        sturm_bound = k/12
-        prec = max(prec,sturm_bound)
-        if N > sturm_bound:
-            return []
-        elif N == 0:
-            if inclusive:
-                if verbose:
-                    print('The vanishing condition is trivial so I am looking for all cusp forms.')
-                return self.cusp_forms_basis(k, prec, verbose = verbose, symmetry_data = symmetry_data)
-            else:
-                if verbose:
-                    print('The vanishing condition is trivial so I am looking for all modular forms.')
-                return self.modular_forms_basis(k, prec, eisenstein = False, verbose = verbose, symmetry_data = symmetry_data)
-        elif N >= 1 and not keep_N:
-            frac_N = frac(N)
-            floor_N = floor(N)
-            computed_weight = k - 12*floor_N
-            if computed_weight <= 2:
-                frac_N += 1
-                floor_N -= 1
-            if frac_N < N:
-                smf_delta_N = smf(12*floor_N, delta_qexp(prec)^floor_N)
-                if verbose:
-                    print('I am going to find a basis of modular forms of weight %s which vanish to order %s at infinity and multiply them by Delta^%d.' %(computed_weight, frac_N, floor_N))
-                X = self.basis_vanishing_to_order(computed_weight, frac_N, prec, inclusive, verbose = verbose, symmetry_data = symmetry_data)
-                return WeilRepModularFormsBasis(k, [x * smf_delta_N for x in X], self)
-        U = self.cusp_forms_basis(k, prec, verbose = verbose, save_pivots = True, symmetry_data = symmetry_data)
-        try:
-            cusp_forms, pivots = U
-            ell = len(cusp_forms)
-        except (TypeError, ValueError):
-            if inclusive:
-                return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) > N], self)
-            return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) >= N], self)
-        Y = self.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
-        try:
-            if inclusive:
-                j = next(i for i in range(ell) if Y[pivots[i]] > N)
-            elif inclusive_except_zero_component:
-                j = next(i for i in range(ell) if (Y[0][pivots[i]] >= N) and (Y[0][pivots[i]] > N or not Y[1][pivots[i]]))
-            else:
-                j = next(i for i in range(ell) if Y[pivots[i]] >= N)
-        except StopIteration:
-            return []
-        Z = WeilRepModularFormsBasis(k, cusp_forms[j:], self)
-        if type(Z) is list:
-            Z = WeilRepModularFormsBasis(k, Z, self)
-        Z.echelonize()
-        return Z
-
-    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, symmetry_data = None, verbose = False, eta_twist = 0):
-        r"""
-        Computes a basis of nearly holomorphic modular forms.
-
-        A nearly-holomorphic modular form is a function f : H -> C[L' / L] that is holomorphic on H and meromorphic at cusps and satisfies the usual transformations. In other words they are allowed to have a finite principal part.
-
-        ALGORITHM: compute spaces of modular forms of higher weight and divide by Delta.
-
-        INPUT:
-        - ``k`` -- the weight
-        - ``pole_order`` -- the worst pole the modular forms are allowed to have
-        - ``prec`` -- precision (default 0); will be raised at least to a Sturm bound
-        - ``inclusive`` -- boolean (default True); if True then we allow forms with pole order *exactly* pole_order
-        - ``reverse`` -- boolean (default True); if True then output forms in reverse echelon order
-        - ``symmetry_data`` -- default None. If not None then it should be a list [G, chi] where G is a group of automorphisms and chi : G --> C^* is a character. (See also invariant_forms_dimension().)
-        - ``force_N_positive`` -- boolean (default False); if True then we always divide by Delta at least once in the computation. (for internal use)
-        - ``verbose`` -- boolean (default False); if True then we add commentary.
-
-        OUTPUT: a list of WeilRepModularForms
-
-        EXAMPLES::
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[0,2],[2,0]])).nearly_holomorphic_modular_forms_basis(0, 1, 10)
-            [(0, 0), O(q^10)]
-            [(0, 1/2), 1 + O(q^10)]
-            [(1/2, 0), -1 + O(q^10)]
-            [(1/2, 1/2), O(q^(21/2))]
-            ------------------------------------------------------------
-            [(0, 0), 1 + O(q^10)]
-            [(0, 1/2), O(q^10)]
-            [(1/2, 0), 1 + O(q^10)]
-            [(1/2, 1/2), O(q^(21/2))]
-            ------------------------------------------------------------
-            [(0, 0), 2048*q + 49152*q^2 + 614400*q^3 + 5373952*q^4 + 37122048*q^5 + 216072192*q^6 + 1102430208*q^7 + 5061476352*q^8 + 21301241856*q^9 + O(q^10)]
-            [(0, 1/2), -2048*q - 49152*q^2 - 614400*q^3 - 5373952*q^4 - 37122048*q^5 - 216072192*q^6 - 1102430208*q^7 - 5061476352*q^8 - 21301241856*q^9 + O(q^10)]
-            [(1/2, 0), -24 - 2048*q - 49152*q^2 - 614400*q^3 - 5373952*q^4 - 37122048*q^5 - 216072192*q^6 - 1102430208*q^7 - 5061476352*q^8 - 21301241856*q^9 + O(q^10)]
-            [(1/2, 1/2), q^(-1/2) + 276*q^(1/2) + 11202*q^(3/2) + 184024*q^(5/2) + 1881471*q^(7/2) + 14478180*q^(9/2) + 91231550*q^(11/2) + 495248952*q^(13/2) + 2390434947*q^(15/2) + 10487167336*q^(17/2) + 42481784514*q^(19/2) + O(q^(21/2))]
-            ------------------------------------------------------------
-            [(0, 0), 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
-            [(0, 1/2), -98304*q - 10747904*q^2 - 432144384*q^3 - 10122952704*q^4 - 166601228288*q^5 - 2126011957248*q^6 - 22328496095232*q^7 - 200745446014976*q^8 - 1588220107653120*q^9 + O(q^10)]
-            [(1/2, 0), q^-1 - 24 + 98580*q + 10745856*q^2 + 432155586*q^3 + 10122903552*q^4 + 166601412312*q^5 + 2126011342848*q^6 + 22328497976703*q^7 + 200745440641024*q^8 + 1588220122131300*q^9 + O(q^10)]
-            [(1/2, 1/2), -4096*q^(1/2) - 1228800*q^(3/2) - 74244096*q^(5/2) - 2204860416*q^(7/2) - 42602483712*q^(9/2) - 611708977152*q^(11/2) - 7039930359808*q^(13/2) - 68131864608768*q^(15/2) - 572940027371520*q^(17/2) - 4286110556078080*q^(19/2) + O(q^(21/2))]
-            ------------------------------------------------------------
-            [(0, 0), 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
-            [(0, 1/2), q^-1 + 98580*q + 10745856*q^2 + 432155586*q^3 + 10122903552*q^4 + 166601412312*q^5 + 2126011342848*q^6 + 22328497976703*q^7 + 200745440641024*q^8 + 1588220122131300*q^9 + O(q^10)]
-            [(1/2, 0), -24 - 98304*q - 10747904*q^2 - 432144384*q^3 - 10122952704*q^4 - 166601228288*q^5 - 2126011957248*q^6 - 22328496095232*q^7 - 200745446014976*q^8 - 1588220107653120*q^9 + O(q^10)]
-            [(1/2, 1/2), -4096*q^(1/2) - 1228800*q^(3/2) - 74244096*q^(5/2) - 2204860416*q^(7/2) - 42602483712*q^(9/2) - 611708977152*q^(11/2) - 7039930359808*q^(13/2) - 68131864608768*q^(15/2) - 572940027371520*q^(17/2) - 4286110556078080*q^(19/2) + O(q^(21/2))]
-            ------------------------------------------------------------
-            [(0, 0), q^-1 + 98580*q + 10745856*q^2 + 432155586*q^3 + 10122903552*q^4 + 166601412312*q^5 + 2126011342848*q^6 + 22328497976703*q^7 + 200745440641024*q^8 + 1588220122131300*q^9 + O(q^10)]
-            [(0, 1/2), 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
-            [(1/2, 0), 24 + 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
-            [(1/2, 1/2), 4096*q^(1/2) + 1228800*q^(3/2) + 74244096*q^(5/2) + 2204860416*q^(7/2) + 42602483712*q^(9/2) + 611708977152*q^(11/2) + 7039930359808*q^(13/2) + 68131864608768*q^(15/2) + 572940027371520*q^(17/2) + 4286110556078080*q^(19/2) + O(q^(21/2))]
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[2,1],[1,2]])).nearly_holomorphic_modular_forms_basis(0, 1, 10)
-            [(0, 0), O(q^10)]
-            [(2/3, 2/3), q^(-1/3) + 248*q^(2/3) + 4124*q^(5/3) + 34752*q^(8/3) + 213126*q^(11/3) + 1057504*q^(14/3) + 4530744*q^(17/3) + 17333248*q^(20/3) + 60655377*q^(23/3) + 197230000*q^(26/3) + 603096260*q^(29/3) + O(q^(32/3))]
-            [(1/3, 1/3), -q^(-1/3) - 248*q^(2/3) - 4124*q^(5/3) - 34752*q^(8/3) - 213126*q^(11/3) - 1057504*q^(14/3) - 4530744*q^(17/3) - 17333248*q^(20/3) - 60655377*q^(23/3) - 197230000*q^(26/3) - 603096260*q^(29/3) + O(q^(32/3))]
-
-            sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[4]])).nearly_holomorphic_modular_forms_basis(5/2, 1, 7)
-            [(0), O(q^7)]
-            [(1/4), q^(-1/8) + 243*q^(7/8) + 2889*q^(15/8) + 15382*q^(23/8) + 62451*q^(31/8) + 203148*q^(39/8) + 593021*q^(47/8) + 1551069*q^(55/8) + O(q^(63/8))]
-            [(1/2), O(q^(15/2))]
-            [(3/4), -q^(-1/8) - 243*q^(7/8) - 2889*q^(15/8) - 15382*q^(23/8) - 62451*q^(31/8) - 203148*q^(39/8) - 593021*q^(47/8) - 1551069*q^(55/8) + O(q^(63/8))]
-
-            sage: from weilrep import WeilRep
-            sage: w = WeilRep(matrix([[-2]]))
-            sage: w.nearly_holomorphic_modular_forms_basis(1/2, 3, 10)
-            [(0), 1 + 2*q + 2*q^4 + 2*q^9 + O(q^11)]
-            [(1/2), 2*q^(1/4) + 2*q^(9/4) + 2*q^(25/4) + O(q^(45/4))]
-            ------------------------------------------------------------
-            [(0), 26752*q + 1707264*q^2 + 44330496*q^3 + 708938752*q^4 + 8277534720*q^5 + 77092288000*q^6 + 604139268096*q^7 + 4125992712192*q^8 + 25168873498752*q^9 + 139625296473600*q^10 + O(q^11)]
-            [(1/2), q^(-3/4) - 248*q^(1/4) - 85995*q^(5/4) - 4096248*q^(9/4) - 91951146*q^(13/4) - 1343913984*q^(17/4) - 14733025125*q^(21/4) - 130880766200*q^(25/4) - 988226335125*q^(29/4) - 6548115718144*q^(33/4) - 38948971203675*q^(37/4) - 211482206208000*q^(41/4) + O(q^(45/4))]
-            ------------------------------------------------------------
-            [(0), q^-1 + 143376*q + 18473000*q^2 + 818626500*q^3 + 20556578688*q^4 + 357139677440*q^5 + 4764286992816*q^6 + 51954490735875*q^7 + 482593381088000*q^8 + 3929750661380112*q^9 + 28649527223209200*q^10 + O(q^11)]
-            [(1/2), 492*q^(1/4) + 565760*q^(5/4) + 51180012*q^(9/4) + 1912896000*q^(13/4) + 43222528000*q^(17/4) + 697599931392*q^(21/4) + 8806299845100*q^(25/4) + 91956846489088*q^(29/4) + 824582094336000*q^(33/4) + 6520094118720000*q^(37/4) + 46360773296627712*q^(41/4) + O(q^(45/4))]
-            ------------------------------------------------------------
-            [(0), 8288256*q + 5734772736*q^2 + 922836934656*q^3 + 68729335136256*q^4 + 3111743030394880*q^5 + 98680901501952000*q^6 + 2386107127409246208*q^7 + 46509370523454046208*q^8 + 759717116804833376256*q^9 + 10699245000803629670400*q^10 + 132733789550418603008000*q^11 + O(q^12)]
-            [(1/2), q^(-7/4) - 4119*q^(1/4) - 52756480*q^(5/4) - 22505066244*q^(9/4) - 2873089916928*q^(13/4) - 185508750165739*q^(17/4) - 7604567359488000*q^(21/4) - 223888934996798550*q^(25/4) - 5107069401161728000*q^(29/4) - 94944169224036717354*q^(33/4) - 1490934365617426071552*q^(37/4) - 20305295688695624366375*q^(41/4) - 244721335271284263813120*q^(45/4) + O(q^(49/4))]
-            ------------------------------------------------------------
-            [(0), q^-2 + 26124256*q + 29071392966*q^2 + 6737719296672*q^3 + 682490104576256*q^4 + 40516549954629120*q^5 + 1641525762880154250*q^6 + 49720608503585987968*q^7 + 1195216754150697417216*q^8 + 23772960843078093836256*q^9 + 403344553606117980671100*q^10 + 5973695362216702643292000*q^11 + O(q^12)]
-            [(1/2), 7256*q^(1/4) + 190356480*q^(5/4) + 125891591256*q^(9/4) + 22750533217280*q^(13/4) + 1976975628705792*q^(17/4) + 105494320850688000*q^(21/4) + 3946621101455219800*q^(25/4) + 112295534019596928000*q^(29/4) + 2565871033971612229632*q^(33/4) + 48923498171391496059904*q^(37/4) + 800782892347774482432000*q^(41/4) + 11497804660218756445701120*q^(45/4) + O(q^(49/4))]
-            ------------------------------------------------------------
-            [(0), 561346944*q + 2225561184000*q^2 + 1367414747712000*q^3 + 315092279732380672*q^4 + 38588394037390571520*q^5 + 3008750483804157633024*q^6 + 166390610901572307712000*q^7 + 7004778717830225359104000*q^8 + 235828007010736097976072576*q^9 + 6582181403795814354977753600*q^10 + O(q^11)]
-            [(1/2), q^(-11/4) - 33512*q^(1/4) - 5874905295*q^(5/4) - 12538686997224*q^(9/4) - 5735833218391375*q^(13/4) - 1102406000357376000*q^(17/4) - 119018814818782615506*q^(21/4) - 8446021610391873684200*q^(25/4) - 433852271199314133818652*q^(29/4) - 17202986580356952256512000*q^(33/4) - 551006240536440788537208750*q^(37/4) + O(q^(41/4))]
-            ------------------------------------------------------------
-            [(0), q^-3 + 1417904008*q + 8251987131648*q^2 + 6806527806672384*q^3 + 2010450259344635008*q^4 + 306416810529400510485*q^5 + 29115811870352951744000*q^6 + 1931312964722362632972288*q^7 + 96301285200298420431291648*q^8 + 3800832540589599304293040008*q^9 + O(q^10)]
-            [(1/2), 53008*q^(1/4) + 16555069440*q^(5/4) + 50337738805008*q^(9/4) + 30484812119150592*q^(13/4) + 7446765882399621120*q^(17/4) + 994703198461400064000*q^(21/4) + 85648872591829475184400*q^(25/4) + 5259105072740190518784000*q^(29/4) + 246314320014783801021136896*q^(33/4) + 9227686751471465432298344448*q^(37/4) + 286377961374919807536439296000*q^(41/4) + O(q^(45/4))]
-        """
-        if verbose:
-            print('I am now looking for modular forms of weight %s which are holomorphic on H and have a pole of order at most %s in infinity.' %(k, pole_order))
-        try:
-            k = Integer(k)
-        except TypeError:
-            k = QQ(k)
-        eta_twist = Integer(eta_twist % 24)
-        if eta_twist:
-            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 + pole_order, prec = prec, reverse = reverse, symmetry_data = symmetry_data, verbose = verbose)
-            from .weilrep_modular_forms_class import smf_eta
-            f = smf_eta(prec) ** eta_twist
-            return WeilRepModularFormsBasis(k, [x * f for x in X], self)
-        sturm_bound = k/12
-        prec = max(prec, sturm_bound)
-        dual_sturm_bound = Integer(1)/Integer(6) - sturm_bound
-        symm = self.is_symmetric_weight(k)
-        if symm is None:
-            return []
-        if pole_order >= dual_sturm_bound + 2:
-            if verbose:
-                print('The pole order is large so I will compute modular forms with a smaller pole order and multiply them by the j-invariant.')
-            j_order = floor(pole_order - dual_sturm_bound - 1)
-            new_pole_order = pole_order - j_order
-            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, symmetry_data = symmetry_data, verbose = verbose)
-            j = smf(0, j_invariant_qexp(prec + j_order + 1) - 744)
-            j0 = j
-            jl = [None]*j_order
-            for n in range(j_order):
-                jl[n] = j0
-                j0 *= j
-            Y = copy(X)
-            Y.extend(WeilRepModularFormsBasis(k, [x * y for y in jl for x in X], self))
-            for y in Y:
-                y.reduce_precision(prec)
-            Y.echelonize(starting_from = -pole_order)
-            if reverse:
-                Y.reverse()
-            return Y
-        ceil_pole_order = ceil(pole_order)
-        computed_weight = k + 12 * ceil_pole_order
-        N = ceil_pole_order
-        while computed_weight < sage_seven_half or (symm and computed_weight < sage_five_half):
-            computed_weight += 12
-            N += 1
-        if force_N_positive and N <= pole_order:
-            N += 1
-            computed_weight += 12
-        if verbose:
-            print('I will compute modular forms of weight %s which vanish in infinity to order %s and divide them by Delta^%d.' %(computed_weight, N - pole_order, N))
-        X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N + 1, not inclusive, keep_N = True, symmetry_data = symmetry_data, verbose = verbose)
-        delta_power = smf(-12 * N, ~(delta_qexp(max(ceil(prec) + N + 1, 1)) ** N))
-        Y = WeilRepModularFormsBasis(k, [(x * delta_power) for x in X], self)
-        if verbose:
-            print('I am computing an echelon form.')
-        Y.echelonize(starting_from = -N, ending_with = sturm_bound)
-        if reverse:
-            Y.reverse()
-        return Y.reduce_precision(prec)
-
-    weakly_holomorphic_modular_forms_basis = nearly_holomorphic_modular_forms_basis
+        return e, X
 
     def invariant_cusp_forms_basis(self, k, prec = 0, G = None, chi = None, verbose = False):
         r"""
@@ -3703,59 +3481,308 @@ class WeilRep(object):
                 X = WeilRepModularFormsBasis(k, [], self)
                 return X
 
-    def borcherds_obstructions(self, weight, prec, reverse = True, verbose = False):
+    def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False, symmetry_data = None, eta_twist = 0):
         r"""
-        Compute a basis of the Borcherds obstruction space.
+        Compute a basis of the space of modular forms.
+
+        ALGORITHM: If k is a symmetric weight, k >= 5/2, then we compute a basis from linear combinations of self's eisenstein_series() and pss(). If k is an antisymmetric weight, k >= 7/2, then we compute a basis from self's pssd(). Otherwise, we compute M_k as the intersection
+        M_k(\rho^*) = E_4^(-1) * M_{k+4}(\rho^*) intersect E_6^(-1) * M_{k+6}(\rho^*). (This is slow!!)
+        Note: Eisenstein series at nonzero cusps are not implemented yet so when the Eisenstein space has dim > 1 we instead compute the image in S_{k+12} of Delta * M_k. (This is even slower!!)
+        The basis is always converted to echelon form (in particular the Fourier coefficients are integers).
+
+        INPUT:
+        - ``k`` -- the weight (half-integer)
+        - ``prec`` -- precision (default None). If precision is not given then we use the Sturm bound.
+        - ``eisenstein`` -- boolean (default False). If True and weight >= 5/2 then the first element in the output is always the Eisenstein series (i.e. we do not pass to echelon form).
+        - ``verbose`` -- boolean (default False). If true then we add comments throughout the computation.
+
+        OUTPUT: a list of WeilRepModularForms
 
         EXAMPLES::
 
             sage: from weilrep import WeilRep
-            sage: WeilRep(matrix([[-8]])).borcherds_obstructions(5/2, 5)
-            [(0), 1 - 24*q - 72*q^2 - 96*q^3 - 358*q^4 + O(q^5)]
-            [(7/8), -1/2*q^(1/16) - 24*q^(17/16) - 72*q^(33/16) - 337/2*q^(49/16) - 192*q^(65/16) + O(q^(81/16))]
-            [(3/4), -5*q^(1/4) - 24*q^(5/4) - 125*q^(9/4) - 120*q^(13/4) - 240*q^(17/4) + O(q^(21/4))]
-            [(5/8), -25/2*q^(9/16) - 121/2*q^(25/16) - 96*q^(41/16) - 168*q^(57/16) - 264*q^(73/16) + O(q^(89/16))]
-            [(1/2), -46*q - 48*q^2 - 144*q^3 - 192*q^4 + O(q^5)]
-            [(3/8), -25/2*q^(9/16) - 121/2*q^(25/16) - 96*q^(41/16) - 168*q^(57/16) - 264*q^(73/16) + O(q^(89/16))]
-            [(1/4), -5*q^(1/4) - 24*q^(5/4) - 125*q^(9/4) - 120*q^(13/4) - 240*q^(17/4) + O(q^(21/4))]
-            [(1/8), -1/2*q^(1/16) - 24*q^(17/16) - 72*q^(33/16) - 337/2*q^(49/16) - 192*q^(65/16) + O(q^(81/16))]
+            sage: WeilRep(matrix([[2,0],[0,4]])).modular_forms_basis(5, 10)
+            [(0, 0), 1 - 150*q - 2270*q^2 - 11820*q^3 - 36750*q^4 - 89888*q^5 - 188380*q^6 - 344640*q^7 - 589230*q^8 - 954210*q^9 + O(q^10)]
+            [(0, 1/4), -80*q^(7/8) - 1808*q^(15/8) - 9840*q^(23/8) - 32320*q^(31/8) - 82160*q^(39/8) - 171360*q^(47/8) - 320528*q^(55/8) - 559600*q^(63/8) - 891600*q^(71/8) - 1365920*q^(79/8) + O(q^(87/8))]
+            [(0, 1/2), -10*q^(1/2) - 740*q^(3/2) - 5568*q^(5/2) - 21760*q^(7/2) - 59390*q^(9/2) - 130980*q^(11/2) - 257600*q^(13/2) - 461056*q^(15/2) - 747540*q^(17/2) - 1166180*q^(19/2) + O(q^(21/2))]
+            [(0, 3/4), -80*q^(7/8) - 1808*q^(15/8) - 9840*q^(23/8) - 32320*q^(31/8) - 82160*q^(39/8) - 171360*q^(47/8) - 320528*q^(55/8) - 559600*q^(63/8) - 891600*q^(71/8) - 1365920*q^(79/8) + O(q^(87/8))]
+            [(1/2, 0), -40*q^(3/4) - 1440*q^(7/4) - 7720*q^(11/4) - 30496*q^(15/4) - 68520*q^(19/4) - 166880*q^(23/4) - 283600*q^(27/4) - 551040*q^(31/4) - 787200*q^(35/4) - 1396960*q^(39/4) + O(q^(43/4))]
+            [(1/2, 1/4), -24*q^(5/8) - 1000*q^(13/8) - 6880*q^(21/8) - 24840*q^(29/8) - 65880*q^(37/8) - 145352*q^(45/8) - 276600*q^(53/8) - 485960*q^(61/8) - 805280*q^(69/8) - 1233120*q^(77/8) + O(q^(85/8))]
+            [(1/2, 1/2), -368*q^(5/4) - 3520*q^(9/4) - 17040*q^(13/4) - 43840*q^(17/4) - 117440*q^(21/4) - 205440*q^(25/4) - 421840*q^(29/4) - 632000*q^(33/4) - 1117680*q^(37/4) + O(q^(41/4))]
+            [(1/2, 3/4), -24*q^(5/8) - 1000*q^(13/8) - 6880*q^(21/8) - 24840*q^(29/8) - 65880*q^(37/8) - 145352*q^(45/8) - 276600*q^(53/8) - 485960*q^(61/8) - 805280*q^(69/8) - 1233120*q^(77/8) + O(q^(85/8))]
+            ------------------------------------------------------------
+            [(0, 0), -12*q + 56*q^2 - 72*q^3 + 80*q^4 - 352*q^5 + 336*q^6 + 704*q^7 - 1056*q^8 + 540*q^9 + O(q^10)]
+            [(0, 1/4), 8*q^(7/8) - 24*q^(15/8) - 40*q^(23/8) + 160*q^(31/8) + 24*q^(39/8) - 272*q^(47/8) + 104*q^(55/8) - 360*q^(63/8) + 72*q^(71/8) + 1424*q^(79/8) + O(q^(87/8))]
+            [(0, 1/2), -2*q^(1/2) - 12*q^(3/2) + 112*q^(5/2) - 224*q^(7/2) + 90*q^(9/2) + 52*q^(11/2) - 112*q^(13/2) + 672*q^(15/2) - 452*q^(17/2) - 268*q^(19/2) + O(q^(21/2))]
+            [(0, 3/4), 8*q^(7/8) - 24*q^(15/8) - 40*q^(23/8) + 160*q^(31/8) + 24*q^(39/8) - 272*q^(47/8) + 104*q^(55/8) - 360*q^(63/8) + 72*q^(71/8) + 1424*q^(79/8) + O(q^(87/8))]
+            [(1/2, 0), 6*q^(3/4) - 16*q^(7/4) - 26*q^(11/4) + 48*q^(15/4) + 134*q^(19/4) + 80*q^(23/4) - 756*q^(27/4) - 320*q^(31/4) + 1920*q^(35/4) - 48*q^(39/4) + O(q^(43/4))]
+            [(1/2, 1/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^(85/8))]
+            [(1/2, 1/2), q^(1/4) + 8*q^(5/4) - 45*q^(9/4) - 8*q^(13/4) + 226*q^(17/4) - 96*q^(21/4) - 335*q^(25/4) + 88*q^(29/4) - 156*q^(33/4) + 456*q^(37/4) + O(q^(41/4))]
+            [(1/2, 3/4), -4*q^(5/8) + 4*q^(13/8) + 48*q^(21/8) - 44*q^(29/8) - 228*q^(37/8) + 180*q^(45/8) + 492*q^(53/8) - 268*q^(61/8) - 240*q^(69/8) - 208*q^(77/8) + O(q^(85/8))]
         """
+        eta_twist = Integer(eta_twist % 24)
+        if eta_twist:
+            X = self.nearly_holomorphic_modular_forms_basis(weight - eta_twist / 2, eta_twist / 24, prec = prec, reverse = False, symmetry_data = symmetry_data, verbose = verbose)
+            from .weilrep_modular_forms_class import smf_eta
+            f = smf_eta(prec) ** eta_twist
+            return WeilRepModularFormsBasis(weight, [x * f for x in X], self)
+        if symmetry_data is not None:
+            return self.invariant_forms_basis(weight, prec = prec, G = symmetry_data[0], chi = symmetry_data[1], verbose = verbose)
         prec = ceil(prec)
-        d = self.discriminant()
-        if weight > 2 or (weight == 2 and ((d % 4 and d.is_squarefree()) or (d//4).is_squarefree())):
-            if verbose:
-                print('I am looking for obstructions to Borcherds products of weight %s.' %weight)
-            E = self.eisenstein_series(weight, prec)
-            if verbose:
-                print('I computed the Eisenstein series and will now compute cusp forms.')
-            L = [E]
-            L.extend(self.cusp_forms_basis(weight, prec, E = E, verbose = verbose))
-            return WeilRepModularFormsBasis(weight, L, self)
-        elif weight == 0:
-            if d == 1:
-                return self._invariants(prec)
+        if not eisenstein:
+            try:
+                old_prec, X = copy(self.__modular_forms_basis[weight])
+                if old_prec >= prec or not X:
+                    if old_prec == prec or not X:
+                        return X
+                    X = WeilRepModularFormsBasis(weight, [x.reduce_precision(prec, in_place = False) for x in X], self)
+                    return X
+            except KeyError:
+                pass
+        symm = self.is_symmetric_weight(weight)
+        if symm is None:
             return []
+        _ds = self.ds()
+        _indices = self.rds(indices = True)
+        _norm_list = self.norm_list()
+        try:
+            weight = Integer(weight)
+        except TypeError:
+            weight = QQ(weight)
+        sturm_bound = weight / 12
+        prec = max(prec, sturm_bound)
+        if weight == 0:
+            return self._invariants(prec)
         elif weight == sage_one_half:
-            X = self._weight_one_half_basis(prec)
-            n = self.norm_dict()
-            return WeilRepModularFormsBasis(sage_one_half, [x for x in X if not any(h[0] and h[2][0] for h in x.fourier_expansion())], self)
-        else:
+            return self._weight_one_half_basis(prec)
+        b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and (self.__ds_denominators_list[i] < 5 or self.__ds_denominators_list[i] == 6)]
+        if weight > 3 or (symm and weight > 2):
+            dim1 = self.modular_forms_dimension(weight)
+            dim2 = self.cusp_forms_dimension(weight)
             if verbose:
-                print('I am going to compute the obstruction spaces in weights %s and %s.' %(weight+4, weight+6))
-            e4 = smf(-4, ~eisenstein_series_qexp(4,prec))
-            e6 = smf(-6, ~eisenstein_series_qexp(6,prec))
-            X1 = self.borcherds_obstructions(weight+4, prec, verbose = verbose)
-            X2 = self.borcherds_obstructions(weight+6, prec, verbose = verbose)
+                print('I need to find %d modular forms of weight %s to precision %d.' %(dim1, weight, prec))
+            if (symm and dim1 <= dim2 + len(b_list)):
+                if verbose:
+                    print('I found %d Eisenstein series.' %len(b_list))
+                    if dim2 > 0:
+                        print('I am now going to look for %d cusp forms of weight %s.' %(dim2, weight))
+                L = WeilRepModularFormsBasis(weight, [self.eisenstein_oldform(weight, _ds[i], prec) for i in b_list], self)
+                if eisenstein:
+                    L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0]))
+                    return L
+                else:
+                    X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])], self)
+                    X.extend(L)
+                    X.echelonize()
+                    self.__modular_forms_basis[weight] = prec, X
+                    return X
+            elif dim1 == dim2:
+                X = self.cusp_forms_basis(weight, prec, verbose = verbose)
+                self.__modular_forms_basis[weight] = prec, X
+                return X
+            else:
+                pass
+        p = self.discriminant()
+        if symm and p.is_prime() and p != 2:
+            if weight == 0:
+                return []
+            if verbose:
+                print('The discriminant is prime so I can construct modular forms via the Bruinier--Bundschuh lift.')
+            chi = DirichletGroup(p)[(p-1)//2]
+            mod_forms = ModularForms(chi, weight, prec = ceil(p*prec)).echelon_basis()
+            mod_sturm_bound = p * ceil(weight / 12)
+            sig = self.signature()
+            if (sig == 0 or sig == 6):
+                eps = -1
+            else:
+                eps = 1
+            m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker_symbol(i + 1, p) == eps] for x in mod_forms])
+            v_basis = m.kernel().basis()
+            L = [sum([mf * v[i] for i, mf in enumerate(mod_forms)]) for v in v_basis]
+            L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
+            X = WeilRepModularFormsBasis(weight, L, self)
+            self.__modular_forms_basis[weight] = prec, X
+            return X
+        dim1 = self.modular_forms_dimension(weight+4)
+        dim2 = self.cusp_forms_dimension(weight+4)
+        if symm and (dim1 <= dim2 + len(b_list)):
+            if verbose:
+                print('I am going to compute the spaces of modular forms of weights %s and %s.' %(weight+4, weight+6))
+            prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
+            e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
+            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
+            X1 = self.modular_forms_basis(weight+4, prec, verbose = verbose)
+            X2 = self.modular_forms_basis(weight+6, prec, verbose = verbose)
+            if verbose:
+                print('I am now going to compute M_%s by intersecting the spaces E_4^(-1) * M_%s and E_6^(-1) * M_%s.' %(weight, weight +4, weight +6))
             try:
                 V1 = span([(x * e4).coefficient_vector() for x in X1])
                 V2 = span([(x * e6).coefficient_vector() for x in X2])
-                V = (V1.intersection(V2)).echelonized_basis()
-                Y = [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V]
-                if reverse:
-                    Y.reverse()
-                return WeilRepModularFormsBasis(weight, Y, self)
+                V = (V1.intersection(V2)).basis()
+                X = WeilRepModularFormsBasis(weight, [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V], self)
+                X.echelonize()
+                self.__modular_forms_basis[weight] = prec, X
+                return X
             except AttributeError:
-                return []
+                X = WeilRepModularFormsBasis(weight, [], self)
+                self.__modular_forms_basis[weight] = prec, X
+                return X
+        else:
+            if verbose:
+                print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.' %weight)
+            return self.nearly_holomorphic_modular_forms_basis(weight, 0, prec, inclusive = True, reverse = False, force_N_positive = True, verbose = verbose)
+    basis = modular_forms_basis
+
+    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, symmetry_data = None, verbose = False, eta_twist = 0):
+        r"""
+        Computes a basis of nearly holomorphic modular forms.
+
+        A nearly-holomorphic modular form is a function f : H -> C[L' / L] that is holomorphic on H and meromorphic at cusps and satisfies the usual transformations. In other words they are allowed to have a finite principal part.
+
+        ALGORITHM: compute spaces of modular forms of higher weight and divide by Delta.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``pole_order`` -- the worst pole the modular forms are allowed to have
+        - ``prec`` -- precision (default 0); will be raised at least to a Sturm bound
+        - ``inclusive`` -- boolean (default True); if True then we allow forms with pole order *exactly* pole_order
+        - ``reverse`` -- boolean (default True); if True then output forms in reverse echelon order
+        - ``symmetry_data`` -- default None. If not None then it should be a list [G, chi] where G is a group of automorphisms and chi : G --> C^* is a character. (See also invariant_forms_dimension().)
+        - ``force_N_positive`` -- boolean (default False); if True then we always divide by Delta at least once in the computation. (for internal use)
+        - ``verbose`` -- boolean (default False); if True then we add commentary.
+
+        OUTPUT: a list of WeilRepModularForms
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[0,2],[2,0]])).nearly_holomorphic_modular_forms_basis(0, 1, 10)
+            [(0, 0), O(q^10)]
+            [(0, 1/2), 1 + O(q^10)]
+            [(1/2, 0), -1 + O(q^10)]
+            [(1/2, 1/2), O(q^(21/2))]
+            ------------------------------------------------------------
+            [(0, 0), 1 + O(q^10)]
+            [(0, 1/2), O(q^10)]
+            [(1/2, 0), 1 + O(q^10)]
+            [(1/2, 1/2), O(q^(21/2))]
+            ------------------------------------------------------------
+            [(0, 0), 2048*q + 49152*q^2 + 614400*q^3 + 5373952*q^4 + 37122048*q^5 + 216072192*q^6 + 1102430208*q^7 + 5061476352*q^8 + 21301241856*q^9 + O(q^10)]
+            [(0, 1/2), -2048*q - 49152*q^2 - 614400*q^3 - 5373952*q^4 - 37122048*q^5 - 216072192*q^6 - 1102430208*q^7 - 5061476352*q^8 - 21301241856*q^9 + O(q^10)]
+            [(1/2, 0), -24 - 2048*q - 49152*q^2 - 614400*q^3 - 5373952*q^4 - 37122048*q^5 - 216072192*q^6 - 1102430208*q^7 - 5061476352*q^8 - 21301241856*q^9 + O(q^10)]
+            [(1/2, 1/2), q^(-1/2) + 276*q^(1/2) + 11202*q^(3/2) + 184024*q^(5/2) + 1881471*q^(7/2) + 14478180*q^(9/2) + 91231550*q^(11/2) + 495248952*q^(13/2) + 2390434947*q^(15/2) + 10487167336*q^(17/2) + 42481784514*q^(19/2) + O(q^(21/2))]
+            ------------------------------------------------------------
+            [(0, 0), 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
+            [(0, 1/2), -98304*q - 10747904*q^2 - 432144384*q^3 - 10122952704*q^4 - 166601228288*q^5 - 2126011957248*q^6 - 22328496095232*q^7 - 200745446014976*q^8 - 1588220107653120*q^9 + O(q^10)]
+            [(1/2, 0), q^-1 - 24 + 98580*q + 10745856*q^2 + 432155586*q^3 + 10122903552*q^4 + 166601412312*q^5 + 2126011342848*q^6 + 22328497976703*q^7 + 200745440641024*q^8 + 1588220122131300*q^9 + O(q^10)]
+            [(1/2, 1/2), -4096*q^(1/2) - 1228800*q^(3/2) - 74244096*q^(5/2) - 2204860416*q^(7/2) - 42602483712*q^(9/2) - 611708977152*q^(11/2) - 7039930359808*q^(13/2) - 68131864608768*q^(15/2) - 572940027371520*q^(17/2) - 4286110556078080*q^(19/2) + O(q^(21/2))]
+            ------------------------------------------------------------
+            [(0, 0), 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
+            [(0, 1/2), q^-1 + 98580*q + 10745856*q^2 + 432155586*q^3 + 10122903552*q^4 + 166601412312*q^5 + 2126011342848*q^6 + 22328497976703*q^7 + 200745440641024*q^8 + 1588220122131300*q^9 + O(q^10)]
+            [(1/2, 0), -24 - 98304*q - 10747904*q^2 - 432144384*q^3 - 10122952704*q^4 - 166601228288*q^5 - 2126011957248*q^6 - 22328496095232*q^7 - 200745446014976*q^8 - 1588220107653120*q^9 + O(q^10)]
+            [(1/2, 1/2), -4096*q^(1/2) - 1228800*q^(3/2) - 74244096*q^(5/2) - 2204860416*q^(7/2) - 42602483712*q^(9/2) - 611708977152*q^(11/2) - 7039930359808*q^(13/2) - 68131864608768*q^(15/2) - 572940027371520*q^(17/2) - 4286110556078080*q^(19/2) + O(q^(21/2))]
+            ------------------------------------------------------------
+            [(0, 0), q^-1 + 98580*q + 10745856*q^2 + 432155586*q^3 + 10122903552*q^4 + 166601412312*q^5 + 2126011342848*q^6 + 22328497976703*q^7 + 200745440641024*q^8 + 1588220122131300*q^9 + O(q^10)]
+            [(0, 1/2), 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
+            [(1/2, 0), 24 + 98304*q + 10747904*q^2 + 432144384*q^3 + 10122952704*q^4 + 166601228288*q^5 + 2126011957248*q^6 + 22328496095232*q^7 + 200745446014976*q^8 + 1588220107653120*q^9 + O(q^10)]
+            [(1/2, 1/2), 4096*q^(1/2) + 1228800*q^(3/2) + 74244096*q^(5/2) + 2204860416*q^(7/2) + 42602483712*q^(9/2) + 611708977152*q^(11/2) + 7039930359808*q^(13/2) + 68131864608768*q^(15/2) + 572940027371520*q^(17/2) + 4286110556078080*q^(19/2) + O(q^(21/2))]
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[2,1],[1,2]])).nearly_holomorphic_modular_forms_basis(0, 1, 10)
+            [(0, 0), O(q^10)]
+            [(2/3, 2/3), q^(-1/3) + 248*q^(2/3) + 4124*q^(5/3) + 34752*q^(8/3) + 213126*q^(11/3) + 1057504*q^(14/3) + 4530744*q^(17/3) + 17333248*q^(20/3) + 60655377*q^(23/3) + 197230000*q^(26/3) + 603096260*q^(29/3) + O(q^(32/3))]
+            [(1/3, 1/3), -q^(-1/3) - 248*q^(2/3) - 4124*q^(5/3) - 34752*q^(8/3) - 213126*q^(11/3) - 1057504*q^(14/3) - 4530744*q^(17/3) - 17333248*q^(20/3) - 60655377*q^(23/3) - 197230000*q^(26/3) - 603096260*q^(29/3) + O(q^(32/3))]
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[4]])).nearly_holomorphic_modular_forms_basis(5/2, 1, 7)
+            [(0), O(q^7)]
+            [(1/4), q^(-1/8) + 243*q^(7/8) + 2889*q^(15/8) + 15382*q^(23/8) + 62451*q^(31/8) + 203148*q^(39/8) + 593021*q^(47/8) + 1551069*q^(55/8) + O(q^(63/8))]
+            [(1/2), O(q^(15/2))]
+            [(3/4), -q^(-1/8) - 243*q^(7/8) - 2889*q^(15/8) - 15382*q^(23/8) - 62451*q^(31/8) - 203148*q^(39/8) - 593021*q^(47/8) - 1551069*q^(55/8) + O(q^(63/8))]
+
+            sage: from weilrep import WeilRep
+            sage: w = WeilRep(matrix([[-2]]))
+            sage: w.nearly_holomorphic_modular_forms_basis(1/2, 3, 10)
+            [(0), 1 + 2*q + 2*q^4 + 2*q^9 + O(q^11)]
+            [(1/2), 2*q^(1/4) + 2*q^(9/4) + 2*q^(25/4) + O(q^(45/4))]
+            ------------------------------------------------------------
+            [(0), 26752*q + 1707264*q^2 + 44330496*q^3 + 708938752*q^4 + 8277534720*q^5 + 77092288000*q^6 + 604139268096*q^7 + 4125992712192*q^8 + 25168873498752*q^9 + 139625296473600*q^10 + O(q^11)]
+            [(1/2), q^(-3/4) - 248*q^(1/4) - 85995*q^(5/4) - 4096248*q^(9/4) - 91951146*q^(13/4) - 1343913984*q^(17/4) - 14733025125*q^(21/4) - 130880766200*q^(25/4) - 988226335125*q^(29/4) - 6548115718144*q^(33/4) - 38948971203675*q^(37/4) - 211482206208000*q^(41/4) + O(q^(45/4))]
+            ------------------------------------------------------------
+            [(0), q^-1 + 143376*q + 18473000*q^2 + 818626500*q^3 + 20556578688*q^4 + 357139677440*q^5 + 4764286992816*q^6 + 51954490735875*q^7 + 482593381088000*q^8 + 3929750661380112*q^9 + 28649527223209200*q^10 + O(q^11)]
+            [(1/2), 492*q^(1/4) + 565760*q^(5/4) + 51180012*q^(9/4) + 1912896000*q^(13/4) + 43222528000*q^(17/4) + 697599931392*q^(21/4) + 8806299845100*q^(25/4) + 91956846489088*q^(29/4) + 824582094336000*q^(33/4) + 6520094118720000*q^(37/4) + 46360773296627712*q^(41/4) + O(q^(45/4))]
+            ------------------------------------------------------------
+            [(0), 8288256*q + 5734772736*q^2 + 922836934656*q^3 + 68729335136256*q^4 + 3111743030394880*q^5 + 98680901501952000*q^6 + 2386107127409246208*q^7 + 46509370523454046208*q^8 + 759717116804833376256*q^9 + 10699245000803629670400*q^10 + 132733789550418603008000*q^11 + O(q^12)]
+            [(1/2), q^(-7/4) - 4119*q^(1/4) - 52756480*q^(5/4) - 22505066244*q^(9/4) - 2873089916928*q^(13/4) - 185508750165739*q^(17/4) - 7604567359488000*q^(21/4) - 223888934996798550*q^(25/4) - 5107069401161728000*q^(29/4) - 94944169224036717354*q^(33/4) - 1490934365617426071552*q^(37/4) - 20305295688695624366375*q^(41/4) - 244721335271284263813120*q^(45/4) + O(q^(49/4))]
+            ------------------------------------------------------------
+            [(0), q^-2 + 26124256*q + 29071392966*q^2 + 6737719296672*q^3 + 682490104576256*q^4 + 40516549954629120*q^5 + 1641525762880154250*q^6 + 49720608503585987968*q^7 + 1195216754150697417216*q^8 + 23772960843078093836256*q^9 + 403344553606117980671100*q^10 + 5973695362216702643292000*q^11 + O(q^12)]
+            [(1/2), 7256*q^(1/4) + 190356480*q^(5/4) + 125891591256*q^(9/4) + 22750533217280*q^(13/4) + 1976975628705792*q^(17/4) + 105494320850688000*q^(21/4) + 3946621101455219800*q^(25/4) + 112295534019596928000*q^(29/4) + 2565871033971612229632*q^(33/4) + 48923498171391496059904*q^(37/4) + 800782892347774482432000*q^(41/4) + 11497804660218756445701120*q^(45/4) + O(q^(49/4))]
+            ------------------------------------------------------------
+            [(0), 561346944*q + 2225561184000*q^2 + 1367414747712000*q^3 + 315092279732380672*q^4 + 38588394037390571520*q^5 + 3008750483804157633024*q^6 + 166390610901572307712000*q^7 + 7004778717830225359104000*q^8 + 235828007010736097976072576*q^9 + 6582181403795814354977753600*q^10 + O(q^11)]
+            [(1/2), q^(-11/4) - 33512*q^(1/4) - 5874905295*q^(5/4) - 12538686997224*q^(9/4) - 5735833218391375*q^(13/4) - 1102406000357376000*q^(17/4) - 119018814818782615506*q^(21/4) - 8446021610391873684200*q^(25/4) - 433852271199314133818652*q^(29/4) - 17202986580356952256512000*q^(33/4) - 551006240536440788537208750*q^(37/4) + O(q^(41/4))]
+            ------------------------------------------------------------
+            [(0), q^-3 + 1417904008*q + 8251987131648*q^2 + 6806527806672384*q^3 + 2010450259344635008*q^4 + 306416810529400510485*q^5 + 29115811870352951744000*q^6 + 1931312964722362632972288*q^7 + 96301285200298420431291648*q^8 + 3800832540589599304293040008*q^9 + O(q^10)]
+            [(1/2), 53008*q^(1/4) + 16555069440*q^(5/4) + 50337738805008*q^(9/4) + 30484812119150592*q^(13/4) + 7446765882399621120*q^(17/4) + 994703198461400064000*q^(21/4) + 85648872591829475184400*q^(25/4) + 5259105072740190518784000*q^(29/4) + 246314320014783801021136896*q^(33/4) + 9227686751471465432298344448*q^(37/4) + 286377961374919807536439296000*q^(41/4) + O(q^(45/4))]
+        """
+        if verbose:
+            print('I am now looking for modular forms of weight %s which are holomorphic on H and have a pole of order at most %s in infinity.' %(k, pole_order))
+        try:
+            k = Integer(k)
+        except TypeError:
+            k = QQ(k)
+        eta_twist = Integer(eta_twist % 24)
+        if eta_twist:
+            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 + pole_order, prec = prec, reverse = reverse, symmetry_data = symmetry_data, verbose = verbose)
+            from .weilrep_modular_forms_class import smf_eta
+            f = smf_eta(prec) ** eta_twist
+            return WeilRepModularFormsBasis(k, [x * f for x in X], self)
+        sturm_bound = k/12
+        prec = max(prec, sturm_bound)
+        dual_sturm_bound = Integer(1)/Integer(6) - sturm_bound
+        symm = self.is_symmetric_weight(k)
+        if symm is None:
+            return []
+        if pole_order >= dual_sturm_bound + 2:
+            if verbose:
+                print('The pole order is large so I will compute modular forms with a smaller pole order and multiply them by the j-invariant.')
+            j_order = floor(pole_order - dual_sturm_bound - 1)
+            new_pole_order = pole_order - j_order
+            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, symmetry_data = symmetry_data, verbose = verbose)
+            j = smf(0, j_invariant_qexp(prec + j_order + 1) - 744)
+            j0 = j
+            jl = [None]*j_order
+            for n in range(j_order):
+                jl[n] = j0
+                j0 *= j
+            Y = copy(X)
+            Y.extend(WeilRepModularFormsBasis(k, [x * y for y in jl for x in X], self))
+            for y in Y:
+                y.reduce_precision(prec)
+            Y.echelonize(starting_from = -pole_order)
+            if reverse:
+                Y.reverse()
+            return Y
+        ceil_pole_order = ceil(pole_order)
+        computed_weight = k + 12 * ceil_pole_order
+        N = ceil_pole_order
+        while computed_weight < sage_seven_half or (symm and computed_weight < sage_five_half):
+            computed_weight += 12
+            N += 1
+        if force_N_positive and N <= pole_order:
+            N += 1
+            computed_weight += 12
+        if verbose:
+            print('I will compute modular forms of weight %s which vanish in infinity to order %s and divide them by Delta^%d.' %(computed_weight, N - pole_order, N))
+        X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N + 1, not inclusive, keep_N = True, symmetry_data = symmetry_data, verbose = verbose)
+        delta_power = smf(-12 * N, ~(delta_qexp(max(ceil(prec) + N + 1, 1)) ** N))
+        Y = WeilRepModularFormsBasis(k, [(x * delta_power) for x in X], self)
+        if verbose:
+            print('I am computing an echelon form.')
+        Y.echelonize(starting_from = -N, ending_with = sturm_bound)
+        if reverse:
+            Y.reverse()
+        return Y.reduce_precision(prec)
+    weakly_holomorphic_modular_forms_basis = nearly_holomorphic_modular_forms_basis
 
     def quasimodular_forms_basis(self, k, prec, depth = Infinity, verbose = False):
         if k < 2 or depth <= 0:
@@ -3880,96 +3907,6 @@ class WeilRep(object):
 
     ## low weight ##
 
-    def _s_matrix(self):
-        r"""
-        Auxiliary function for Weil invariants.
-
-        There is probably no reason to call this directly.
-
-        OUTPUT: a tuple (s, v) where:
-        - ``s`` -- an integer matrix
-        - ``v`` -- a list of tuples (i, g) where `g` is an isotropic vector and `i` is its index in self.ds()
-        """
-        try:
-            return self.__s_matrix
-        except AttributeError:
-            pass
-        @cached_function
-        def local_moebius(n):
-            return moebius(n)
-        @cached_function
-        def local_phi(n):
-            return euler_phi(n)
-        def tr_sqrt_f_zeta_N(f, N, n): #trace of sqrt(f) * zeta_N
-            if f == 1:
-                d = N // GCD(N, n)
-                return local_moebius(d) * (phi // local_phi(d))
-            h, r = N.quo_rem(4 * f)
-            if r:
-                return 0
-            s = 0
-            if f % 4 == 1:
-                N4 = 0
-            else:
-                N4 = N // 4
-            if f % 2:
-                for ell in range(abs(f)):
-                    u = GCD(n - N4 + 4 * h * ell* ell, N)
-                    d = N//u
-                    s += local_moebius(d) * (phi // local_phi(d))
-                return s * sgn(f)
-            else:
-                for ell in range(abs(4 * f)):
-                    x = n + h * ell * ell
-                    u1, u2 = GCD(x, N), GCD(x - N4, N)
-                    d1, d2 = N//u1, N//u2
-                    s += (local_moebius(d1) * (phi // local_phi(d1)) + local_moebius(d2) * (phi // local_phi(d2)))
-                return s * sgn(f) // 4
-        n = self.norm_list()
-        s = self.signature()
-        eps = 1
-        j = 1
-        if s == 4 or s == 6:
-            j = -1
-        S = self.gram_matrix()
-        indices = self.rds(indices = True)
-        isotropic_vectors = [x for x in enumerate(self.ds()) if not n[x[0]] and indices[x[0]] is None]
-        m = len(isotropic_vectors)
-        N = denominator(S.inverse())
-        if s % 4:
-            eps = -1
-        D = self.discriminant()
-        f = D.squarefree_part()
-        Dsqr, f = j * isqrt(D // f), f * eps
-        while N % (4 * f):
-            N += N
-        phi = local_phi(N)
-        M = []
-        for i, b in isotropic_vectors:
-            Sb = N * (S * b)
-            L = [[0]*m for _ in range(phi)]
-            for j, (jj, g) in enumerate(isotropic_vectors):
-                d = 2 % denominator(g)
-                gSb = Integer(g * Sb) % N
-                for k in srange(phi):
-                    kg = k - gSb
-                    u = GCD(kg, N)
-                    h = N // u
-                    z = (phi // local_phi(h))
-                    z1 = z * local_moebius(h)
-                    L[k][j] += z1
-                    if i == jj:
-                        L[k][j] -= Dsqr * tr_sqrt_f_zeta_N(f, N, kg)
-                    if d:
-                        kg = k + gSb
-                        h = N // GCD(kg, N)
-                        z = (phi // local_phi(h))
-                        z1 = z * local_moebius(h)
-                        L[k][j] += eps * z1
-            M.extend(filter(any, L))
-        self.__s_matrix = matrix(M), isotropic_vectors
-        return self.__s_matrix
-
     def _invariants(self, prec = 1):
         r"""
         Compute invariants of the Weil representation.
@@ -4065,6 +4002,96 @@ class WeilRep(object):
         S, _ = self._s_matrix()
         return S.ncols() - S.rank()
 
+    def _s_matrix(self):
+        r"""
+        Auxiliary function for Weil invariants.
+
+        There is probably no reason to call this directly.
+
+        OUTPUT: a tuple (s, v) where:
+        - ``s`` -- an integer matrix
+        - ``v`` -- a list of tuples (i, g) where `g` is an isotropic vector and `i` is its index in self.ds()
+        """
+        try:
+            return self.__s_matrix
+        except AttributeError:
+            pass
+        @cached_function
+        def local_moebius(n):
+            return moebius(n)
+        @cached_function
+        def local_phi(n):
+            return euler_phi(n)
+        def tr_sqrt_f_zeta_N(f, N, n): #trace of sqrt(f) * zeta_N
+            if f == 1:
+                d = N // GCD(N, n)
+                return local_moebius(d) * (phi // local_phi(d))
+            h, r = N.quo_rem(4 * f)
+            if r:
+                return 0
+            s = 0
+            if f % 4 == 1:
+                N4 = 0
+            else:
+                N4 = N // 4
+            if f % 2:
+                for ell in range(abs(f)):
+                    u = GCD(n - N4 + 4 * h * ell* ell, N)
+                    d = N//u
+                    s += local_moebius(d) * (phi // local_phi(d))
+                return s * sgn(f)
+            else:
+                for ell in range(abs(4 * f)):
+                    x = n + h * ell * ell
+                    u1, u2 = GCD(x, N), GCD(x - N4, N)
+                    d1, d2 = N//u1, N//u2
+                    s += (local_moebius(d1) * (phi // local_phi(d1)) + local_moebius(d2) * (phi // local_phi(d2)))
+                return s * sgn(f) // 4
+        n = self.norm_list()
+        s = self.signature()
+        eps = 1
+        j = 1
+        if s == 4 or s == 6:
+            j = -1
+        S = self.gram_matrix()
+        indices = self.rds(indices = True)
+        isotropic_vectors = [x for x in enumerate(self.ds()) if not n[x[0]] and indices[x[0]] is None]
+        m = len(isotropic_vectors)
+        N = denominator(S.inverse())
+        if s % 4:
+            eps = -1
+        D = self.discriminant()
+        f = D.squarefree_part()
+        Dsqr, f = j * isqrt(D // f), f * eps
+        while N % (4 * f):
+            N += N
+        phi = local_phi(N)
+        M = []
+        for i, b in isotropic_vectors:
+            Sb = N * (S * b)
+            L = [[0]*m for _ in range(phi)]
+            for j, (jj, g) in enumerate(isotropic_vectors):
+                d = 2 % denominator(g)
+                gSb = Integer(g * Sb) % N
+                for k in srange(phi):
+                    kg = k - gSb
+                    u = GCD(kg, N)
+                    h = N // u
+                    z = (phi // local_phi(h))
+                    z1 = z * local_moebius(h)
+                    L[k][j] += z1
+                    if i == jj:
+                        L[k][j] -= Dsqr * tr_sqrt_f_zeta_N(f, N, kg)
+                    if d:
+                        kg = k + gSb
+                        h = N // GCD(kg, N)
+                        z = (phi // local_phi(h))
+                        z1 = z * local_moebius(h)
+                        L[k][j] += eps * z1
+            M.extend(filter(any, L))
+        self.__s_matrix = matrix(M), isotropic_vectors
+        return self.__s_matrix
+
     def _weight_one_half_basis(self, prec = 1):
         r"""
         Compute weight one half modular forms.
@@ -4135,6 +4162,6 @@ class WeilRep(object):
         b = vector([0] * n)
         for d in divisors(N):
             if (N // d).is_squarefree():
-                X.extend(self.embiggen(b, d)._invariants(prec).theta(weilrep = self))
+                X.extend(self._embiggen(b, d)._invariants(prec).theta(weilrep = self))
         X.echelonize()
         return X
