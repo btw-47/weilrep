@@ -71,6 +71,17 @@ def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound)
             return basis, basis_vectors, pivots, rank
     return basis, basis_vectors, pivots, rank
 
+def gegenbauer_polynomial(N, s):
+    r"""
+    Compute two-variable Gegenbauer polynomials.
+    """
+    x, y = PolynomialRing(QQ, ['x', 'y']).gens()
+    f = 0
+    for k in range(N // 2 + 1):
+        j = N - (k + k)
+        f += (-1)**k * QQ(gamma(s + k + j) /  gamma(s + ceil(N / 2))) / (factorial(k) * factorial(j)) * (x ** j) * (y ** k)
+    return f * factorial(N)
+
 ## theta blocks
 
 def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose = False):

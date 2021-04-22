@@ -843,17 +843,17 @@ class WeilRepModularForm(object):
         if isinstance(other, WeilRepModularForm):
             w = self.weilrep()
             minus_w = other.weilrep()
-            if not w.dual() == minus_w:
-                raise NotImplementedError
+            if w.dual() != minus_w:
+                raise NotImplementedError('The & operator (i.e. the bilinear pairing <-, ->) only accepts two modular forms whose Weil representations are dual to one another and returns the q-expansion of a scalar modular form.')
             f1 = self.fourier_expansion()
             f2 = other.fourier_expansion()
             dsdict = w.ds_dict()
-            r, q = LaurentSeriesRing(QQ, 'q').objgen()
-            h = 0 + O(q ** self.precision())
+            q, = f1[0][2].parent().gens()
+            h = O(q ** self.precision())
             for g, o, x in f2:
                 j = dsdict[tuple(g)]
                 g1, o1, y = f1[j]
-                h += r(q**(o + o1)) * x * y
+                h += x*y / q**(-Integer(o+o1))
             return h
         raise NotImplementedError
 
@@ -948,16 +948,16 @@ class WeilRepModularForm(object):
                 raise NotImplementedError
             X = self.fourier_expansion()
             return WeilRepModularForm(self.__weight + other.weight(), self.gram_matrix(), [(x[0], x[1], x[2]*other.qexp()) for x in X], weilrep = self.weilrep())
-        elif other in CC:
+        else:
             X = self.fourier_expansion()
             try:
                 X_times_other = WeilRepModularForm(self.__weight, self.gram_matrix(), [(x[0], x[1], x[2]*other) for x in X], weilrep = self.weilrep())
             except TypeError as err:
-                if other in SR:
-                    R, q = PowerSeriesRing(SR, 'q').objgen()
+                try:
+                    R, q = PowerSeriesRing(other.parent(), 'q').objgen()
                     prec = self.precision()
                     X_times_other = WeilRepModularForm(self.__weight, self.gram_matrix(), [(x[0], x[1], R(x[2].dict()).add_bigoh(prec)*other) for x in X], weilrep = self.weilrep())
-                else:
+                except AttributeError:
                     raise err from None
             try:
                 v = X.__coefficient_vector
@@ -1464,20 +1464,60 @@ class WeilRepModularForm(object):
             _weight = self.weight() - 2
         return self.weilrep().zero(_weight, self.precision())
 
-    def pullback(self, *v):
+    def pullback(self, *v, **kwargs):
         r"""
         Compute the pullback of self to the lattice spanned by *v.
 
         This computes the theta-contraction of 'self' to an arbitrary sublattice.
         """
-        A = matrix(ZZ, matrix(v).transpose().echelon_form(transformation = True)[1].inverse())
+        try:
+            z = matrix(ZZ, v)
+        except TypeError:
+            v = v[0]
+            z = matrix(ZZ, v)
+        A = matrix(ZZ, z.transpose().echelon_form(transformation = True)[1].inverse())
         n = A.nrows() - len(v)
         f = self.conjugate(A)
         i = 0
         while i < n:
-            f = f.theta_contraction()
+            f = f.theta_contraction(**kwargs)
             i += 1
         return f
+
+    def pullback_perp(self, *v, **kwargs):
+        r"""
+        Compute the pullback of self to the orthogonal complement of a dual lattice vector (or set of dual lattice vectors) 'v'.
+
+        NOTE: 'v' must have positive norm! (or if 'v' is a list of vectors, then it must span a positive-definite subspace with respect to the underlying quadratic form)
+        """
+        if self.weilrep()._is_hermitian_weilrep():
+            return self._pullback_perp_complex(v, **kwargs)
+        S = self.gram_matrix()
+        try:
+            z = matrix(QQ, v)
+        except TypeError:
+            v = v[0]
+            z = matrix(QQ, v)
+        z *= S
+        k = z.transpose().integer_kernel()
+        return self.pullback(list(k.basis()), **kwargs)
+
+    def _pullback_perp_complex(self, v, **kwargs):
+        v = v[0]
+        w = self.weilrep()
+        omega = w._HermitianWeilRep__Omega
+        S = w.gram_matrix()
+        w = w._w()
+        a, b = w.parts()
+        x = []
+        for i, u in enumerate(v):
+            g, h = v[i].parts()
+            x.append(g - a*h/b)
+            x.append(h/b)
+        x = vector(x)
+        z = matrix(ZZ, [S*x, S*omega*x])
+        k = z.transpose().integer_kernel()
+        return self.pullback(list(k.basis()), **kwargs)
 
     def raising_operator(self):
         r"""
@@ -1902,6 +1942,9 @@ class WeilRepModularFormsBasis:
         else:
             return NotImplemented
 
+    def __bool__(self):
+        return len(self) > 0
+
     def coordinates(self, X):
         r"""
         Compute coordinates for X with respect to self.
@@ -1911,12 +1954,19 @@ class WeilRepModularFormsBasis:
 
         If v cannot be found or v is not unique then we raise a ValueError.
         """
+        if not self:
+            if not X:
+                return []
+            raise ValueError('No representation')
         if self.weilrep() != X.weilrep() or self.weight() != X.weight():
             raise ValueError('Incompatible modular forms')
         val = min(self.valuation(), X.valuation())
         prec = min(self.precision(), X.precision())
         m = matrix([v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False) for v in self.__basis])
-        return m.solve_left(X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False))
+        try:
+            return m.solve_left(X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False))
+        except ValueError:
+            raise ValueError('No representation') from None
 
     def echelonize(self, save_pivots = False, starting_from = None, ending_with = None, integer = False):
         r"""
@@ -2094,10 +2144,15 @@ class WeilRepModularFormsBasis:
         r"""
         Linear combinations.
         """
+        if not self:
+            return self.weilrep().zero()
         return sum(self.__basis[i] * w for i, w in enumerate(v))
 
     def precision(self):
-        return min(x.precision() for x in self.__basis)
+        try:
+            return min(x.precision() for x in self.__basis)
+        except ValueError:
+            return +Infinity
 
     def principal_parts(self):
         r"""

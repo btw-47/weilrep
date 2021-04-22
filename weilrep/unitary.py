@@ -20,12 +20,12 @@ AUTHORS:
 
 from collections import defaultdict
 
-from copy import copy
+from copy import copy, deepcopy
 
 from re import sub
 
 from sage.arith.functions import lcm
-from sage.functions.other import frac, sqrt
+from sage.functions.other import floor, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import Matrix
@@ -74,8 +74,10 @@ class HermitianWeilRep(WeilRep):
             ell, m, u = ell + ell, m + m, u + u
         n = S.nrows()
         T = Matrix(QQ, 2 * n)
+        #'Omega' saves the action of our generator of O_K on the trace form
         Omega = Matrix(QQ, 2 * n)
         m0 = m * d0
+        #setup the trace form as a ZZ-lattice with respect to the generator 'gen'
         for i in range(n):
             for j in range(i + 1):
                 try:
@@ -118,6 +120,11 @@ class HermitianWeilRep(WeilRep):
         return self.__base_field
 
     def complex_gram_matrix(self):
+        r"""
+        This returns the Gram matrix over O_K.
+
+        If gram_matrix() is called then we instead return the Gram matrix of the trace form over ZZ.
+        """
         return self.__complex_gram_matrix
 
     def _is_hermitian_weilrep(self):
@@ -127,6 +134,11 @@ class HermitianWeilRep(WeilRep):
         raise NotImplementedError
 
     def multiplication_by_i(self):
+        r"""
+        Return the multiplication-by-i map.
+
+        Suppose K = QQ(i). This returns the map x --> i * x as a WeilRepAutomorphism; it can be applied to vectors in self's discriminant group or (componentwise) to vector-valued modular forms.
+        """
         d = self.base_field().discriminant()
         if d != -4:
             raise ValueError('The base field does not contain I.')
@@ -149,6 +161,11 @@ class HermitianWeilRep(WeilRep):
         return WeilRepAutomorphism(self, f)
 
     def multiplication_by_zeta(self):
+        r"""
+        Return the multiplication-by-zeta map.
+
+        Suppose K = QQ(sqrt(-3)). Let \zeta = e^{\pi i / 3} be the sixth root of unity. This returns the map x --> \zeta * x as a WeilRepAutomorphism; it can be applied to vectors in self's discriminant group or (componentwise) to vector-valued modular forms.
+        """
         d = self.base_field().discriminant()
         if d != -3:
             raise ValueError('The base field does not contain e^(pi * I / 3).')
@@ -172,12 +189,20 @@ class HermitianWeilRep(WeilRep):
         return WeilRepAutomorphism(self, f)
 
     def _norm_form(self):
+        r"""
+        Return the norm N_{K/QQ} as a integral quadratic form.
+        """
         w = self._w()
         wc = w.galois_conjugate()
         wtr = Integer(w + wc)
         return QuadraticForm(Matrix(ZZ, [[2, wtr], [wtr, 2 * w * wc]]))
 
     def hds(self):
+        r"""
+        Compute representatives of the discriminant group L'/L
+
+        This is similar to self.ds() but the results are represented as vectors over K rather than QQ.
+        """
         try:
             return self.__ds
         except AttributeError:
@@ -192,6 +217,7 @@ class HermitianWeilRep(WeilRep):
             return self.__ds
 
     def is_lorentzian(self):
+        #ZZ-lattices of signature (n, 1) do not have complex structures
         return False
 
     def is_lorentzian_plus_II(self):
@@ -224,7 +250,20 @@ class HermitianWeilRep(WeilRep):
             self.__h_norm_dict = {tuple(g):n[i] for i, g in enumerate(ds)}
             return self.__h_norm_dict
 
+    def trace_form(self):
+        r"""
+        Return the WeilRep associated to the underlying ZZ-lattice.
+        """
+        w = deepcopy(self)
+        w.__class__ = WeilRep
+        return w
+
     def _units(self):
+        r"""
+        A list of the units of O_K.
+
+        If d_K < -4 then this is just [1, -1].
+        """
         try:
             return self.__units
         except AttributeError:
@@ -248,12 +287,23 @@ class HermitianWeilRep(WeilRep):
             return L
 
     def _w(self):
+        r"""
+        The generator of O_K we picked when constructing the WeilRep
+        """
         return self.__w
 
     def _winv(self):
+        r"""
+        Return 1 / self._w()
+        """
         return self.__winv
 
 class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
+    r"""
+    This class represents modular forms for the unitary group U(n, 1) associated to our lattice.
+
+    If 'L' is positive definite then we instead consider the unitary group of L + II(1), i.e. L plus a unimodular plane.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -307,7 +357,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         zero = vector([0] * (len(exp_list) + 1))
         M = Matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
         vs = M.transpose().kernel().basis()
-        prec = min(exp_list) / max(filter(bool, exp_list))
+        prec = floor(min(exp_list) / max(filter(bool, exp_list)))
         norm_list = w._norm_form().short_vector_list_up_to_length(prec + 1)
         units = w._units()
         _w = w._w()
@@ -329,7 +379,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                 v1 = v_list[i]
                 if d >= -4:
                     v2 = f(v1)
-                    j = next(j for j, x in enumerate(v_list) if all(t in O_K for t in x - v2) or all(t in O_K for t in x + v2))
+                    j = next(j for j, x in enumerate(v_list) if exp_list[i] == exp_list[j] and (all(t in O_K for t in x - v2) or all(t in O_K for t in x + v2)))
                     ieq[j+1] += 1
                     if i != j:
                         excluded_list.add(j)
@@ -339,7 +389,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                         ys.append(y)
                     if f2 is not None:
                         v2 = f2(v1)
-                        j = next(j for j, x in enumerate(v_list) if all(t in O_K for t in x - v2) or all(t in O_K for t in x + v2))
+                        j = next(j for j, x in enumerate(v_list) if exp_list[i] == exp_list[j] and (all(t in O_K for t in x - v2) or all(t in O_K for t in x + v2)))
                         ieq[j + 1] += 1
                         if i != j:
                             excluded_list.add(j)
@@ -482,6 +532,11 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         return WeilRepModularFormsBasis(wt, X, w)
 
 class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
+    r"""
+    Rescaled hyperbolic planes over O_K.
+
+    This should be called with II(n) where n \in O_K.
+    """
     def __init__(self, N, K = None, gen = None):
         if K:
             a = N / K.gen()

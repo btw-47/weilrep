@@ -109,7 +109,7 @@ class WeilRep(object):
                     S = matrix(ZZ, S)
                     self.__gram_matrix = S
                     self.__quadratic_form = QuadraticForm(S)
-                else:
+                else: #WeilRep of a Hermitian lattice
                     from .unitary import HermitianWeilRep
                     self.__class__ = HermitianWeilRep
                     self.__init__(S, **kwargs)
@@ -118,8 +118,8 @@ class WeilRep(object):
                 self.__quadratic_form = S
                 self.__gram_matrix = S.matrix()
             else:
-                raise TypeError('Invalid input')
-        except AttributeError:
+                raise ValueError('Invalid input')
+        except AttributeError: #This should appear when calling (for example) WeilRep([[2, 1], [1, 2]]).
             S = matrix(S)
             self.__gram_matrix = S
             self.__quadratic_form = QuadraticForm(S)
@@ -166,13 +166,14 @@ class WeilRep(object):
     def __call__(self, N):
         r"""
         If ``N`` is an integer, then: Rescale the underlying lattice.
+
         If ``N`` is a matrix in SL_2(ZZ), then: return a matrix representation of \rho(N) (with respect to the canonical basis e_x, x \in L'/L, in the order determined by self's method ds()) where \rho is the Weil representation attached to self's lattice.
         """
         try:
-            N = Integer(N)
+            N = Integer(N) #If this worked then we are probably trying to rescale.
             w = WeilRep( N * self.gram_matrix())
             return w
-        except TypeError:
+        except TypeError: #I will assume that N is a matrix in SL_2(ZZ).
             a, b, c, d = tuple(ZZ(x) for x in N.list())
             if not a*d == 1 + b*c:
                 raise ValueError('Matrix is not in SL_2(ZZ)') from None
@@ -318,37 +319,37 @@ class WeilRep(object):
                 X = X1 * X2
                 self.__vals[A] = X
                 return X
-            # now what??
+            # This will now be essentially the proof by induction that the matrices in the cases above generate SL_2(ZZ). This is a well-known argument.
             elif c:
                 if abs(a) >= abs(c):
                     q, r = Integer(a).quo_rem(c)
                     X1 = self._evaluate(1, 1, 0, 1)
                     X2 = self._evaluate(r, b - q * d, c, d)
-                    X = (X1**q)*X2
+                    X = (X1 ** q) * X2
                     self.__vals[A] = X
                     return X
                 else:
                     X1 = self._evaluate(0, -1, 1, 0)
                     X2 = self._evaluate(c, d, -a, -b)
-                    X = X1*X2
+                    X = X1 * X2
                     X = X
                     self.__vals[A] = X
                     return X
             elif (a - 1):
                 X1 = self._evaluate(-1, 0, 0, -1)
                 X2 = self._evaluate(-a, -b, -c, -d)
-                X = X1*X2
+                X = X1 * X2
                 self.__vals[A] = X
                 return X
             else:
                 X1 = self._evaluate(1, 1, 0, 1)
-                X = X1**b
+                X = X1 ** b
                 self.__vals[A] = X
                 return X
 
     def _evaluate_metaplectic(self, a, b, c, d): #worse
         r"""
-        Has the same purpose as ._evaluate(), but retains a branch of the square root as a lambda--function.
+        Has the same purpose as ._evaluate(), but retains a branch of the square root as a lambda-function.
 
         INPUT: integers a, b, c, d such that a*d - b*c = 1
         OUTPUT: a tuple (M, j) where M is the Weil representation applied to the metaplectic transformation z -> ((a * z + b) / (c * z + d)) *with respect to the choice of square root of cz+d for which Re[ci + d]>= 0 if c != 0* and where j is the corresponding branch of the square root
@@ -2202,7 +2203,7 @@ class WeilRep(object):
                 X[i] = tuple(X[i])
         return WeilRepModularForm(k, self.gram_matrix(), X, weilrep = self)
 
-    def theta_series(self, prec, P = None, _list = False):
+    def theta_series(self, prec, P = None, _list = False, _flag = True, funct = None):
         r"""
         Construct vector-valued theta series.
 
@@ -2259,22 +2260,46 @@ class WeilRep(object):
             return self.zero(prec = prec)
         S_inv = -self.gram_matrix().inverse()
         deg_P = 0
+        Q_dim = Q.dim()
         if P:
+            q, = PowerSeriesRing(P.base_ring(), 'q').gens()
             deg_P = P.degree()
-            if len(P.parent().gens()) != Q.dim():
-                raise ValueError('The number of variables in P does not equal the lattice rank')
-            if not P.is_homogeneous():
-                raise ValueError('Not a homogeneous polynomial')
-            u = vector(P.gradient())*S_inv
-            variables = u[0].parent().gens()
-            P1 = sum(x.derivative(variables[i]) for i, x in enumerate(u))
-            if P1:
-                t = self.theta_series(prec, P = -P1/2, _list = True)
+            if _flag:
+                if len(P.parent().gens()) != Q_dim:
+                    raise ValueError('The number of variables in P does not equal the lattice rank')
+                if not P.is_homogeneous():
+                    raise ValueError('Not a homogeneous polynomial')
+                u = vector(P.gradient())*S_inv
+                variables = u[0].parent().gens()
+                P1 = sum(x.derivative(variables[i]) for i, x in enumerate(u))
+                if P1:
+                    t = self.theta_series(prec, P = -P1/2, _list = True)
+                elif Q_dim >= 3 and not _list:
+                    bound = ceil(Q_dim / 24)
+                    if prec > bound:
+                        X = self.cusp_forms_basis(Integer(Q_dim) / 2 + deg_P, prec)
+                        if not deg_P:
+                            X = WeilRepModularFormsBasis(X.weight(), X._WeilRepModularFormsBasis__basis + [self.eisenstein_series(X.weight(), prec)], self)
+                        t = self.theta_series(bound, P = P, _flag = False, funct = funct)
+                        return  X.coordinates(t) * X
+                else:
+                    t = []
             else:
+                t = []
+        elif _flag and Q_dim >= 3 and not _list:
+            bound = ceil(Q_dim / 24)
+            if prec > bound:
+                X = self.borcherds_obstructions(Integer(Q_dim) / 2, prec)
+                t = self.theta_series(bound, _flag = False)
+                return X * X.coordinates(t)
+            else:
+                P = lambda x: 1
                 t = []
         else:
             P = lambda x: 1
             t = []
+        if funct:
+            P = funct
         try:
             _, _, vs_matrix = pari(S_inv).qfminim(prec + prec + 1, flag=2)
             vs_list = vs_matrix.sage().columns()

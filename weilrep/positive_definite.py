@@ -357,40 +357,6 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
 
     ## Fourier series and Fourier--Jacobi series
 
-    def qs_coefficients(self, prec=+Infinity):
-        r"""
-        Return a dictionary of self's known 'qs' Fourier coefficients.
-
-        The input into the dictionary should be a tuple of the form (a, b_0, ..., b_d, c). The output will then be the Fourier coefficient of the monomial q^a r_0^(b_0)...r_d^(b_d) s^c.
-
-        EXAMPLES::
-
-            sage: from weilrep import *
-            sage: f = ParamodularForms(4).borcherds_input_by_weight(1/2, 10)[0].borcherds_lift()
-            sage: f.qs_coefficients()[(1/8, -1/2, 1/8)]
-            -1
-        """
-        L = {}
-        d = self.scale()
-        nrows = self.nvars() - 2
-        f = self.fourier_expansion()
-        coeffs = f.coefficients()
-        q, s = f.parent().gens()
-        d_prec = d * prec
-        for j, x in coeffs.items():
-            a, c = [Integer(i) for i in j.exponents()[0]]
-            if a+c < d_prec:
-                x_coeffs = x.coefficients()
-                if nrows > 1:
-                    for i, y in enumerate(x.exponents()):
-                        g = tuple([a/d] + list(vector(ZZ, y)/d) + [c/d])
-                        L[g] = x_coeffs[i]
-                else:
-                    for i, y in enumerate(x.exponents()):
-                        g = a/d, Integer(y)/d, c/d
-                        L[g] = x_coeffs[i]
-        return L
-
     def fourier_expansion(self):
         r"""
         Return our Fourier expansion as a power series in 'q' and 's' over a ring of Laurent polynomials in the variables 'r_i'.
