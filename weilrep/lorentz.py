@@ -203,23 +203,23 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             try:
                 try:
                     q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-                    self.__q_s_exp = sum([(q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
+                    self.__q_s_exp = sum((q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p[n] for i, p in enumerate(h.padded_list()) for n in p.exponents() ).O(hprec)
                 except ValueError:
                     mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
                     hprec += hprec
                     d += d
-                    self.__q_s_exp = sum([(q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents()) ]).O(hprec)
+                    self.__q_s_exp = sum((q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents()) ).O(hprec)
             except (AttributeError, NotImplementedError):
-                hval = h.valuation()
+                #hval = h.valuation()
                 rs, s = LaurentSeriesRing(self.base_ring(), 's').objgen()
                 q, = LaurentSeriesRing(rs, 'q').gens()
                 try:
-                    self.__q_s_exp = O(s ** hprec) + O(q ** hprec) + sum([(q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ])
+                    self.__q_s_exp = O(s ** hprec) + O(q ** hprec) + sum((q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) )
                 except ValueError:
                     mapdict = {u: u*u for u in self.base_ring().base_ring().gens()}
                     hprec += hprec
                     d += d
-                    self.__q_s_exp = sum([(q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ]) + O(s ** hprec) + O(q ** hprec)
+                    self.__q_s_exp = sum((q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ) + O(s ** hprec) + O(q ** hprec)
             self.__q_s_scale = d
             self.__q_s_prec = hprec
             return self.__q_s_exp
@@ -276,7 +276,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
             sage: X = m.borcherds_input_Qbasis(1/2, 15)
             sage: X[1].borcherds_lift().witt()
-            q + 8*q^2 + (-16)*q*s + 28*q^3 + (-128)*q^2*s + 112*q*s^2 + 64*q^4 + (-448)*q^3*s + 896*q^2*s^2 + (-448)*q*s^3 + 126*q^5 + (-1024)*q^4*s + 3136*q^3*s^2 + (-3584)*q^2*s^3 + 1136*q*s^4 + 224*q^6 + (-2016)*q^5*s + 7168*q^4*s^2 + (-12544)*q^3*s^3 + 9088*q^2*s^4 + (-2016)*q*s^5 + 344*q^7 + (-3584)*q^6*s + 14112*q^5*s^2 + (-28672)*q^4*s^3 + 31808*q^3*s^4 + (-16128)*q^2*s^5 + 3136*q*s^6 + 512*q^8 + (-5504)*q^7*s + 25088*q^6*s^2 + (-56448)*q^5*s^3 + 72704*q^4*s^4 + (-56448)*q^3*s^5 + 25088*q^2*s^6 + (-5504)*q*s^7 + O(q, s)^9
+            q + 8*q^2 - 16*q*s + 28*q^3 - 128*q^2*s + 112*q*s^2 + 64*q^4 - 448*q^3*s + 896*q^2*s^2 - 448*q*s^3 + 126*q^5 - 1024*q^4*s + 3136*q^3*s^2 - 3584*q^2*s^3 + 1136*q*s^4 + 224*q^6 - 2016*q^5*s + 7168*q^4*s^2 - 12544*q^3*s^3 + 9088*q^2*s^4 - 2016*q*s^5 + 344*q^7 - 3584*q^6*s + 14112*q^5*s^2 - 28672*q^4*s^3 + 31808*q^3*s^4 - 16128*q^2*s^5 + 3136*q*s^6 + 512*q^8 - 5504*q^7*s + 25088*q^6*s^2 - 56448*q^5*s^3 + 72704*q^4*s^4 - 56448*q^3*s^5 + 25088*q^2*s^6 - 5504*q*s^7 + O(q, s)^9
 
             sage: from weilrep import *
             sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
@@ -286,11 +286,17 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         if self.has_fourier_jacobi_representation():
             if self.nvars() == 2:
                 return self
-            a = lambda x: sum(x[1] for x in x.dict().items())
-            def b(x):
-                u, v = x.polynomial_construction()
-                return u.map_coefficients(a) * (x.parent().gens()[0]**v)
-            f = self.true_fourier_expansion().map_coefficients(b)
+            f = self.true_fourier_expansion()
+            R = f.base_ring()
+            while R != R.base_ring():
+                R = R.base_ring()
+            a = lambda x: sum(x for _, x in x.dict().items())
+            Rx, x= LaurentPolynomialRing(R, 'x').objgen()
+            Rt = PowerSeriesRing(Rx, 't')
+            def b(z):
+                u, v = z.polynomial_construction()
+                return Rx(u.map_coefficients(a)) * x**v
+            f = Rt(f.map_coefficients(b))
             N = self.gram_matrix()[0, -1]
             S = matrix([[-(N + N), N], [N, 0]])
             return OrthogonalModularFormLorentzian(self.weight(), WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0], self.weyl_vector()[-1]]), qexp_representation = 'PD+II')
@@ -858,7 +864,10 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         val = self.valuation()
         K = S[1:-1,1:-1]
         K_inv = K.inverse()
-        Theta_K = WeilRep(-K).theta_series(1 - val)
+        if XK:
+            Theta_K = WeilRep(-K).theta_series(1 - val)
+        else:
+            Theta_K = WeilRep(-K).zero(K.nrows()/2, 1-val)
         Xcoeff = self.principal_part_coefficients()
         rho = vector([0] * (nrows - 2))
         rho_z = 0
@@ -1135,7 +1144,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         b_norm = s_0[0, 0]
         s_0 = s_0[1:, 1:]
         s_0inv = s_0.inverse()
-        new_prec = ceil(prec * (prec * scale * scale / (-4 * b_norm) + 1))
+        new_prec = ceil(prec * (prec * scale * scale / (-4 * b_norm) + 2))
         if nrows >= 3:
             v_matrix = _, _, vs_matrix = pari(s_0inv).qfminim(new_prec, flag = 2)
             vs_list = vs_matrix.sage().columns()
@@ -1148,16 +1157,20 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         log_f = h
         const_f = rb_x(1)
         val = self.valuation(exact = True)
-        corrector = r(1)
         excluded_vectors = set([])
         rpoly, tpoly = PolynomialRing(K, 'tpoly').objgen()
         negative = lambda v: v[0] < 0 or next(s for s in reversed(v[1:]) if s) < 0
+        if nrows >= 2:
+            weyl_diff = weyl_vector[0] - weyl_vector[1]
+        else:
+            weyl_diff = 0
+        row0 = S.rows()[0]
         for v in vs_list:
             sv = s_0inv * v
             vnorm = v * sv / 2
             j_bound = 1
             if val + vnorm > 0:
-                j_bound = max(1, isqrt(-2 * b_norm * (val + vnorm)))
+                j_bound = max(j_bound, isqrt(-2 * b_norm * (val + vnorm)))
             if j_bound < prec:
                 v *= d
                 m = x**v[0]
@@ -1174,8 +1187,9 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                        log_f += c * log(1 - t**j * m + h)
+                        if norm_z <= 0 or (any(v[1:]) or nrows == 2): #allow nrows = 2 because any([]) is False (we want it to be True?)
+                            c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                            log_f += c * log(1 - t**j * m + h)
                     except KeyError:
                         if -norm_z >= prec0:
                             prec = j
@@ -1195,8 +1209,9 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                        log_f += c * log(1 - t**j * ~m + h)
+                        if norm_z <= 0 or (any(v[1:]) or nrows == 2):
+                            c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                            log_f += c * log(1 - t**j * ~m + h)
                     except KeyError:
                         if -norm_z >= prec0:
                             prec = j
@@ -1276,7 +1291,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 try:
                     const_f *= rb_x(rpoly(p).subs({tpoly:m}))
                 except TypeError:
-                    raise ValueError('I caught a TypeError. This probably means you are trying to compute a product that is not holomorphic.')
+                    raise ValueError('I caught a TypeError. This probably means you are trying to compute a product that is not holomorphic.') from None
         v = a.rows()[0]
         norm_v = v * S * v / 2
         for j in srange(1, prec):
