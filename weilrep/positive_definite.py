@@ -588,21 +588,24 @@ class WeilRepPositiveDefinite(WeilRep):
         from .lorentz import RescaledHyperbolicPlane
         p = self.is_positive_definite()
         p2 = self._is_positive_definite_plus_II()
-        if not _flag or isinstance(other, RescaledHyperbolicPlane):
-            S = self.gram_matrix()
-            n = S.nrows()
-            N = other._N()
-            S_new = matrix(ZZ, n + 2)
-            for i in range(n):
-                for j in range(n):
-                    S_new[i + 1, j + 1] = S[i, j]
-            S_new[0, -1], S_new[-1, 0] = N, N
-            if p:
-                return WeilRepPositiveDefinitePlusII(S_new, S, N, lift_qexp_representation = self.lift_qexp_representation)
-            elif p2:
-                N1 = self._N()
-                return WeilRepPositiveDefinitePlus2II(S_new, self._pos_def_gram_matrix(), N1, N, lift_qexp_representation = self.lift_qexp_representation)
-        elif isinstance(other, WeilRep):
+        try:
+            if not _flag and isinstance(other, RescaledHyperbolicPlane):
+                S = self.gram_matrix()
+                n = S.nrows()
+                N = other._N()
+                S_new = matrix(ZZ, n + 2)
+                for i in range(n):
+                    for j in range(n):
+                        S_new[i + 1, j + 1] = S[i, j]
+                S_new[0, -1], S_new[-1, 0] = N, N
+                if p:
+                    return WeilRepPositiveDefinitePlusII(S_new, S, N, lift_qexp_representation = self.lift_qexp_representation)
+                elif p2:
+                    N1 = self._N()
+                    return WeilRepPositiveDefinitePlus2II(S_new, self._pos_def_gram_matrix(), N1, N, lift_qexp_representation = self.lift_qexp_representation)
+        except AttributeError:
+            pass
+        if isinstance(other, WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
         return NotImplemented
     __radd__ = __add__
@@ -745,18 +748,33 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         w = self.weilrep()
         if w.is_positive_definite():
             return 0
+        extra_plane = w._is_positive_definite_plus_2II()
         nrows = w.gram_matrix().nrows()
-        a = identity_matrix(nrows)
+        nrows2 = nrows - 2*extra_plane
+        a = identity_matrix(nrows2)
         a[-1, 0] = -1
-        if w._is_positive_definite_plus_2II():
-            a[-2, 1] = -1
+        if extra_plane:
+            from .lorentz import II
+            z = matrix([[1]])
+            a = block_diagonal_matrix([z, a, z])
+            b = matrix(nrows)
+            b[0, 0], b[-1, 1] = 1, 1
+            for i in range(nrows2):
+                b[i + 1, (i + 2)%nrows] = 1
+            a = a * b
+            nrows = nrows2
         x = self.conjugate(a)
         while nrows > 1:
             x = x.theta_contraction()
             nrows -= 1
+        n = x.gram_matrix()[-1, -1]
+        if extra_plane:
+            N = x.gram_matrix()[0, 1]
+            A = matrix([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
+            x = x.conjugate(A, w = WeilRep(matrix([[n]])) + II(N))
         x = x.theta_lift(constant_term_weight_one = False)
         f = x.fourier_expansion()
-        m = ModularForms(Gamma0_constructor(-x.gram_matrix()[0, 0] // 2), 2, prec=x.precision()).echelon_basis()
+        m = ModularForms(Gamma0_constructor(-n*N // 2), 2, prec=x.precision()).echelon_basis()
         f -= sum(z.qexp() * f[z.qexp().valuation()] for z in m[1:])
         i = f.exponents()[0]
         return f[i] / m[0].qexp()[i]
@@ -824,8 +842,9 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         else:
             vs_list = []
         f = O(t ** prec)
+        C = 0
         if wt == 1:
-            f += self._weight_one_theta_lift_constant_term()
+            C = self._weight_one_theta_lift_constant_term()
         bool_1 = w._is_positive_definite_plus_II()
         bool_2 = w._is_positive_definite_plus_2II()
         if bool_1:
@@ -873,9 +892,9 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 v_monomial = z**v[0]
             else:
                 v_monomial = 1
-            a = max(1, sqrt_v_norm)
+            a = 1
             while a < prec * N:
-                c = max(1, ceil(v_norm / a))
+                c = 1
                 while c < (prec- a) * N:
                     a_plus_c = a + c
                     n = Integer(a * c) / N - v_norm
@@ -919,7 +938,9 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError):
             h = None
-        return OrthogonalModularForm(wt, self.weilrep(), f, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h)
+        if wt % 2 and bool_2 and N2 >= 3:
+            f /= sum(zeta**i - zeta**(-i) for i in range(1, (N2 + 1)//2))
+        return OrthogonalModularForm(wt, self.weilrep(), f + C, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h)
     additive_lift = theta_lift
     gritsenko_lift = theta_lift
     maass_lift = theta_lift
@@ -1295,7 +1316,6 @@ class WeilRepModularFormPositiveDefiniteWithCharacter(WeilRepModularFormWithChar
 class WeilRepPositiveDefinitePlusII(WeilRepPositiveDefinite):
 
     def __init__(self, S, pos_def_S, N, lift_qexp_representation = None):
-        #S should be a Lorentzian lattice in which the bottom-right entry is negative!!
         self._WeilRep__gram_matrix = S
         self._WeilRep__quadratic_form = QuadraticForm(S)
         self._WeilRep__eisenstein = {}
@@ -1319,6 +1339,9 @@ class WeilRepPositiveDefinitePlusII(WeilRepPositiveDefinite):
 
     def _is_positive_definite_plus_2II(self):
         return False
+
+    def _lifts_have_fourier_jacobi_expansion(self):
+        return True
 
     def nvars(self):
         return Integer(self.gram_matrix().nrows())
@@ -1359,6 +1382,9 @@ class WeilRepPositiveDefinitePlus2II(WeilRepPositiveDefinite):
         return False
 
     def _is_positive_definite_plus_2II(self):
+        return True
+
+    def _lifts_have_fourier_jacobi_expansion(self):
         return True
 
     def _lorentz_gram_matrix(self):

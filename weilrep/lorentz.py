@@ -323,7 +323,7 @@ class WeilRepLorentzian(WeilRep):
         """
         from .weilrep import WeilRep
         ell = self.is_lorentzian()
-        if not _flag or (ell and isinstance(other, RescaledHyperbolicPlane)):
+        if not _flag and isinstance(other, RescaledHyperbolicPlane):
             S = self.gram_matrix()
             n = S.nrows()
             N = other._N()
