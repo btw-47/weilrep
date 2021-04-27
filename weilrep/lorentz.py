@@ -321,7 +321,9 @@ class WeilRepLorentzian(WeilRep):
 
         If 'other' is a rescaled hyperbolic plane then we rearrange it so that 'other' goes in the first and last coordinates.
         """
-        if not _flag or (self.is_lorentzian() and isinstance(other, RescaledHyperbolicPlane)):
+        from .weilrep import WeilRep
+        ell = self.is_lorentzian()
+        if not _flag or (ell and isinstance(other, RescaledHyperbolicPlane)):
             S = self.gram_matrix()
             n = S.nrows()
             N = other._N()
@@ -330,9 +332,11 @@ class WeilRepLorentzian(WeilRep):
                 for j in range(n):
                     S_new[i + 1, j + 1] = S[i, j]
             S_new[0, -1], S_new[-1, 0] = N, N
+            if self._is_positive_definite_plus_II():
+                from .positive_definite import WeilRepPositiveDefinitePlus2II
+                return WeilRepPositiveDefinitePlus2II(S_new, self._pos_def_gram_matrix(), self._N(), N, lift_qexp_representation = self.lift_qexp_representation)
             return WeilRepLorentzianPlusII(S_new, S, N, lift_qexp_representation = self.lift_qexp_representation)
-        from .weilrep import WeilRep
-        if isinstance(other, WeilRep):
+        elif isinstance(other, WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
         return NotImplemented
 
@@ -425,6 +429,12 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
 
     def _N(self):
         return self.__N
+
+    def _is_positive_definite_plus_II(self):
+        return True
+
+    def _pos_def_gram_matrix(self):
+        return matrix([])
 
 def II(N): #short constructor for rescaled hyperbolic planes
     return RescaledHyperbolicPlane(N)

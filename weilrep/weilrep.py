@@ -131,6 +131,8 @@ class WeilRep(object):
         if self.is_positive_definite():
             from .positive_definite import WeilRepPositiveDefinite
             self.__class__ = WeilRepPositiveDefinite
+            self.lift_qexp_representation = 'PD+II'
+            return None
         if self.is_lorentzian():
             if S.nrows() > 1:
                 self.lift_qexp_representation = None
@@ -474,6 +476,12 @@ class WeilRep(object):
         except AttributeError:
             self.__is_positive_definite = self.__quadratic_form.is_positive_definite()
             return self.__is_positive_definite
+
+    def _is_positive_definite_plus_II(self):
+        return False
+
+    def _is_positive_definite_plus_2II(self):
+        return False
 
     def is_symmetric_weight(self, weight):
         r"""

@@ -568,12 +568,44 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         return OrthogonalModularFormLorentzian(self.weight(), WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0], self.weyl_vector()[-1]]), qexp_representation = 'PD+II')
 
 class WeilRepPositiveDefinite(WeilRep):
-    def __init__(self):
+    def __init__(self, lift_qexp_representation = None):
         self._WeilRep__gram_matrix = S
         self._WeilRep__quadratic_form = QuadraticForm(S)
         self._WeilRep__eisenstein = {}
         self._WeilRep__cusp_forms_basis = {}
         self._WeilRep__modular_forms_basis = {}
+        if not lift_qexp_representation:
+            lift_qexp_representation = 'PD+II'
+        self.lift_qexp_representation = lift_qexp_representation
+
+    def __add__(self, other, _flag = None):
+        r"""
+        Tensor product of Weil representations.
+
+        If 'other' is a rescaled hyperbolic plane then we rearrange it so that 'other' goes in the first and last coordinates.
+        """
+        from .weilrep import WeilRep
+        from .lorentz import RescaledHyperbolicPlane
+        p = self.is_positive_definite()
+        p2 = self._is_positive_definite_plus_II()
+        if not _flag or isinstance(other, RescaledHyperbolicPlane):
+            S = self.gram_matrix()
+            n = S.nrows()
+            N = other._N()
+            S_new = matrix(ZZ, n + 2)
+            for i in range(n):
+                for j in range(n):
+                    S_new[i + 1, j + 1] = S[i, j]
+            S_new[0, -1], S_new[-1, 0] = N, N
+            if p:
+                return WeilRepPositiveDefinitePlusII(S_new, S, N, lift_qexp_representation = self.lift_qexp_representation)
+            elif p2:
+                N1 = self._N()
+                return WeilRepPositiveDefinitePlus2II(S_new, self._pos_def_gram_matrix(), N1, N, lift_qexp_representation = self.lift_qexp_representation)
+        elif isinstance(other, WeilRep):
+            return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
+        return NotImplemented
+    __radd__ = __add__
 
     def is_lorentzian(self):
         return False
@@ -587,21 +619,8 @@ class WeilRepPositiveDefinite(WeilRep):
     def jacobi_forms(self):
         return JacobiForms(self.gram_matrix(), weilrep = self)
 
-    def __add__(self, other, _flag=None):
-        from .lorentz import RescaledHyperbolicPlane, WeilRepLorentzian
-        if _flag is None and isinstance(other, RescaledHyperbolicPlane):
-            S = self.gram_matrix()
-            zero = Integer(0)
-            z = matrix([[zero]])
-            zerov = matrix([[zero]*S.nrows()])
-            zerovt = zerov.transpose()
-            N = other._N()
-            return WeilRepLorentzian(block_matrix([[z, zerov, N], [zerovt, S, zerovt], [N, zerov, z]], subdivide = False), lift_qexp_representation = 'PD+II')
-        from .weilrep import WeilRep
-        if isinstance(other, WeilRep):
-            return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
-        return NotImplemented
-    __radd__ = __add__
+    def _pos_def_gram_matrix(self):
+        return self.gram_matrix()
 
 
 
@@ -709,7 +728,40 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             return JacobiForm(self.weight(), S, self.fourier_expansion()[0][2], weilrep = self.weilrep(), modform = self)
         return JacobiForm(self.weight() + e/2, S, q ** val * R(jf) + O(q**prec), weilrep = self.weilrep(), modform = self)
 
-    def theta_lift(self, prec = None):
+    def _weight_one_theta_lift_constant_term(self):
+        r"""
+        Compute the constant term in the additive theta lift to weight 1.
+
+        This should not be called directly.
+
+        The additive theta lift does not map cusp forms to cusp forms when the target has weight 1. (for subgroups of SL_2 this means weight 2). We try to compute the missing constant term here.
+
+        NOTE: theta lifts of weight 1 only exist for lattices of signature (2, n) with n <= 4. They do not exist at all for positive-definite lattices by Skoruppa's theorem.
+
+        OUTPUT: a rational number
+        """
+        if not self:
+            return 0
+        w = self.weilrep()
+        if w.is_positive_definite():
+            return 0
+        nrows = w.gram_matrix().nrows()
+        a = identity_matrix(nrows)
+        a[-1, 0] = -1
+        if w._is_positive_definite_plus_2II():
+            a[-2, 1] = -1
+        x = self.conjugate(a)
+        while nrows > 1:
+            x = x.theta_contraction()
+            nrows -= 1
+        x = x.theta_lift(constant_term_weight_one = False)
+        f = x.fourier_expansion()
+        m = ModularForms(Gamma0_constructor(-x.gram_matrix()[0, 0] // 2), 2, prec=x.precision()).echelon_basis()
+        f -= sum(z.qexp() * f[z.qexp().valuation()] for z in m[1:])
+        i = f.exponents()[0]
+        return f[i] / m[0].qexp()[i]
+
+    def theta_lift(self, prec=Infinity):
         r"""
         Compute the additive theta lift.
 
@@ -727,98 +779,142 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             sage: w.cusp_forms_basis(9, 5)[0].theta_lift()
             (r_0*r_1 + r_0 + r_1 - 6 + r_1^-1 + r_0^-1 + r_0^-1*r_1^-1)*q*s + (r_0^2*r_1^2 - 6*r_0^2*r_1 - 6*r_0*r_1^2 + r_0^2 - 10*r_0*r_1 + r_1^2 - 10*r_0 - 10*r_1 - 6*r_0*r_1^-1 + 90 - 6*r_0^-1*r_1 - 10*r_1^-1 - 10*r_0^-1 + r_1^-2 - 10*r_0^-1*r_1^-1 + r_0^-2 - 6*r_0^-1*r_1^-2 - 6*r_0^-2*r_1^-1 + r_0^-2*r_1^-2)*q^2*s + (r_0^2*r_1^2 - 6*r_0^2*r_1 - 6*r_0*r_1^2 + r_0^2 - 10*r_0*r_1 + r_1^2 - 10*r_0 - 10*r_1 - 6*r_0*r_1^-1 + 90 - 6*r_0^-1*r_1 - 10*r_1^-1 - 10*r_0^-1 + r_1^-2 - 10*r_0^-1*r_1^-1 + r_0^-2 - 6*r_0^-1*r_1^-2 - 6*r_0^-2*r_1^-1 + r_0^-2*r_1^-2)*q*s^2 + (r_0^3*r_1^2 + r_0^2*r_1^3 + r_0^3*r_1 - 10*r_0^2*r_1^2 + r_0*r_1^3 + 90*r_0^2*r_1 + 90*r_0*r_1^2 - 10*r_0^2 + 8*r_0*r_1 - 10*r_1^2 + r_0^2*r_1^-1 + 8*r_0 + 8*r_1 + r_0^-1*r_1^2 + 90*r_0*r_1^-1 - 540 + 90*r_0^-1*r_1 + r_0*r_1^-2 + 8*r_1^-1 + 8*r_0^-1 + r_0^-2*r_1 - 10*r_1^-2 + 8*r_0^-1*r_1^-1 - 10*r_0^-2 + 90*r_0^-1*r_1^-2 + 90*r_0^-2*r_1^-1 + r_0^-1*r_1^-3 - 10*r_0^-2*r_1^-2 + r_0^-3*r_1^-1 + r_0^-2*r_1^-3 + r_0^-3*r_1^-2)*q^3*s + (-6*r_0^3*r_1^3 - 10*r_0^3*r_1^2 - 10*r_0^2*r_1^3 - 10*r_0^3*r_1 + 520*r_0^2*r_1^2 - 10*r_0*r_1^3 - 6*r_0^3 - 540*r_0^2*r_1 - 540*r_0*r_1^2 - 6*r_1^3 + 520*r_0^2 + 310*r_0*r_1 + 520*r_1^2 - 10*r_0^2*r_1^-1 + 310*r_0 + 310*r_1 - 10*r_0^-1*r_1^2 - 540*r_0*r_1^-1 - 1584 - 540*r_0^-1*r_1 - 10*r_0*r_1^-2 + 310*r_1^-1 + 310*r_0^-1 - 10*r_0^-2*r_1 + 520*r_1^-2 + 310*r_0^-1*r_1^-1 + 520*r_0^-2 - 6*r_1^-3 - 540*r_0^-1*r_1^-2 - 540*r_0^-2*r_1^-1 - 6*r_0^-3 - 10*r_0^-1*r_1^-3 + 520*r_0^-2*r_1^-2 - 10*r_0^-3*r_1^-1 - 10*r_0^-2*r_1^-3 - 10*r_0^-3*r_1^-2 - 6*r_0^-3*r_1^-3)*q^2*s^2 + (r_0^3*r_1^2 + r_0^2*r_1^3 + r_0^3*r_1 - 10*r_0^2*r_1^2 + r_0*r_1^3 + 90*r_0^2*r_1 + 90*r_0*r_1^2 - 10*r_0^2 + 8*r_0*r_1 - 10*r_1^2 + r_0^2*r_1^-1 + 8*r_0 + 8*r_1 + r_0^-1*r_1^2 + 90*r_0*r_1^-1 - 540 + 90*r_0^-1*r_1 + r_0*r_1^-2 + 8*r_1^-1 + 8*r_0^-1 + r_0^-2*r_1 - 10*r_1^-2 + 8*r_0^-1*r_1^-1 - 10*r_0^-2 + 90*r_0^-1*r_1^-2 + 90*r_0^-2*r_1^-1 + r_0^-1*r_1^-3 - 10*r_0^-2*r_1^-2 + r_0^-3*r_1^-1 + r_0^-2*r_1^-3 + r_0^-3*r_1^-2)*q*s^3 + O(q, s)^5
         """
-        try:
-            return self.convert_to_II().theta_lift()
-        except ValueError:
-            pass
         prec0 = self.precision() + 1
-        newprec = isqrt(4 * prec0 + 4)
-        if prec is None:
-            prec = newprec
-        else:
-            prec = min(prec, newprec)
-        S = self.gram_matrix()
+        min_prec = isqrt(4 * prec0 + 4)
+        prec = min(prec, min_prec)
+        w = self.weilrep()
+        S = w._pos_def_gram_matrix()
         coeffs = self.coefficients()
-        S_inv = self.inverse_gram_matrix()
-        rb = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(S.nrows()) ))
-        z = rb.gens()[0]
+        S_inv = S.inverse()
+        try:
+            N2 = w._N2()
+            if N2 == 1:
+                K = QQ
+                zeta = 1
+            elif N2 == 2:
+                K = QQ
+                zeta = -1
+            else:
+                K, zeta = CyclotomicField(N2, var('mu%d'%N2)).objgen()
+        except AttributeError:
+            K = QQ
+            N2 = 1
+            zeta = 1
+        if S:
+            rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(S.nrows()) ))
+            z = rb.gens()[0]
+        else:
+            rb = K
         rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
         t, = PowerSeriesRing(rb_x, 't').gens()
         k = self.weight()
         nrows = ZZ(S.nrows())
         wt = k + nrows / 2
-        if wt <= 1:
+        try:
+            N = w._N()
+        except AttributeError:
+            N = 1
+        if wt <= 0:
             return NotImplemented
         if nrows > 1:
             _, _, vs_matrix = pari(S_inv).qfminim(prec0 + prec0 + 1, flag = 2)
             vs_list = vs_matrix.sage().columns()
-        else:
+        elif nrows == 1:
             vs_list = [vector([n]) for n in range(1, isqrt(2 * prec0*S[0, 0]) + 1)]
+        else:
+            vs_list = []
         f = O(t ** prec)
+        if wt == 1:
+            f += self._weight_one_theta_lift_constant_term()
+        bool_1 = w._is_positive_definite_plus_II()
+        bool_2 = w._is_positive_definite_plus_2II()
+        if bool_1:
+            def update(g_n, sum_coeff):
+                g_n = tuple([frac(c / (d*N))] + list(g_n)[:-1] + [frac(-a / (d*N)), g_n[-1]])
+                sum_coeff += coeffs[g_n] * d_wt
+                return sum_coeff
+        elif bool_2:
+            def update(g_n, sum_coeff):
+                g_n_copy = list(g_n)[:-1]
+                for i in srange(N2):
+                    g_n = tuple([i / N2, frac(c/(d*N))] + g_n_copy + [frac(-a/(d*N)), 0, g_n[-1]])
+                    sum_coeff += coeffs[g_n] * zeta ** ((i*d) % N2) * d_wt
+                return sum_coeff
+        else:
+            def update(g_n, sum_coeff):
+                sum_coeff += coeffs[g_n] * d_wt
+                return sum_coeff
+        try:
+            N = w._N()
+        except AttributeError:
+            N = 1
         if wt % 2 == 0:
-            try:
-                f_0 = coeffs[tuple([0]*(nrows + 1))]
+            if bool_2:
+                y, = PolynomialRing(QQ, 'y').gens()
+                bp = bernoulli_polynomial(y, wt)
+                for i in srange(N2):
+                    zeta_i = zeta ** i
+                    c = coeffs[tuple([i / N2] + [0]*(nrows + 4))]
+                    if c:
+                        f -= c * sum([bp(j / N2) * (zeta_i ** j) for j in srange(1, N2 + 1)])
+                f *= (N2 ** (wt - 1)) / (wt + wt)
+            else:
+                f_0 = coeffs[tuple([0]*(nrows + 1 + 2*Integer(bool_1)))]
                 if f_0:
-                    e = eisenstein_series_qexp(wt, prec + 1)
-                    f = f + f_0 * (e(t*x) + e(~x * t) - e[0])
-            except KeyError:
-                pass
+                    f -= f_0 * bernoulli(wt) / (wt + wt)
         for v in vs_list:
             j = next(j for j, w in enumerate(v) if w)
-            if v[j] > 0:
-                v = -v
             g = S_inv * v
             v_norm = v * g / 2
             sqrt_v_norm = ceil(sqrt(v_norm))
             if nrows > 1:
                 v_monomial = rb.monomial(*v)
-                v_monomial = v_monomial + (-1)**wt * v_monomial**(-1)
+            elif nrows == 1:
+                v_monomial = z**v[0]
             else:
-                v_monomial = z**v[0] + (-1)**wt * z**(-v[0])
+                v_monomial = 1
             a = max(1, sqrt_v_norm)
-            while a < prec:
+            while a < prec * N:
                 c = max(1, ceil(v_norm / a))
-                while c < min(a + 1, prec- a):
+                while c < (prec- a) * N:
                     a_plus_c = a + c
-                    n = a * c - v_norm
+                    n = Integer(a * c) / N - v_norm
                     if n >= 0:
-                        sum_coeff = 0
+                        sum_coeff_1 = 0
+                        sum_coeff_2 = 0
                         for d in divisors(GCD([a, c] + list(v))):
                             d_wt = d ** (wt - 1)
                             g_n = tuple([frac(y) for y in g / d] + [n / (d * d)])
-                            try:
-                                sum_coeff += coeffs[g_n] * d_wt
-                            except KeyError:
-                                if n >= prec0:
-                                    prec = min(a_plus_c, prec)
-                                    f += O(t ** prec)
-                                pass
-                        if a != c:
-                            f += sum_coeff * t**(a_plus_c) * (x**(a-c) + x**(c-a)) * v_monomial
-                        else:
-                            f += sum_coeff * t**(a_plus_c) * v_monomial
+                            sum_coeff_1 = update(g_n, sum_coeff_1)
+                            g_n_2 = tuple([frac(-y) for y in g/d] + [n / (d*d)])
+                            sum_coeff_2 = update(g_n_2, sum_coeff_2)
+                        f += t**(a_plus_c) * x**(a - c) * (sum_coeff_1 * v_monomial + sum_coeff_2 * ~v_monomial)
                     c += 1
                 a += 1
-        for a in range(prec):
-            for c in range(min(a + 1, prec - a)):
-                n = a * c
+        #now take b = zero vector
+        for a in range(N * prec):
+            for c in range(min(a + 1, N * (prec - a))):
+                n = Integer(a * c)/N
                 a_plus_c = a + c
-                if n:
+                if a_plus_c:
                     sum_coeff = 0
-                    for d in divisors(GCD(a,c)):
+                    g = GCD(a, c)
+                    try:
+                        L = divisors(g)
+                    except ValueError:
+                        if a:
+                            L = divisors(a)
+                        else:
+                            L = divisors(c)
+                    for d in L:
                         d_wt = d ** (wt - 1)
                         g_n = tuple([0]*nrows + [n / (d * d)])
-                        try:
-                            sum_coeff = sum_coeff + coeffs[g_n] * d_wt
-                        except KeyError:
-                            if n >= prec0:
-                                prec = min(a_plus_c, prec)
-                                f += O(t ** prec)
-                            pass
-                    if a != c:
-                        f += sum_coeff * t**(a_plus_c) * (x**(a - c) + x**(c - a))
-                    else:
-                        f += sum_coeff * t**(a_plus_c)
+                        sum_coeff = update(g_n, sum_coeff)
+                    if sum_coeff:
+                        if a != c:
+                            f += sum_coeff * t**(a_plus_c) * (x**(a - c) + x**(c - a))
+                        else:
+                            f += sum_coeff * t**(a_plus_c)
         try:
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError):
@@ -927,48 +1023,67 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         r"""
         Compute the Weyl vector in the Borcherds lift.
         """
-        q, = PowerSeriesRing(QQ, 'q').gens()
         w = self.weilrep()
-        ds_dict = w.ds_dict()
-        ds = w.ds()
-        coeffs = self.coefficients()
-        prec = -self.valuation()
-        S = self.gram_matrix()
-        S_inv = self.inverse_gram_matrix()
-        F = self.fourier_expansion()
-        nrows = S.nrows()
-        try:
-            weight = coeffs[tuple([0] * (nrows + 1))]
-        except KeyError:
-            weight = 0
-        theta = [O(q ** (prec + 1)) for _ in ds]
-        theta[0] += 1
-        if nrows > 1:
-            _, _, weyl_vs_matrix = pari(S_inv).qfminim(prec + 1, flag = 2)
-            weyl_vs_list = weyl_vs_matrix.sage().columns()
+        K = w._pos_def_gram_matrix()
+        nrows = K.nrows()
+        bool_1 = w._is_positive_definite_plus_2II()
+        bool_2 = w._is_positive_definite_plus_II()
+        bool_3 = bool_1 or bool_2
+        if bool_1:
+            X = self.reduce_lattice(z = vector([1] + [0]*(nrows + 3)), z_prime = vector([0]*(nrows + 3) + [Integer(1)/w._N2()]))
+            coeff = X.principal_part_coefficients()
+            X = X.reduce_lattice(z = vector([1] + [0]*(nrows + 1)), z_prime = vector([0]*(nrows + 1) + [Integer(1)/w._N()]))
+            nrows += 2
+        elif bool_2:
+            coeff = self.principal_part_coefficients()
+            X = self.reduce_lattice(z = vector([1] + [0]*(nrows + 1)), z_prime = vector([0]*(nrows + 1) + [Integer(1)/w._N()]))
+            nrows += 2
         else:
-            weyl_vs_list = [vector([n]) for n in range(1, isqrt(2*prec*S[0, 0]) + 1)]
-        coeff_sum = 0
-        vec_sum = vector([0] * nrows)
-        for v in weyl_vs_list:
-            g = S_inv * v
-            v_norm = g * v / 2
-            g_frac = [frac(x) for x in g]
-            i = ds_dict[tuple(g_frac)]
-            big_tuple = tuple(g_frac + [-v_norm])
-            j = next(j for j, w in enumerate(v) if w)
-            theta[i] += 2 * q ** floor(v_norm)
+            X = self
+            coeff = self.principal_part_coefficients()
+        try:
+            N = w._N()
+        except AttributeError:
+            N = Integer(1)
+        K_inv = K.inverse()
+        val = self.valuation()
+        if X:
+            theta_K = WeilRep(-K).theta_series(1 - val)
+        else:
+            theta_K = WeilRep(-K).zero(K.nrows()/2, 1-val)
+        rho = vector([Integer(0)] * K.nrows())
+        rho_z = Integer(0)
+        negative = lambda v: next(s for s in reversed(v) if s) < 0
+        if K:
             try:
-                coeff = coeffs[big_tuple]
-                coeff_sum += coeff
-                if v[j] > 0:
-                    vec_sum += g * coeff
-                else:
-                    vec_sum -= g * coeff
-            except KeyError:
-                pass
-        e2 = eisenstein_series_qexp(2, prec + 1)
-        return vector(QQ, [coeff_sum/12 + weight/24] + list(vec_sum / 2) + [-(e2 * sum([theta[i] * F[i][2] for i in range(len(F))]))[0]])
+                _, _, vs_matrix = pari(K_inv).qfminim(1 - val, flag=2)
+                vs_list = vs_matrix.sage().columns()
+            except PariError:
+                vs_list = [vector([n]) for n in srange(1, isqrt(2 * K[0, 0] * (-val)) + 1)]
+        else:
+            vs_list = []
+        for v in vs_list:
+            y = list(map(frac, K_inv * v))
+            if negative(v):
+                v *= -1
+            v_norm = -v * K_inv * v / 2
+            if bool_3:
+                rho += coeff[tuple([0] + y + [0, v_norm])] * v
+                for i in srange(N):
+                    j = i / N
+                    c = coeff[tuple([j] + y + [0, v_norm])]
+                    rho_z += c * (j * (j - 1) + Integer(1) / 6) / 2
+            else:
+                c = coeff[tuple(y + [v_norm])]
+                rho += c * v
+                rho_z += c * Integer(1) / 12
+        for i in srange(N):
+            j = i / N
+            c = coeff[tuple([j] + [0]*nrows)]
+            rho_z += c * (j * (j - 1) + Integer(1) / 6) / 4
+        e2 = eisenstein_series_qexp(2, 1 - val)
+        rho_z_prime = -((X &theta_K) * e2)[0]
+        return vector([N*rho_z] + list(rho/2) + [rho_z_prime])
 
     def borcherds_lift(self, prec = None):
         r"""
@@ -989,10 +1104,6 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             sage: ParamodularForms(5).borcherds_input_basis(1/4, 5)[0].borcherds_lift()
             (r^(-3/2) - r^(-1/2) - r^(1/2) + r^(3/2))*q^(1/2)*s^(1/2) + (-r^(-7/2) - 6*r^(-3/2) + 7*r^(-1/2) + 7*r^(1/2) - 6*r^(3/2) - r^(7/2))*q^(3/2)*s^(1/2) + (-r^(-7/2) - 6*r^(-3/2) + 7*r^(-1/2) + 7*r^(1/2) - 6*r^(3/2) - r^(7/2))*q^(1/2)*s^(3/2) + (r^(-9/2) + 6*r^(-7/2) + 8*r^(-3/2) - 15*r^(-1/2) - 15*r^(1/2) + 8*r^(3/2) + 6*r^(7/2) + r^(9/2))*q^(5/2)*s^(1/2) + (-r^(-13/2) - 7*r^(-11/2) + 42*r^(-9/2) - 15*r^(-7/2) - 60*r^(-3/2) + 41*r^(-1/2) + 41*r^(1/2) - 60*r^(3/2) - 15*r^(7/2) + 42*r^(9/2) - 7*r^(11/2) - r^(13/2))*q^(3/2)*s^(3/2) + (r^(-9/2) + 6*r^(-7/2) + 8*r^(-3/2) - 15*r^(-1/2) - 15*r^(1/2) + 8*r^(3/2) + 6*r^(7/2) + r^(9/2))*q^(1/2)*s^(5/2) + (r^(-11/2) - 7*r^(-9/2) - 8*r^(-7/2) + 15*r^(-3/2) - r^(-1/2) - r^(1/2) + 15*r^(3/2) - 8*r^(7/2) - 7*r^(9/2) + r^(11/2))*q^(7/2)*s^(1/2) + (r^(-17/2) - 15*r^(-13/2) - 41*r^(-11/2) + 36*r^(-9/2) - 31*r^(-7/2) + 72*r^(-3/2) - 22*r^(-1/2) - 22*r^(1/2) + 72*r^(3/2) - 31*r^(7/2) + 36*r^(9/2) - 41*r^(11/2) - 15*r^(13/2) + r^(17/2))*q^(5/2)*s^(3/2) + (r^(-17/2) - 15*r^(-13/2) - 41*r^(-11/2) + 36*r^(-9/2) - 31*r^(-7/2) + 72*r^(-3/2) - 22*r^(-1/2) - 22*r^(1/2) + 72*r^(3/2) - 31*r^(7/2) + 36*r^(9/2) - 41*r^(11/2) - 15*r^(13/2) + r^(17/2))*q^(3/2)*s^(5/2) + (r^(-11/2) - 7*r^(-9/2) - 8*r^(-7/2) + 15*r^(-3/2) - r^(-1/2) - r^(1/2) + 15*r^(3/2) - 8*r^(7/2) - 7*r^(9/2) + r^(11/2))*q^(1/2)*s^(7/2) + O(q, s)^5
         """
-        try:
-            return self.convert_to_II().borcherds_lift()
-        except ValueError:
-            pass
         prec0 = self.precision()
         val = self.valuation()
         prec0val = prec0 - val
@@ -1000,29 +1111,57 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             prec = isqrt(4 * (prec0+val))
         else:
             prec = min(prec, isqrt(4 * (prec0+val)))
-        S_inv = self.inverse_gram_matrix()
-        S = self.gram_matrix()
+        weilrep = self.weilrep()
+        S = weilrep._pos_def_gram_matrix()
+        S_inv = S.inverse()
         det_S = S.determinant()
         nrows = Integer(S.nrows())
         if not self.weight() == -nrows/2:
             raise ValueError('Incorrect input weight')
         w = self.weyl_vector()
-        w = vector([w[0]] + list(S * w[1:-1]) + [w[-1]])
         d = ZZ(denominator(w))
         weyl_v = d * w
         prec *= d
         coeffs = self.coefficients()
-        weight = coeffs[tuple([0]*(nrows + 1))] / 2
-        rb = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(nrows)) )
+        weight = coeffs[tuple([0]*(self.gram_matrix().nrows() + 1))] / 2
+        try:
+            N2 = weilrep._N2()
+            if N2 == 1:
+                K = QQ
+                zeta = 1
+            elif N2 == 2:
+                K = QQ
+                zeta = -1
+            else:
+                K, zeta = CyclotomicField(N2, var('mu%d'%N2)).objgen()
+        except AttributeError:
+            K = QQ
+            N2 = 1
+            zeta = 1
+        if S:
+            rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(S.nrows()) ))
+            rb_zero = rb.gens()[0]
+        else:
+            rb = K
+        try:
+            N = weilrep._N()
+        except AttributeError:
+            N = 1
+        prec0 *= N
+        prec0val *= N
+        bool_1 = weilrep._is_positive_definite_plus_II()
+        bool_2 = weilrep._is_positive_definite_plus_2II()
         rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
         r, t = PowerSeriesRing(rb_x, 't', prec).objgen()
-        rpoly, t0 = PolynomialRing(QQ, 't0').objgen()
-        ds_dict = self.weilrep().ds_dict()
+        rpoly, t0 = PolynomialRing(K, 't0').objgen()
+        ds_dict = weilrep.ds_dict()
         if nrows > 1:
             _, _, vs_matrix = pari(S_inv).qfminim(prec0val + prec0val + 1, flag = 2)
             vs_list = vs_matrix.sage().columns()
-        else:
+        elif nrows == 1:
             vs_list = [vector([n]) for n in range(1, isqrt(2*prec0*S[0, 0]) + 1)]
+        else:
+            vs_list = []
         vs_list.append(vector([0]*nrows))
         F = self.fourier_expansion()
         h = O(t ** prec)
@@ -1030,87 +1169,109 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         a_plus_c = -1
         excluded_vectors = set()
         corrector = 1
-        if nrows == 1:
-            rb_zero = rb.gens()[0]
+        Nval = N * val
+        excluded_vectors_2 = set()
+        def update_aux(a, c, n, _g, mu, log_f, i=0):
+            exponent = coeffs[_g]
+            if exponent:
+                if nrows > 1:
+                    m = rb.monomial(*d*v)
+                elif nrows == 1:
+                    m = rb_zero ** (d * v[0])
+                else:
+                    m = 1
+                if (a or c) and c >= 0:
+                    u = t ** (d * a_plus_c) * x **( d * (c - a))
+                    log_f += exponent * log(1 - mu * u * m + h)
+                elif n and big_v not in excluded_vectors_2:
+                    nonlocal corrector
+                    p = rpoly(1)
+                    bound = isqrt(val / n) + 1
+                    for k in range(1, bound):
+                        if bool_2:
+                            for i in range(N2):
+                                exponent_k = coeffs[tuple([i / N2] + [frac(y) for y in k * vector(_g[1:-1])] + [n * k * k])]
+                                if exponent_k:
+                                    p *= (1 - (zeta**i * t0) ** k) ** exponent_k
+                        else:
+                            exponent_k = coeffs[tuple([frac(y) for y in k * vector(_g[:-1])] + [n * k * k])]
+                            if exponent_k:
+                                p *= (1 - t0**k)**exponent_k
+                        excluded_vectors.add(tuple(k * y for y in big_v))
+                        excluded_vectors_2.add(big_v)
+                    if c >= 0:
+                        corrector *= p.subs({t0 : m})
+                    elif p != 1:
+                        deg_p = p.degree()
+                        corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (a * j + c * (deg_p - j))) * m ** (d*j) for j, p in enumerate(list(p))))
+                        weyl_v[0] += c * d * deg_p
+            return log_f
+        if bool_1:
+            def update(a, c, n, _g, log_f):
+                _g = tuple([frac(c / N)] + _g + [frac(-a / N), n])
+                return update_aux(a, c, n, _g, 1, log_f)
+        elif bool_2:
+            def update(a, c, n, _g, log_f):
+                mu = 1
+                for i in srange(N2):
+                    _g0 = tuple([i / N2, frac(c / N)] + _g + [frac(-a / N), 0, n])
+                    log_f = update_aux(a, c, n, _g0, mu, log_f, i=i)
+                    mu *= zeta
+                return log_f
+        else:
+            def update(a, c, n, _g, log_f):
+                return update_aux(a, c, n, tuple(_g + [n]), 1, log_f)
         for v in vs_list:
             g = S_inv * v
             v_norm = g * v / 2
-            g_frac = [frac(y) for y in g]
-            a_plus_c = -1
+            g_frac = [frac(-y) for y in g]
+            g_frac_2 = [frac(y) for y in g]
+            a_plus_c = Nval - 1
+            if any(v):
+                j = next(j for j, v_j in enumerate(v) if v_j)
+                if v[j] > 0:
+                    v = -v
             while a_plus_c <= prec / d:
                 a_plus_c += 1
-                for c in srange(val, a_plus_c + 1):
+                for c in srange(Nval, a_plus_c + 1):
                     a = a_plus_c - c
                     a_times_c = a * c
-                    if val <= a_times_c - v_norm < prec0:
-                        big_v = vector([a] + list(v) + [c])
-                        if tuple(big_v) not in excluded_vectors:
-                            if v and not (a or c):
-                                j = next(j for j, v_j in enumerate(v) if v_j)
-                                if v[j] > 0:
-                                    v = -v
-                            n = a_times_c - v_norm
-                            big_tuple = tuple(g_frac + [n])
-                            try:
-                                exponent = coeffs[big_tuple]
-                                if exponent:
-                                    if nrows > 1:
-                                        m = rb.monomial(*d*v)
-                                    else:
-                                        m = rb_zero ** (d * v[0])
-                                    if (a or c) and c >= 0:
-                                        u = t ** (d * a_plus_c) * x **( d * (c - a))
-                                        if v:
-                                            log_f += exponent * log(1 - u * (m + ~m - u) + h)
-                                        else:
-                                            log_f += exponent * log(1 - u + h)
-                                    elif n:
-                                        p = rpoly(1)
-                                        bound = isqrt(val / n) + 1
-                                        for k in range(1, bound):
-                                            try:
-                                                exponent_k = coeffs[tuple([frac(y) for y in k * g] + [n * (k * k)])]
-                                                if not exponent_k in ZZ:
-                                                    print('oops!', t0, k, a, v, c, exponent_k, m)
-                                                    raise KeyError
-                                                p *= (1 - t0 ** k) ** exponent_k
-                                                excluded_vectors.add(tuple(k * big_v))
-                                            except KeyError:
-                                                break
-                                        if c >= 0:
-                                            corrector *= p.subs({t0 : m})
-                                        else:
-                                            deg_p = p.degree()
-                                            if v:
-                                                s1, s2 = 0, 0
-                                                for j, p_j in enumerate(list(p)):
-                                                    f = p_j * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (a * j + c * (deg_p - j)))
-                                                    s1 += f * m ** (d * j)
-                                                    s2 += f * (~m) ** (d * j)
-                                                corrector *= (h + s1 * s2)
-                                                weyl_v[0] += 2 * c * d * deg_p
-                                            else:
-                                                corrector *= (h + sum([p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (a * j + c * (deg_p - j))) for j, p in enumerate(list(p))]))
-                                                weyl_v[0] += c * d * deg_p
-                            except KeyError:
-                                if n > prec:
-                                    prec = d * a_plus_c
-                                    h = O(t ** prec)
-                                    log_f += h
-                                pass
+                    n = a_times_c / N - v_norm
+                    if val <= n < prec0 and (c >= 0 or a > 0):
+                        big_v = tuple([a] + list(v) + [c])
+                        if big_v not in excluded_vectors:
+                            log_f = update(a, c, n, g_frac, log_f)
+                            if any(v) and (a or c):
+                                v = -v
+                                big_v, tmp = tuple([a] + list(v) + [c]), big_v
+                                if big_v not in excluded_vectors:
+                                    log_f = update(a, c, n, g_frac_2, log_f)
+                                v = -v
+                                big_v = tmp
         if nrows > 1:
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb.monomial(*weyl_v[1:-1])
             weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1])) * rb.monomial(*(-weyl_v[1:-1]))
-        else:
+        elif nrows == 1:
             weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb_zero ** weyl_v[1]
             weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1])) * rb_zero ** -weyl_v[1]
+        else:
+            weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1]))
+            weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1]))
         try:
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError, TypeError):
             h = None
         try:
             f = exp(log_f)
-            X = OrthogonalModularForm(weight, self.weilrep(), exp(log_f) * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h)
+            if bool_2 and N2 > 1:
+                C = Integer(1)
+                for i in srange(1, N2 // 2):
+                    c = Integer(coeffs[tuple([i / N2] + [0] * (nrows + 4))])
+                    C *= (1 - zeta**i)**c
+                c = Integer(coeffs[tuple([Integer(1) / 2] + [0] * (nrows + 4))])
+                C *= Integer(2)**Integer(c / 2)
+                f *= C
+            X = OrthogonalModularForm(weight, self.weilrep(), f * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h)
             try:
                 X._OrthogonalModularForm__inverse = f**(-1) * weyl_vector_term_inverse / FractionField(rb)(rb(corrector))
             except (TypeError, ValueError):
@@ -1130,3 +1291,81 @@ class WeilRepModularFormPositiveDefiniteWithCharacter(WeilRepModularFormWithChar
         psi = smf_eta() ** (24 - k)
         f = (self.__mul__(psi)).jacobi_form(*args, **kwargs)
         return f / psi
+
+class WeilRepPositiveDefinitePlusII(WeilRepPositiveDefinite):
+
+    def __init__(self, S, pos_def_S, N, lift_qexp_representation = None):
+        #S should be a Lorentzian lattice in which the bottom-right entry is negative!!
+        self._WeilRep__gram_matrix = S
+        self._WeilRep__quadratic_form = QuadraticForm(S)
+        self._WeilRep__eisenstein = {}
+        self._WeilRep__cusp_forms_basis = {}
+        self._WeilRep__modular_forms_basis = {}
+        self.lift_qexp_representation = lift_qexp_representation
+        self.__positive_definite_gram_matrix = pos_def_S
+        self.__N = N
+
+    def _N(self):
+        return self.__N
+
+    def is_lorentzian(self):
+        return True
+
+    def is_positive_definite(self):
+        return False
+
+    def _is_positive_definite_plus_II(self):
+        return True
+
+    def _is_positive_definite_plus_2II(self):
+        return False
+
+    def nvars(self):
+        return Integer(self.gram_matrix().nrows())
+
+    def _lorentz_gram_matrix(self):
+        return self.gram_matrix()
+
+    def _pos_def_gram_matrix(self):
+        return self.__positive_definite_gram_matrix
+
+class WeilRepPositiveDefinitePlus2II(WeilRepPositiveDefinite):
+
+    def __init__(self, S, pos_def_S, N1, N2, lift_qexp_representation = None):
+        #S should be a Lorentzian lattice in which the bottom-right entry is negative!!
+        self._WeilRep__gram_matrix = S
+        self._WeilRep__quadratic_form = QuadraticForm(S)
+        self._WeilRep__eisenstein = {}
+        self._WeilRep__cusp_forms_basis = {}
+        self._WeilRep__modular_forms_basis = {}
+        self.lift_qexp_representation = lift_qexp_representation
+        self.__positive_definite_gram_matrix = pos_def_S
+        self.__N = N1
+        self.__N2 = N2
+
+    def _N(self):
+        return self.__N
+
+    def _N2(self):
+        return self.__N2
+
+    def is_positive_definite(self):
+        return False
+
+    def is_lorentzian_plus_II(self):
+        return True
+
+    def _is_positive_definite_plus_II(self):
+        return False
+
+    def _is_positive_definite_plus_2II(self):
+        return True
+
+    def _lorentz_gram_matrix(self):
+        return self.gram_matrix()[1:-1, 1:-1]
+
+    def nvars(self):
+        return Integer(self.gram_matrix().nrows()) - 2
+
+    def _pos_def_gram_matrix(self):
+        return self.__positive_definite_gram_matrix

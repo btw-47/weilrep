@@ -99,7 +99,7 @@ class WeilRepModularForm(object):
         self.__weight = weight
         self.__gram_matrix = gram_matrix
         self.__fourier_expansions = fourier_expansions
-        if weilrep.is_positive_definite():
+        if weilrep.is_positive_definite() or weilrep._is_positive_definite_plus_II() or weilrep._is_positive_definite_plus_2II():
             from .positive_definite import WeilRepModularFormPositiveDefinite
             self.__class__ = WeilRepModularFormPositiveDefinite
         elif weilrep.is_lorentzian() or weilrep.is_lorentzian_plus_II():
