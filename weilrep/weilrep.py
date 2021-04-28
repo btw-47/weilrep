@@ -3443,6 +3443,38 @@ class WeilRep(object):
             [(0, 0, 1/2, 1/2), 8*q^(1/2) + 1952*q^(3/2) + 25008*q^(5/2) + 134464*q^(7/2) + 474344*q^(9/2) + O(q^(11/2))]
             [(1/2, 0, 0, 1/2), 8*q^(1/2) + 1952*q^(3/2) + 25008*q^(5/2) + 134464*q^(7/2) + 474344*q^(9/2) + O(q^(11/2))]
             [(1/2, 0, 1/2, 0), 8*q^(1/2) + 1952*q^(3/2) + 25008*q^(5/2) + 134464*q^(7/2) + 474344*q^(9/2) + O(q^(11/2))]
+
+            sage: from weilrep import *
+            sage: w = WeilRep([[2, 1], [1, 2]]) + II(3)
+            sage: chi = w.automorphism_group().characters()[3]
+            sage: w.invariant_forms_basis(8, 5, chi=chi)
+            [(0, 0, 0, 0), O(q^5)]
+            [(0, 0, 0, 1/3), 1 + 480*q + 61920*q^2 + 1050240*q^3 + 7926240*q^4 + O(q^5)]
+            [(0, 0, 0, 2/3), -1 - 480*q - 61920*q^2 - 1050240*q^3 - 7926240*q^4 + O(q^5)]
+            [(0, 2/3, 2/3, 0), O(q^(17/3))]
+            [(0, 2/3, 2/3, 1/3), O(q^(17/3))]
+            [(0, 2/3, 2/3, 2/3), O(q^(17/3))]
+            [(0, 1/3, 1/3, 0), O(q^(17/3))]
+            [(0, 1/3, 1/3, 1/3), O(q^(17/3))]
+            [(0, 1/3, 1/3, 2/3), O(q^(17/3))]
+            [(1/3, 0, 0, 0), -1 - 480*q - 61920*q^2 - 1050240*q^3 - 7926240*q^4 + O(q^5)]
+            [(1/3, 0, 0, 1/3), O(q^(17/3))]
+            [(1/3, 0, 0, 2/3), O(q^(16/3))]
+            [(1/3, 2/3, 2/3, 0), O(q^(17/3))]
+            [(1/3, 2/3, 2/3, 1/3), O(q^(16/3))]
+            [(1/3, 2/3, 2/3, 2/3), -1 - 480*q - 61920*q^2 - 1050240*q^3 - 7926240*q^4 + O(q^5)]
+            [(1/3, 1/3, 1/3, 0), O(q^(17/3))]
+            [(1/3, 1/3, 1/3, 1/3), O(q^(16/3))]
+            [(1/3, 1/3, 1/3, 2/3), -1 - 480*q - 61920*q^2 - 1050240*q^3 - 7926240*q^4 + O(q^5)]
+            [(2/3, 0, 0, 0), 1 + 480*q + 61920*q^2 + 1050240*q^3 + 7926240*q^4 + O(q^5)]
+            [(2/3, 0, 0, 1/3), O(q^(16/3))]
+            [(2/3, 0, 0, 2/3), O(q^(17/3))]
+            [(2/3, 2/3, 2/3, 0), O(q^(17/3))]
+            [(2/3, 2/3, 2/3, 1/3), 1 + 480*q + 61920*q^2 + 1050240*q^3 + 7926240*q^4 + O(q^5)]
+            [(2/3, 2/3, 2/3, 2/3), O(q^(16/3))]
+            [(2/3, 1/3, 1/3, 0), O(q^(17/3))]
+            [(2/3, 1/3, 1/3, 1/3), 1 + 480*q + 61920*q^2 + 1050240*q^3 + 7926240*q^4 + O(q^5)]
+            [(2/3, 1/3, 1/3, 2/3), O(q^(16/3))]
         """
         try:
             k = Integer(k)
@@ -3468,6 +3500,8 @@ class WeilRep(object):
                 print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.')
             X = self.nearly_holomorphic_modular_forms_basis(k, 0, prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
         elif k >= sage_seven_half or (symm and k >= sage_five_half):
+            if not symm and any(2 % denominator(x) for x in b):
+                return self.nearly_holomorphic_modular_forms_basis(k, 0, prec=prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
             X = self.invariant_cusp_forms_basis(k, prec = prec, G = G, chi = chi, verbose = verbose)
             e = set([])
             orbits = []
