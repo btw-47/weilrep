@@ -121,7 +121,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
             f += rb_q(h)(x * t)
         return OrthogonalModularForm(k, self.weilrep(), f, 1, vector([0] * (nrows + 2)))
 
-    def borcherds_input_by_weight(self, k, prec, pole_order = None, verbose = False):
+    def borcherds_input_by_weight(self, k, prec, pole_order = None, verbose = False, **kwargs):
         r"""
         Compute all input functions that yield a holomorphic Borcherds product of the given weight.
 
@@ -199,7 +199,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
         r = vector(QQ, [k + k] + [(1 + bool(2 % denominator(g))) * e_coeffs[tuple(list(g) + [-exp_list[i]])] for i, g in enumerate(v_list)] + [0])
         if verbose:
             print('I will now find integral points in a polyhedron.')
-        p = Polyhedron(ieqs = positive, eqns = [r] + [vector([0] + list(v)) for v in vs])
+        p = Polyhedron(ieqs = positive, eqns = [r] + [vector([0] + list(v)) for v in vs], **kwargs)
         try:
             u = M.solve_left(matrix(p.integral_points()))
             Y = [v * X for v in u.rows()]
@@ -1080,7 +1080,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             theta_K = WeilRep(-K).zero(K.nrows()/2, 1-val)
         rho = vector([Integer(0)] * K.nrows())
         rho_z = Integer(0)
-        negative = lambda v: next(s for s in reversed(v) if s) < 0
+        negative = lambda v: next(s for s in v if s) < 0
         if K:
             try:
                 _, _, vs_matrix = pari(K_inv).qfminim(1 - val, flag=2)
@@ -1130,6 +1130,13 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             sage: from weilrep import *
             sage: ParamodularForms(5).borcherds_input_basis(1/4, 5)[0].borcherds_lift()
             (r^(-3/2) - r^(-1/2) - r^(1/2) + r^(3/2))*q^(1/2)*s^(1/2) + (-r^(-7/2) - 6*r^(-3/2) + 7*r^(-1/2) + 7*r^(1/2) - 6*r^(3/2) - r^(7/2))*q^(3/2)*s^(1/2) + (-r^(-7/2) - 6*r^(-3/2) + 7*r^(-1/2) + 7*r^(1/2) - 6*r^(3/2) - r^(7/2))*q^(1/2)*s^(3/2) + (r^(-9/2) + 6*r^(-7/2) + 8*r^(-3/2) - 15*r^(-1/2) - 15*r^(1/2) + 8*r^(3/2) + 6*r^(7/2) + r^(9/2))*q^(5/2)*s^(1/2) + (-r^(-13/2) - 7*r^(-11/2) + 42*r^(-9/2) - 15*r^(-7/2) - 60*r^(-3/2) + 41*r^(-1/2) + 41*r^(1/2) - 60*r^(3/2) - 15*r^(7/2) + 42*r^(9/2) - 7*r^(11/2) - r^(13/2))*q^(3/2)*s^(3/2) + (r^(-9/2) + 6*r^(-7/2) + 8*r^(-3/2) - 15*r^(-1/2) - 15*r^(1/2) + 8*r^(3/2) + 6*r^(7/2) + r^(9/2))*q^(1/2)*s^(5/2) + (r^(-11/2) - 7*r^(-9/2) - 8*r^(-7/2) + 15*r^(-3/2) - r^(-1/2) - r^(1/2) + 15*r^(3/2) - 8*r^(7/2) - 7*r^(9/2) + r^(11/2))*q^(7/2)*s^(1/2) + (r^(-17/2) - 15*r^(-13/2) - 41*r^(-11/2) + 36*r^(-9/2) - 31*r^(-7/2) + 72*r^(-3/2) - 22*r^(-1/2) - 22*r^(1/2) + 72*r^(3/2) - 31*r^(7/2) + 36*r^(9/2) - 41*r^(11/2) - 15*r^(13/2) + r^(17/2))*q^(5/2)*s^(3/2) + (r^(-17/2) - 15*r^(-13/2) - 41*r^(-11/2) + 36*r^(-9/2) - 31*r^(-7/2) + 72*r^(-3/2) - 22*r^(-1/2) - 22*r^(1/2) + 72*r^(3/2) - 31*r^(7/2) + 36*r^(9/2) - 41*r^(11/2) - 15*r^(13/2) + r^(17/2))*q^(3/2)*s^(5/2) + (r^(-11/2) - 7*r^(-9/2) - 8*r^(-7/2) + 15*r^(-3/2) - r^(-1/2) - r^(1/2) + 15*r^(3/2) - 8*r^(7/2) - 7*r^(9/2) + r^(11/2))*q^(1/2)*s^(7/2) + O(q, s)^5
+
+            sage: from weilrep import *
+            sage: w = WeilRep([[2, -1], [-1, 2]]) + II(3)
+            sage: m = OrthogonalModularForms(w)
+            sage: X = m.borcherds_input_Qbasis(1, 5)
+            sage: X[0].borcherds_lift()
+            (r_0 - r_1 - r_0*r_1^-1 + r_0^-1*r_1 + r_1^-1 - r_0^-1)*q*s + (-6*r_0 + 6*r_1 + 6*r_0*r_1^-1 - 6*r_0^-1*r_1 - 6*r_1^-1 + 6*r_0^-1)*q^2*s + (-6*r_0 + 6*r_1 + 6*r_0*r_1^-1 - 6*r_0^-1*r_1 - 6*r_1^-1 + 6*r_0^-1)*q*s^2 + (9*r_0 - 9*r_1 - 9*r_0*r_1^-1 + 9*r_0^-1*r_1 + 9*r_1^-1 - 9*r_0^-1)*q^3*s + (3*r_0^2 - 3*r_1^2 + 12*r_0 - 12*r_1 - 3*r_0^2*r_1^-2 - 12*r_0*r_1^-1 + 12*r_0^-1*r_1 + 3*r_0^-2*r_1^2 + 12*r_1^-1 - 12*r_0^-1 + 3*r_1^-2 - 3*r_0^-2)*q^2*s^2 + (9*r_0 - 9*r_1 - 9*r_0*r_1^-1 + 9*r_0^-1*r_1 + 9*r_1^-1 - 9*r_0^-1)*q*s^3 + (-r_0^2 + r_1^2 + 12*r_0 - 12*r_1 + r_0^2*r_1^-2 - 12*r_0*r_1^-1 + 12*r_0^-1*r_1 - r_0^-2*r_1^2 + 12*r_1^-1 - 12*r_0^-1 - r_1^-2 + r_0^-2)*q^4*s + (-9*r_0^2 + 9*r_1^2 + 18*r_0 - 18*r_1 + 9*r_0^2*r_1^-2 - 18*r_0*r_1^-1 + 18*r_0^-1*r_1 - 9*r_0^-2*r_1^2 + 18*r_1^-1 - 18*r_0^-1 - 9*r_1^-2 + 9*r_0^-2)*q^3*s^2 + (-9*r_0^2 + 9*r_1^2 + 18*r_0 - 18*r_1 + 9*r_0^2*r_1^-2 - 18*r_0*r_1^-1 + 18*r_0^-1*r_1 - 9*r_0^-2*r_1^2 + 18*r_1^-1 - 18*r_0^-1 - 9*r_1^-2 + 9*r_0^-2)*q^2*s^3 + (-r_0^2 + r_1^2 + 12*r_0 - 12*r_1 + r_0^2*r_1^-2 - 12*r_0*r_1^-1 + 12*r_0^-1*r_1 - r_0^-2*r_1^2 + 12*r_1^-1 - 12*r_0^-1 - r_1^-2 + r_0^-2)*q*s^4 + O(q, s)^6
         """
         prec0 = self.precision()
         val = self.valuation()
