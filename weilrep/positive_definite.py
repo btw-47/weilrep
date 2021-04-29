@@ -802,6 +802,12 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             sage: w = WeilRep([[2]])
             sage: (w + II(4)).modular_forms_basis(1/2, 15)[0].theta_lift()
             -1/4 - q - s - q^2 + (-r^-1 - 2 - r)*q*s - s^2 + (-2*r^-1 - 2*r)*q^2*s + (-2*r^-1 - 2*r)*q*s^2 - q^4 + (-r^-2 - 2 - r^2)*q^2*s^2 - s^4 + (-2)*q^5 + (-r^-2 - 2 - r^2)*q^4*s + (-r^-2 - 2 - r^2)*q*s^4 + (-2)*s^5 + (-2*r^-2 - 2*r^-1 - 2*r - 2*r^2)*q^5*s + (-2*r^-2 - 2*r^2)*q^4*s^2 + (-2*r^-2 - 2*r^2)*q^2*s^4 + (-2*r^-2 - 2*r^-1 - 2*r - 2*r^2)*q*s^5 + (-2*r^-3 - 2*r^-1 - 2*r - 2*r^3)*q^5*s^2 + (-2*r^-3 - 2*r^-1 - 2*r - 2*r^3)*q^2*s^5 + O(q, s)^8
+
+            sage: from weilrep import *
+            sage: m = OrthogonalModularForms(II(3))
+            sage: L3 = m.lifts_basis(3, 10, cusp_forms = False)
+            sage: L3[0]
+            -q - 3*q^2 + 9*q*s - 9*q^3 + 27*q^2*s - 27*q*s^2 - 13*q^4 + 81*q^3*s - 81*q^2*s^2 + 9*q*s^3 - 24*q^5 + 117*q^4*s - 243*q^3*s^2 + 27*q^2*s^3 + 117*q*s^4 - 27*q^6 + 216*q^5*s - 351*q^4*s^2 + 81*q^3*s^3 + 351*q^2*s^4 - 216*q*s^5 - 50*q^7 + 243*q^6*s - 648*q^5*s^2 + 117*q^4*s^3 + 1053*q^3*s^4 - 648*q^2*s^5 - 27*q*s^6 - 51*q^8 + 450*q^7*s - 729*q^6*s^2 + 216*q^5*s^3 + 1521*q^4*s^4 - 1944*q^3*s^5 - 81*q^2*s^6 + 450*q*s^7 - 81*q^9 + 459*q^8*s - 1350*q^7*s^2 + 243*q^6*s^3 + 2808*q^5*s^4 - 2808*q^4*s^5 - 243*q^3*s^6 + 1350*q^2*s^7 - 459*q*s^8 + O(q, s)^10
         """
         prec0 = self.precision() + 1
         min_prec = isqrt(4 * prec0 + 4)
@@ -913,12 +919,12 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                             sum_coeff_1 = update(g_n, sum_coeff_1)
                             g_n_2 = tuple([frac(-y) for y in g/d] + [n / (d*d)])
                             sum_coeff_2 = update(g_n_2, sum_coeff_2)
-                        f += t**(a_plus_c) * x**(a - c) * (sum_coeff_1 * v_monomial + sum_coeff_2 * ~v_monomial)
+                        f += t**(a_plus_c) * x**(c - a) * (sum_coeff_1 * v_monomial + sum_coeff_2 * ~v_monomial)
                     c += 1
                 a += 1
         #now take b = zero vector
         for a in range(N * prec):
-            for c in range(min(a + 1, N * (prec - a))):
+            for c in range(N * (prec - a)):
                 n = Integer(a * c)/N
                 a_plus_c = a + c
                 if a_plus_c:
@@ -936,10 +942,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                         g_n = tuple([0]*nrows + [n / (d * d)])
                         sum_coeff = update(g_n, sum_coeff)
                     if sum_coeff:
-                        if a != c:
-                            f += sum_coeff * t**(a_plus_c) * (x**(a - c) + x**(c - a))
-                        else:
-                            f += sum_coeff * t**(a_plus_c)
+                        f += sum_coeff * t**(a_plus_c) * x ** (c - a)
         try:
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError):
