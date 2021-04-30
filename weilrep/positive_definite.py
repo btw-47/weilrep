@@ -1115,7 +1115,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         rho_z_prime = -((X &theta_K) * e2)[0]
         return vector([N*rho_z] + list(rho/2) + [rho_z_prime])
 
-    def borcherds_lift(self, prec = None):
+    def borcherds_lift(self, prec = None, verbose = False):
         r"""
         Compute the Borcherds lift.
 
@@ -1209,39 +1209,49 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         Nval = N * val
         excluded_vectors_2 = set()
         def update_aux(a, c, n, _g, mu, log_f, i=0):
-            exponent = coeffs[_g]
-            if exponent:
-                if nrows > 1:
-                    m = rb.monomial(*d*v)
-                elif nrows == 1:
-                    m = rb_zero ** (d * v[0])
-                else:
-                    m = 1
-                if (a or c) and c >= 0:
-                    u = t ** (d * a_plus_c) * x **( d * (c - a))
-                    log_f += exponent * log(1 - mu * u * m + h)
-                elif n and big_v not in excluded_vectors_2:
-                    nonlocal corrector
-                    p = rpoly(1)
-                    bound = isqrt(val / n) + 1
-                    for k in range(1, bound):
-                        if bool_2:
-                            for i in range(N2):
-                                exponent_k = coeffs[tuple([i / N2] + [frac(y) for y in k * vector(_g[1:-1])] + [n * k * k])]
+            if True:
+                exponent = coeffs[_g]
+                if exponent:
+                    if nrows > 1:
+                        m = rb.monomial(*d*v)
+                    elif nrows == 1:
+                        m = rb_zero ** (d * v[0])
+                    else:
+                        m = 1
+                    if (a or c) and c >= 0:
+                        u = t ** (d * a_plus_c) * x **( d * (c - a))
+                        log_f += exponent * log(1 - mu * u * m + h)
+                        if verbose and u*m+h != 0:
+                            print('Multiplying by the factor (%s)^%s'%((1 - mu*u*m + h), exponent))
+                    elif n and big_v not in excluded_vectors_2:
+                        nonlocal corrector
+                        p = rpoly(1)
+                        bound = isqrt(val / n) + 1
+                        for k in range(1, bound):
+                            if bool_2:
+                                for j in range(N2):
+                                    new_v = tuple([big_v[0] * j % N2] + list(big_v[1:]))
+                                    if new_v not in excluded_vectors:
+                                        exponent_k = coeffs[tuple([(i * j) / N2] + [frac(y) for y in k * vector(_g[1:-1])] + [n * k * k])]
+                                        if exponent_k:
+                                            p *= (1 - (mu ** j * t0) ** k) ** exponent_k
+                                            if verbose:
+                                                print('Multiplying by the factor (%s)^%s'%((1 - (mu ** j * m) ** k), exponent_k))
+                                        excluded_vectors.add(new_v)
+                            else:
+                                exponent_k = coeffs[tuple([frac(y) for y in k * vector(_g[:-1])] + [n * k * k])]
                                 if exponent_k:
-                                    p *= (1 - (zeta**i * t0) ** k) ** exponent_k
-                        else:
-                            exponent_k = coeffs[tuple([frac(y) for y in k * vector(_g[:-1])] + [n * k * k])]
-                            if exponent_k:
-                                p *= (1 - t0**k)**exponent_k
-                        excluded_vectors.add(tuple(k * y for y in big_v))
-                        excluded_vectors_2.add(big_v)
-                    if c >= 0:
-                        corrector *= p.subs({t0 : m})
-                    elif p != 1:
-                        deg_p = p.degree()
-                        corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (a * j + c * (deg_p - j))) * m ** (d*j) for j, p in enumerate(list(p))))
-                        weyl_v[0] += c * d * deg_p
+                                    p *= (1 - t0**k)**exponent_k
+                                    if verbose:
+                                        print('Multiplying by the factor (%s)^%s'%((1 - m ** k), exponent_k))
+                                excluded_vectors.add(tuple(k * y for y in big_v))
+                            excluded_vectors_2.add(big_v)
+                        if c >= 0:
+                            corrector *= p.subs({t0 : m})
+                        elif p != 1:
+                            deg_p = p.degree()
+                            corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (c * j + a * (deg_p - j))) * m ** (d*j) for j, p in enumerate(list(p))))
+                            weyl_v[0] += c * d * deg_p
             return log_f
         if bool_1:
             def update(a, c, n, _g, log_f):
@@ -1250,10 +1260,16 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         elif bool_2:
             def update(a, c, n, _g, log_f):
                 mu = 1
+                nonlocal big_v
+                tmp = big_v
                 for i in srange(N2):
-                    _g0 = tuple([i / N2, frac(c / N)] + _g + [frac(-a / N), 0, n])
-                    log_f = update_aux(a, c, n, _g0, mu, log_f, i=i)
+                    big_v = tuple([i] + list(big_v))
+                    if big_v not in excluded_vectors:
+                        _g0 = tuple([i / N2, frac(c / N)] + _g + [frac(-a / N), 0, n])
+                        log_f = update_aux(a, c, n, _g0, mu, log_f, i=i)
+                        excluded_vectors.add(_g0)
                     mu *= zeta
+                    big_v = tmp
                 return log_f
         else:
             def update(a, c, n, _g, log_f):
@@ -1309,6 +1325,8 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 C *= Integer(2)**Integer(c / 2)
                 f *= C
             X = OrthogonalModularForm(weight, self.weilrep(), f * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h)
+            if verbose:
+                print('Multiplying by the factor (Weyl vector) %s'%(weyl_vector_term))
             try:
                 X._OrthogonalModularForm__inverse = f**(-1) * weyl_vector_term_inverse / FractionField(rb)(rb(corrector))
             except (TypeError, ValueError):
