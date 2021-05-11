@@ -92,7 +92,7 @@ class HermitianWeilRep(WeilRep):
                 T[j + j + 1, i + i] = T[i + i, j + j + 1]
                 T[j + j, i + i + 1] = T[i + i + 1, j + j]
                 T[j + j + 1, i + i + 1] = T[i + i + 1, j + j + 1]
-            Omega[i+i, i+i+1] = u // 2
+            Omega[i+i, i+i+1] = -u // 2
             Omega[i+i+1, i+i] = 1
             Omega[i+i+1, i+i+1] = ell
         super().__init__(T)
@@ -106,11 +106,35 @@ class HermitianWeilRep(WeilRep):
         self._plus_H = kwargs.pop('plus_H', False)
 
     def __add__(self, other, **kwargs):
+        r"""
+        Direct sum of Hermitian lattices.
+        """
         if isinstance(other, HermitianWeilRep):
-            return HermitianWeilRep(block_diagonal_matrix([self.complex_gram_matrix(), other.complex_gram_matrix()], subdivide = False))
+            return HermitianWeilRep(block_diagonal_matrix([self.complex_gram_matrix(), other.complex_gram_matrix()], subdivide = False), gen = self.__w)
         elif isinstance(other, RescaledHyperbolicPlane):
             return HermitianRescaledHyperbolicPlane(other._N()).__add__(self)
         return NotImplemented
+
+    def __call__(self, N):
+        r"""
+        Rescale by integers.
+        """
+        try:
+            N = Integer(N)
+            return HermitianWeilRep(N * self.complex_gram_matrix(), gen = self.__w)
+        except TypeError:
+            return super().__call__(N)
+
+    def dual(self):
+        r"""
+        Return the dual Weil representation.
+        """
+        try:
+            return self.__dual
+        except AttributeError:
+            s = HermitianWeilRep(-self.complex_gram_matrix(), gen = self.__w)
+            self.__dual = s
+            return s
 
     def __repr__(self):
         S = self.complex_gram_matrix()
@@ -254,8 +278,8 @@ class HermitianWeilRep(WeilRep):
         r"""
         Return the WeilRep associated to the underlying ZZ-lattice.
         """
-        w = deepcopy(self)
-        w.__class__ = WeilRep
+        w = WeilRep(self.gram_matrix())
+        w.lift_qexp_representation = 'PD+II'
         return w
 
     def _units(self):
@@ -306,6 +330,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
     """
 
     def __init__(self, *args, **kwargs):
+        kwargs['unitary'] = 1
         super().__init__(*args, **kwargs)
         self.__class__ = UnitaryModularForms
         try:
@@ -358,7 +383,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         M = Matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
         vs = M.transpose().kernel().basis()
         prec = floor(min(exp_list) / max(filter(bool, exp_list)))
-        norm_list = w._norm_form().short_vector_list_up_to_length(prec + 1)
+        norm_list = w._norm_form().short_vector_list_up_to_length(prec + 1, up_to_sign_flag = True)
         units = w._units()
         _w = w._w()
         norm_list = [[a + b * _w for a, b in x] for x in norm_list]
@@ -402,8 +427,11 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                         N = m / n
                         if N in ZZ and N > 1:
                             v2 = v_list[j]
-                            ieq[j + 1] = mult * any(all(t in O_K for t in x * v1 + u * v2) for x in norm_list[N] for u in units)
-                positive.append(ieq)# * denominator(ieq)
+                            #ieq[j + 1] = mult * any(all(t in O_K for t in x * v1 + u * v2) for x in norm_list[N] for u in units)
+                            ieq[j + 1] = mult * len([any(all(t in O_K for t in x * v1 + u * v2) for u in units) for x in norm_list[N]])
+                            #if not N.is_square():
+                            #    ieq[j+1] *= 2
+                positive.append(ieq)
         p = Polyhedron(ieqs = positive, eqns = [vector([0] + list(v)) for v in vs] + ys)
         return M, p, X
 
@@ -549,7 +577,7 @@ class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
         S = other.complex_gram_matrix()
         N = self.__N
         K = S.base_ring()
-        a = N / K(sqrt(K.discriminant()))
+        a = N / K.gen()
         n = S.nrows()
         A = Matrix(K, n + 2)
         for i in range(n):

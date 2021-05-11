@@ -36,6 +36,7 @@ from sage.functions.log import exp, log
 from sage.functions.other import ceil, floor, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
+from sage.geometry.polyhedron.ppl_lattice_polytope import LatticePolytope_PPL
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix
 from sage.misc.functional import denominator, isqrt
@@ -68,7 +69,7 @@ class OrthogonalModularForms(object):
     NOTE: this takes positive-definite lattices and appends two unimodular hyperbolic planes to them to get lattices of signature (n, 2). Lattices that are not split by two unimodular hyperbolic planes will be bumped to the class OrthogonalModularFormsLorentzian from the .lorentz.py file.
     """
 
-    def __init__(self, w):
+    def __init__(self, w, **kwargs):
         try:
             S = w.gram_matrix()
         except AttributeError:
@@ -82,7 +83,14 @@ class OrthogonalModularForms(object):
             self.__class__ = OrthogonalModularFormsPositiveDefinite
         else:
             raise ValueError('Invalid signature in OrthogonalModularForms')
-        self.__weilrep = w
+        unitary = kwargs.pop('unitary', 0)
+        if unitary:
+            self.__weilrep = w
+        else:
+            try:
+                self.__weilrep = w.trace_form()
+            except AttributeError:
+                self.__weilrep = w
         self.__gram_matrix = S
 
     def __repr__(self):

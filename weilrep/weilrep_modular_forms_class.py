@@ -222,12 +222,12 @@ class WeilRepModularForm(object):
         if not (starting_from or ending_with):
             try:
                 return self.__coefficient_vector
-            except:
+            except AttributeError:
                 pass
         elif (not starting_from) and (ending_with == self.weight() / 12):
             try:
                 return self.__coefficient_vector_sturm_bound
-            except: #this will probably be triggered anyway
+            except AttributeError: #this will probably be triggered anyway
                 pass
         if G is None:
             w = self.weilrep()
@@ -253,7 +253,7 @@ class WeilRepModularForm(object):
                 if b(n + x[1]) and (x[0] in G) and (symm or x[0].denominator() > 2):
                     try:
                         Y.append(x[2][n])
-                    except:
+                    except IndexError:
                         pass
         v = vector(Y)
         if not (starting_from or ending_with):
@@ -824,7 +824,7 @@ class WeilRepModularForm(object):
         finally:
             return X_plus_Y
 
-    def __and__(self, other):
+    def __and__(self, other, w0 = None):
         r"""
         Apply a trace map.
 
@@ -843,12 +843,34 @@ class WeilRepModularForm(object):
         if isinstance(other, WeilRepModularForm):
             w = self.weilrep()
             minus_w = other.weilrep()
-            if w.dual() != minus_w:
-                raise NotImplementedError('The & operator (i.e. the bilinear pairing <-, ->) only accepts two modular forms whose Weil representations are dual to one another and returns the q-expansion of a scalar modular form.')
+            S1 = w.gram_matrix()
+            S2 = minus_w.gram_matrix()
+            #if w.dual() != minus_w:
+            N1 = S1.nrows()
+            N2 = S2.nrows()
+            N = N1 - N2
             f1 = self.fourier_expansion()
             f2 = other.fourier_expansion()
             dsdict = w.ds_dict()
             q, = f1[0][2].parent().gens()
+            if N < 0 or S1[N:, N:] != -S2 or any(S1[:N, N:]):
+                raise NotImplementedError('The & operator (i.e. the bilinear pairing <-, ->) only accepts two modular forms whose Weil representations are dual to one another and returns the q-expansion of a scalar modular form.')
+            elif N2 != S1.nrows():
+                if w0 is None:
+                    from .weilrep import WeilRep
+                    w0 = WeilRep(S1[:N, :N])
+                n = w0.norm_list()
+                X = []
+                for i, g0 in enumerate(w0.ds()):
+                    h = O(q ** self.precision())
+                    for g, o, x in f2:
+                        v = vector(list(g0) + list(g))
+                        j = dsdict[tuple(v)]
+                        g1, o1, y = f1[j]
+                        offset = ceil(o + o1)
+                        h += x*y / q**(-offset)
+                    X.append(tuple([g0, n[i], h]))
+                return WeilRepModularForm(self.weight() + other.weight(), w0.gram_matrix(), X, w0)
             h = O(q ** self.precision())
             for g, o, x in f2:
                 j = dsdict[tuple(g)]
@@ -1511,10 +1533,15 @@ class WeilRepModularForm(object):
         a, b = w.parts()
         x = []
         for i, u in enumerate(v):
-            g, h = v[i].parts()
+            try:
+                g, h = v[i].parts()
+            except AttributeError:
+                g, h = v[i], 0
             x.append(g - a*h/b)
             x.append(h/b)
         x = vector(x)
+        print('v:', v)
+        print('x:', x)
         z = matrix(ZZ, [S*x, S*omega*x])
         k = z.transpose().integer_kernel()
         return self.pullback(list(k.basis()), **kwargs)
