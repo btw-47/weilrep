@@ -2283,7 +2283,7 @@ class WeilRep(object):
                 if P1:
                     t = self.theta_series(prec, P = -P1/2, _list = True)
                 elif Q_dim >= 3 and not _list:
-                    bound = ceil(Q_dim / 24)
+                    bound = ceil((Q_dim + deg_P + deg_P)/ 24)
                     if prec > bound:
                         X = self.cusp_forms_basis(Integer(Q_dim) / 2 + deg_P, prec)
                         if not deg_P:
@@ -2330,8 +2330,8 @@ class WeilRep(object):
             Q_adj = QuadraticForm(level * S_inv)
             vs_list = Q_adj.short_vector_list_up_to_length(level*prec)
             X = [[g, n_dict[tuple(g)], O(q ** (prec - floor(n_dict[tuple(g)])))] for g in _ds]
-            for i in srange(len(vs_list)):
-                v_norm_offset = ceil(i/level)
+            for i, vs in enumerate(vs_list):
+                v_norm_offset = ceil(Integer(i)/level)
                 vs = vs_list[i]
                 for v in vs:
                     S_inv_v = -S_inv*v
