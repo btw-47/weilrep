@@ -357,11 +357,9 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
     def _borcherds_product_polyhedron(self, pole_order, prec, verbose = False):
         r"""
         Construct a polyhedron representing a cone of Heegner divisors. For internal use in the methods borcherds_input_basis() and borcherds_input_Qbasis().
-
         INPUT:
         - ``pole_order`` -- pole order
         - ``prec`` -- precision
-
         OUTPUT: a tuple consisting of an integral matrix M, a Polyhedron p, and a WeilRepModularFormsBasis X
         """
         K = self.weilrep().base_field()
@@ -383,7 +381,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         M = Matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
         vs = M.transpose().kernel().basis()
         prec = floor(min(exp_list) / max(filter(bool, exp_list)))
-        norm_list = w._norm_form().short_vector_list_up_to_length(prec + 1, up_to_sign_flag = True)
+        norm_list = w._norm_form().short_vector_list_up_to_length(prec + 1)
         units = w._units()
         _w = w._w()
         norm_list = [[a + b * _w for a, b in x] for x in norm_list]
@@ -427,11 +425,8 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                         N = m / n
                         if N in ZZ and N > 1:
                             v2 = v_list[j]
-                            #ieq[j + 1] = mult * any(all(t in O_K for t in x * v1 + u * v2) for x in norm_list[N] for u in units)
-                            ieq[j + 1] = mult * len([any(all(t in O_K for t in x * v1 + u * v2) for u in units) for x in norm_list[N]])
-                            #if not N.is_square():
-                            #    ieq[j+1] *= 2
-                positive.append(ieq)
+                            ieq[j + 1] = mult * any(all(t in O_K for t in x * v1 + u * v2) for x in norm_list[N] for u in units)
+                positive.append(ieq)# * denominator(ieq)
         p = Polyhedron(ieqs = positive, eqns = [vector([0] + list(v)) for v in vs] + ys)
         return M, p, X
 
@@ -566,18 +561,26 @@ class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
     This should be called with II(n) where n \in O_K.
     """
     def __init__(self, N, K = None, gen = None):
+        if K is None:
+            K = N.parent()
         if K:
-            a = N / K.gen()
+            g = K.gen()
+            if g.norm() != abs(K.discriminant()):
+                g *= 2
+            a = N / g
             S = Matrix(K, [[0, a], [a.galois_conjugate(), 0]])
             super().__init__(S, gen = gen, plus_H = True)
-            self.__class__ = UnitaryRescaledHyperbolicPlane
+            self.__class__ = HermitianRescaledHyperbolicPlane
         self.__N = N
 
     def __add__(self, other):
         S = other.complex_gram_matrix()
         N = self.__N
         K = S.base_ring()
-        a = N / K.gen()
+        g = K.gen()
+        if g.norm() != abs(K.discriminant()):
+            g *= 2
+        a = N / g
         n = S.nrows()
         A = Matrix(K, n + 2)
         for i in range(n):

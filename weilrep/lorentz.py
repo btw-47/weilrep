@@ -412,11 +412,11 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
     w = w + II(3)
     """
 
-    def __init__(self, N):
-        if not N in ZZ:
+    def __init__(self, N, **kwargs):
+        if 'K' in kwargs.keys() or not N in ZZ:
             from .unitary import HermitianRescaledHyperbolicPlane
             self.__class__ = HermitianRescaledHyperbolicPlane
-            HermitianRescaledHyperbolicPlane.__init__(self, N)
+            HermitianRescaledHyperbolicPlane.__init__(self, N, **kwargs)
             return None
         self.__N = N
         S = matrix([[0, N], [N, 0]])
@@ -436,8 +436,8 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
     def _pos_def_gram_matrix(self):
         return matrix([])
 
-def II(N): #short constructor for rescaled hyperbolic planes
-    return RescaledHyperbolicPlane(N)
+def II(N, **kwargs): #short constructor for rescaled hyperbolic planes
+    return RescaledHyperbolicPlane(N, **kwargs)
 
 class WeilRepModularFormLorentzian(WeilRepModularForm):
     r"""
