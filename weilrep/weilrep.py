@@ -3122,44 +3122,62 @@ class WeilRep(object):
                     rank = len(X)
                 del w_new
                 return X, rank
+            failure_count = 0
+            excluded = set([])
             while rank < dim:
                 for b_tuple in G:
                     b = vector(b_tuple)
                     if symm or b.denominator() > 2:
                         m = m0 + _norm_dict[b_tuple]
-                        dim_rank = dim - rank
-                        if dim_rank <= 0:
-                            X.remove_nonpivots()
-                            rank = len(X)
-                            dim_rank = dim - rank
-                        if symm:
-                            if dim_rank > 2:
-                                X, rank = t_packet_1(X, k, m, b, dim_rank, prec, verbose = verbose)
-                            elif dim_rank:
-                                X.append(E - self.pss(k, b, m, prec))
-                                if verbose:
-                                    print('I computed a Poincare square series of index %s.'%([b, m]))
-                                rank += 1
+                        if (b_tuple, m) in excluded:
+                            pass
                         else:
-                            if dim_rank > 2:
-                                X, rank = t_packet_2(X, k, m, b, dim_rank, prec, verbose = verbose)
-                            elif dim_rank:
-                                X.append(self.pssd(k, b, m, prec))
+                            dim_rank = dim - rank
+                            old_rank = rank
+                            if dim_rank <= 0:
+                                X.remove_nonpivots()
+                                rank = len(X)
+                                dim_rank = dim - rank
+                            if symm:
+                                if dim_rank > 2:
+                                    X, rank = t_packet_1(X, k, m, b, dim_rank, prec, verbose = verbose)
+                                elif dim_rank:
+                                    X.append(E - self.pss(k, b, m, prec))
+                                    if verbose:
+                                        print('I computed a Poincare square series of index %s.'%([b, m]))
+                                    rank += 1
+                            else:
+                                if dim_rank > 2:
+                                    X, rank = t_packet_2(X, k, m, b, dim_rank, prec, verbose = verbose)
+                                elif dim_rank:
+                                    X.append(self.pssd(k, b, m, prec))
+                                    if verbose:
+                                        print('I computed a Poincare square series of index %s.'%([b, m]))
+                                    rank += 1
+                            if rank >= dim:
+                                X.remove_nonpivots()
+                                rank = len(X)
                                 if verbose:
-                                    print('I computed a Poincare square series of index %s.'%([b, m]))
+                                    print('I have found %d out of %d cusp forms.'%(rank, dim))
+                            if rank >= dim:
+                                if echelonize:
+                                    if verbose:
+                                        print('I am computing an echelon form.')
+                                    pivots = X.echelonize(save_pivots = save_pivots)
+                                    self.__cusp_forms_basis[k] = prec, X
+                                return return_pivots()
+                            elif rank == old_rank:
+                                failure_count += 1
+                            if failure_count >= 4: #failed to find a new vector 4 times in a row?
+                                if symm:
+                                    X.append(E - self.pss(k, b, m + 1, prec))
+                                else:
+                                    X.append(self.pssd(k, b, m + 1, prec))
+                                excluded.add((b_tuple, m+1))
+                                if verbose:
+                                    print('I computed a Poincare square series of index %s.'%([b, m + 1]))
                                 rank += 1
-                        if rank >= dim:
-                            X.remove_nonpivots()
-                            rank = len(X)
-                            if verbose:
-                                print('I have found %d out of %d cusp forms.'%(rank, dim))
-                        if rank >= dim:
-                            if echelonize:
-                                if verbose:
-                                    print('I am computing an echelon form.')
-                                pivots = X.echelonize(save_pivots = save_pivots)
-                                self.__cusp_forms_basis[k] = prec, X
-                            return return_pivots()
+                                failure_count = 0
                 m0 += 1
                 if m0 > prec and rank < dim:#this will probably never happen but lets be safe
                     raise RuntimeError('Something went horribly wrong!')
@@ -3180,7 +3198,7 @@ class WeilRep(object):
                 sig = self.signature()
                 eps = sig == 0 or sig == 6
                 eps = 1 - 2 * eps
-                m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker(i + 1, p) == eps] for x in cusp_forms])
+                m = matrix([[y for i, y in enumerate(x.coefficients(mod_sturm_bound)) if kronecker_symbol(i + 1, p) == eps] for x in cusp_forms])
                 v_basis = m.kernel().basis()
                 L = [sum([mf * v[i] for i, mf in enumerate(cusp_forms)]) for v in v_basis]
                 L = [2*self.bb_lift(x) if x.valuation() % p else self.bb_lift(x) for x in L]
