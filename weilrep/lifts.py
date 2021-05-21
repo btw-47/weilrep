@@ -176,7 +176,10 @@ class OrthogonalModularForms(object):
             X = w.cusp_forms_basis(k + self.input_wt(), ceil(prec * prec / 4) + 1)
         else:
             X = w.modular_forms_basis(k + self.input_wt(), ceil(prec * prec / 4) + 1)
-        return [x.theta_lift(prec) for x in X]
+        try:
+            return X[0].theta_lift(prec, _L = X)
+        except TypeError:
+            return [x.theta_lift(prec) for x in X]
 
     def spezialschar(self, *args, **kwargs):
         if args:
@@ -414,8 +417,6 @@ class OrthogonalModularForm(object):
     - ``f`` -- the Fourier expansion. This is a power series in the variable t over a Laurent polynomial ring in the variable x over a base ring of Laurent polynomials in the variables r_0,...,r_d
     - ``scale`` -- a natural number. If scale != 1 then all exponents in the Fourier expansion should be divided by `scale`. (This is done in the __repr__ method)
     - ``weylvec`` -- a ``Weyl vector``. For modular forms that are not constructed as Borcherds products this vector should be zero.
-    - ``precision`` -- optional: the total precision of the Fourier expansion
-    - ``valuation`` -- optional: the total valuation of the Fourier expansion
     """
     def __init__(self, k, w, f, scale, weylvec, qexp_representation = None):
         s = qexp_representation
@@ -871,7 +872,6 @@ def omf_matrix(*X):
     Xitems = [set(xcoeffs.keys()) for xcoeffs in Xcoeffs]
     Xitems = list(Xitems[0].union(*Xitems[1:]))
     lenXitems = len(Xitems)
-    L = [[0]*lenXitems for _ in X]
     M = []
     check_wt = True
     for i, x in enumerate(X):

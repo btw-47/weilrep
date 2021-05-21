@@ -310,6 +310,48 @@ class HermitianWeilRep(WeilRep):
             self.__units = L
             return L
 
+    def unitary_reflection(self, r, alpha=-1):
+        S = self.complex_gram_matrix()
+        r_conj = vector([x.galois_conjugate() for x in r])
+        r_norm = r * S * r_conj
+        if not r_norm:
+            raise ValueError('Not a valid reflection')
+        d = self._hds_to_ds()
+        d_inv = self._ds_to_hds()
+        r0 = ((1 - alpha) / r_norm) * (S * r_conj)
+        g = self.base_field().gens()[0]
+        w = self._w()
+        w_conj = w.galois_conjugate()
+        M = Matrix(ZZ, [[2, w + w_conj], [0, (w - w_conj)*g]]).inverse()
+        def f(x):
+            v = vector(d_inv[tuple(x)])
+            v = v - (v*r0) * r
+            x = [0]*(2 * len(v))
+            for i, v in enumerate(v):
+                v_conj = v.galois_conjugate()
+                a, b = (v + v_conj), (v - v_conj) * g
+                x[i+i], x[i+i+1] = M * vector([a, b])
+            return tuple(map(frac, x))
+        return WeilRepAutomorphism(self, f)
+
+    def biflection(self, r):
+        return self.unitary_reflection(r, alpha = -1)
+
+    def triflection(self, r):
+        if not self.base_field().discriminant() == -3:
+            raise ValueError('This lattice does not admit triflections.')
+        return self.unitary_reflection(r, alpha = self._units()[2])
+
+    def tetraflection(self, r):
+        if not self.base_field().discriminant() == -4:
+            raise ValueError('This lattice does not admit tetraflections.')
+        return self.unitary_reflection(r, alpha = self._units()[1])
+
+    def hexaflection(self, r):
+        if not self.base_field().discriminant() == -3:
+            raise ValueError('This lattice does not admit hexaflections.')
+        return self.unitary_reflection(r, alpha = self._units()[1])
+
     def _w(self):
         r"""
         The generator of O_K we picked when constructing the WeilRep

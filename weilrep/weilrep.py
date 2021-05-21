@@ -3260,11 +3260,11 @@ class WeilRep(object):
                 Z = temp
             else:
                 j = f.weight() - 2
-                j = (k - j) // 2
+                j = floor((k - j) / 2)
                 if j % 2:
                     Y = [y.serre_derivative(normalize_constant_term = True) for y in Y]
                 if j >= 2:
-                    e4j = e4 ** (j // 2)
+                    e4j = e4 ** Integer(j // 2)
                     Y = [e4j * y for y in Y]
                 break
         X = WeilRepModularFormsBasis(k, X + [e - y for y in Y], self)

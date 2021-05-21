@@ -24,6 +24,7 @@ import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
 
+from collections import defaultdict
 from copy import copy, deepcopy
 from re import sub
 
@@ -498,7 +499,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             sage: m = OrthogonalModularForms(matrix([[4]]))
             sage: X = m.borcherds_input_Qbasis(1, 10)
             sage: X[2].borcherds_lift().phi()
-            -q + 24*q^2 - 252*q^3 + 1472*q^4 - 4830*q^5 + O(q^6)
+            q - 24*q^2 + 252*q^3 - 1472*q^4 + 4830*q^5 + O(q^6)
         """
         f = self.true_fourier_expansion()
         R = PowerSeriesRing(QQ, 't')
@@ -548,7 +549,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             sage: m = OrthogonalModularForms(matrix([[2]]))
             sage: X = m.borcherds_input_Qbasis(1, 10)
             sage: X[1].borcherds_lift().witt()
-            2*q^(5/2)*s^(3/2) - 2*q^(3/2)*s^(5/2) - 120*q^(7/2)*s^(3/2) + 120*q^(3/2)*s^(7/2) + 3420*q^(9/2)*s^(3/2) - 389988*q^(7/2)*s^(5/2) + 389988*q^(5/2)*s^(7/2) - 3420*q^(3/2)*s^(9/2) - 61360*q^(11/2)*s^(3/2) - 19505280*q^(9/2)*s^(5/2) + 19505280*q^(5/2)*s^(9/2) + 61360*q^(3/2)*s^(11/2) + 773490*q^(13/2)*s^(3/2) + 180216090*q^(11/2)*s^(5/2) + 1837196280*q^(9/2)*s^(7/2) - 1837196280*q^(7/2)*s^(9/2) - 180216090*q^(5/2)*s^(11/2) - 773490*q^(3/2)*s^(13/2) + O(q, s)^9
+            -2*q^(5/2)*s^(3/2) + 2*q^(3/2)*s^(5/2) + 120*q^(7/2)*s^(3/2) - 120*q^(3/2)*s^(7/2) - 3420*q^(9/2)*s^(3/2) + 389988*q^(7/2)*s^(5/2) - 389988*q^(5/2)*s^(7/2) + 3420*q^(3/2)*s^(9/2) + 61360*q^(11/2)*s^(3/2) + 19505280*q^(9/2)*s^(5/2) - 19505280*q^(5/2)*s^(9/2) - 61360*q^(3/2)*s^(11/2) - 773490*q^(13/2)*s^(3/2) - 180216090*q^(11/2)*s^(5/2) - 1837196280*q^(9/2)*s^(7/2) + 1837196280*q^(7/2)*s^(9/2) + 180216090*q^(5/2)*s^(11/2) + 773490*q^(3/2)*s^(13/2) + O(q, s)^9
 
             sage: from weilrep import *
             sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]]))
@@ -780,7 +781,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         i = f.exponents()[0]
         return f[i] / m[0].qexp()[i]
 
-    def theta_lift(self, prec=Infinity):
+    def theta_lift(self, prec=Infinity, _L=None):
         r"""
         Compute the additive theta lift.
 
@@ -809,12 +810,12 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             sage: L3[0]
             -q - 3*q^2 + 9*q*s - 9*q^3 + 27*q^2*s - 27*q*s^2 - 13*q^4 + 81*q^3*s - 81*q^2*s^2 + 9*q*s^3 - 24*q^5 + 117*q^4*s - 243*q^3*s^2 + 27*q^2*s^3 + 117*q*s^4 - 27*q^6 + 216*q^5*s - 351*q^4*s^2 + 81*q^3*s^3 + 351*q^2*s^4 - 216*q*s^5 - 50*q^7 + 243*q^6*s - 648*q^5*s^2 + 117*q^4*s^3 + 1053*q^3*s^4 - 648*q^2*s^5 - 27*q*s^6 - 51*q^8 + 450*q^7*s - 729*q^6*s^2 + 216*q^5*s^3 + 1521*q^4*s^4 - 1944*q^3*s^5 - 81*q^2*s^6 + 450*q*s^7 - 81*q^9 + 459*q^8*s - 1350*q^7*s^2 + 243*q^6*s^3 + 2808*q^5*s^4 - 2808*q^4*s^5 - 243*q^3*s^6 + 1350*q^2*s^7 - 459*q*s^8 + O(q, s)^10
         """
+        L = _L
         prec0 = self.precision() + 1
         min_prec = isqrt(4 * prec0 + 4)
         prec = min(prec, min_prec)
         w = self.weilrep()
         S = w._pos_def_gram_matrix()
-        coeffs = self.coefficients()
         S_inv = S.inverse()
         try:
             N2 = w._N2()
@@ -830,6 +831,18 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             K = QQ
             N2 = 1
             zeta = 1
+        if L is None:
+            coeffs = self.coefficients()
+            list_bool = False
+            zero = 0
+        else:
+            coeffs_list = [x.coefficients() for x in L]
+            items = set(coeffs_list[0].keys())
+            for d in coeffs_list[1:]:
+                items = items.union(set(d.keys()))
+            zero = vector([0 for _ in L])
+            coeffs = defaultdict(lambda:zero, {d: vector(K, [x[d] for x in coeffs_list]) for d in items})
+            list_bool = True
         if S:
             rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(S.nrows()) ))
             z = rb.gens()[0]
@@ -853,7 +866,10 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             vs_list = [vector([n]) for n in range(1, isqrt(2 * prec0*S[0, 0]) + 1)]
         else:
             vs_list = []
-        f = O(t ** prec)
+        if list_bool:
+            F = [O(t ** prec) for _ in L]
+        else:
+            f = O(t ** prec)
         C = 0
         if wt == 1:
             C = self._weight_one_theta_lift_constant_term()
@@ -887,12 +903,26 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                     zeta_i = zeta ** i
                     c = coeffs[tuple([i / N2] + [0]*(nrows + 4))]
                     if c:
-                        f -= c * sum([bp(j / N2) * (zeta_i ** j) for j in srange(1, N2 + 1)])
-                f *= (N2 ** (wt - 1)) / (wt + wt)
+                        if list_bool:
+                            for j0 in range(len(L)):
+                                F[j0] -= c[j0] * sum([bp(j / N2) * (zeta_i ** j) for j in srange(1, N2 + 1)])
+                        else:
+                            f -= c * sum([bp(j / N2) * (zeta_i ** j) for j in srange(1, N2 + 1)])
+                if list_bool:
+                    s = (N2 ** (wt - 1)) / (wt + wt)
+                    for j0 in range(len(L)):
+                        F[j0] *= s
+                else:
+                    f *= (N2 ** (wt - 1)) / (wt + wt)
             else:
                 f_0 = coeffs[tuple([0]*(nrows + 1 + 2*Integer(bool_1)))]
+                s = bernoulli(wt) / (wt + wt)
                 if f_0:
-                    f -= f_0 * bernoulli(wt) / (wt + wt)
+                    if list_bool:
+                        for j0 in range(len(L)):
+                            F[j0] -= f_0[j0] * s
+                    else:
+                        f -= f_0 * s
         for v in vs_list:
             j = next(j for j, w in enumerate(v) if w)
             g = S_inv * v
@@ -911,24 +941,28 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                     a_plus_c = a + c
                     n = Integer(a * c) / N - v_norm
                     if n >= 0:
-                        sum_coeff_1 = 0
-                        sum_coeff_2 = 0
+                        sum_coeff_1 = zero
+                        sum_coeff_2 = zero
                         for d in divisors(GCD([a, c] + list(v))):
                             d_wt = d ** (wt - 1)
                             g_n = tuple([frac(y) for y in g / d] + [n / (d * d)])
                             sum_coeff_1 = update(g_n, sum_coeff_1)
                             g_n_2 = tuple([frac(-y) for y in g/d] + [n / (d*d)])
                             sum_coeff_2 = update(g_n_2, sum_coeff_2)
-                        f += t**(a_plus_c) * x**(c - a) * (sum_coeff_1 * v_monomial + sum_coeff_2 * ~v_monomial)
+                        if list_bool:
+                            for j0 in range(len(L)):
+                                F[j0] += t**(a_plus_c) * x**(c - a) * (sum_coeff_1[j0] * v_monomial + sum_coeff_2[j0] * ~v_monomial)
+                        else:
+                            f += t**(a_plus_c) * x**(c - a) * (sum_coeff_1 * v_monomial + sum_coeff_2 * ~v_monomial)
                     c += 1
                 a += 1
         #now take b = zero vector
         for a in range(N * prec):
             for c in range(N * (prec - a)):
-                n = Integer(a * c)/N
+                n = Integer(a * c) / N
                 a_plus_c = a + c
                 if a_plus_c:
-                    sum_coeff = 0
+                    sum_coeff = zero
                     g = GCD(a, c)
                     try:
                         L = divisors(g)
@@ -942,13 +976,24 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                         g_n = tuple([0]*nrows + [n / (d * d)])
                         sum_coeff = update(g_n, sum_coeff)
                     if sum_coeff:
-                        f += sum_coeff * t**(a_plus_c) * x ** (c - a)
+                        if list_bool:
+                            for j0 in range(len(F)):
+                                F[j0] += sum_coeff[j0] * t ** (a_plus_c) * x ** (c - a)
+                        else:
+                            f += sum_coeff * t**(a_plus_c) * x ** (c - a)
         try:
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError):
             h = None
         if wt % 2 and bool_2 and N2 >= 3:
-            f /= sum(zeta**i - zeta**(-i) for i in range(1, (N2 + 1)//2))
+            s = sum(zeta**i - zeta**(-i) for i in range(1, (N2 + 1)//2))
+            if list_bool:
+                for j0 in range(len(L)):
+                    F[j0] /= s
+            else:
+                f /= s
+        if list_bool:
+            return [OrthogonalModularForm(wt, self.weilrep(), f + C, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h) for f in F]
         return OrthogonalModularForm(wt, self.weilrep(), f + C, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h)
     additive_lift = theta_lift
     gritsenko_lift = theta_lift
