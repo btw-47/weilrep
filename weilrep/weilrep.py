@@ -3516,7 +3516,7 @@ class WeilRep(object):
         if any(denominator(x) not in [1, 2, 3, 4, 6] for x in b):
             if verbose:
                 print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.')
-            X = self.nearly_holomorphic_modular_forms_basis(k, 0, prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
+            return self.nearly_holomorphic_modular_forms_basis(k, 0, prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
         elif k >= sage_seven_half or (symm and k >= sage_five_half):
             if not symm and any(2 % denominator(x) for x in b):
                 return self.nearly_holomorphic_modular_forms_basis(k, 0, prec=prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
