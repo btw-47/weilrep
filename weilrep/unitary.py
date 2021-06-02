@@ -65,13 +65,9 @@ class HermitianWeilRep(WeilRep):
         gen = kwargs.pop('gen', None)
         if gen is None:
             gen = (d + K.gen() * (2 - (d % 4))) / 2
-            ell = d
-            m = d / (2 - (d % 4))
-            u = d * (d - 1) // 2
-        else:
-            ell, m = gen.parts()
-            u = ell * ell + m * m * (-d0)
-            ell, m, u = ell + ell, m + m, u + u
+        ell, m = gen.parts()
+        u = ell * ell + m * m * (-d0)
+        ell, m, u = ell + ell, m + m, u + u
         n = S.nrows()
         T = Matrix(QQ, 2 * n)
         #'Omega' saves the action of our generator of O_K on the trace form

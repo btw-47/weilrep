@@ -2003,7 +2003,7 @@ class WeilRep(object):
             w = weilrep
         new_k = weight - sage_one_half
         _components = [self.ds(), self.rds(indices = True)]
-        X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(components = _components)
+        X = w.eisenstein_series(new_k, prec, allow_small_weight = True).theta_contraction(components = _components, weilrep=self)
         if weight > sage_five_half or not fix:
             return X
         elif weight == sage_five_half:#result might be wrong so lets fix it
