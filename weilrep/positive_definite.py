@@ -831,10 +831,16 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             K = QQ
             N2 = 1
             zeta = 1
+        nrows = ZZ(S.nrows())
+        k = self.weight()
+        wt = k + nrows / 2
         if L is None:
             coeffs = self.coefficients()
             list_bool = False
             zero = 0
+            C = 0
+            if wt == 1:
+                C = self._weight_one_theta_lift_constant_term()
         else:
             coeffs_list = [x.coefficients() for x in L]
             items = set(coeffs_list[0].keys())
@@ -843,6 +849,9 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             zero = vector([0 for _ in L])
             coeffs = defaultdict(lambda:zero, {d: vector(K, [x[d] for x in coeffs_list]) for d in items})
             list_bool = True
+            C = [0 for _ in L]
+            if wt == 1:
+                C = [x._weight_one_theta_lift_constant_term() for x in L]
         if S:
             rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(S.nrows()) ))
             z = rb.gens()[0]
@@ -850,9 +859,6 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             rb = K
         rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
         t, = PowerSeriesRing(rb_x, 't').gens()
-        k = self.weight()
-        nrows = ZZ(S.nrows())
-        wt = k + nrows / 2
         try:
             N = w._N()
         except AttributeError:
@@ -870,9 +876,6 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             F = [O(t ** prec) for _ in L]
         else:
             f = O(t ** prec)
-        C = 0
-        if wt == 1:
-            C = self._weight_one_theta_lift_constant_term()
         bool_1 = w._is_positive_definite_plus_II()
         bool_2 = w._is_positive_definite_plus_2II()
         if bool_1:
@@ -993,7 +996,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             else:
                 f /= s
         if list_bool:
-            return [OrthogonalModularForm(wt, self.weilrep(), f + C, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h) for f in F]
+            return [OrthogonalModularForm(wt, self.weilrep(), f + C[i], scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h) for i, f in enumerate(F)]
         return OrthogonalModularForm(wt, self.weilrep(), f + C, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h)
     additive_lift = theta_lift
     gritsenko_lift = theta_lift
