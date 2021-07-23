@@ -1513,6 +1513,11 @@ class WeilRepModularForm(object):
         return f
 
     def development_coefficient(self, lattice_basis, v = []):
+        r"""
+        Compute partial development coefficients.
+        """
+        if not v:
+            return self.pullback(lattice_basis)
         from .weilrep import WeilRep
         from .weilrep_misc import multilinear_gegenbauer_polynomial
         coeffs = self.coefficients()
@@ -1539,8 +1544,8 @@ class WeilRepModularForm(object):
             Sz = matrix([])
             A = identity_matrix(S.nrows())
         w = WeilRep(z * Sz)
-        if not w.is_positive_definite():
-            raise ValueError('The development coefficient must be taken with respect to a positive-definite sublattice.')
+        #if not w.is_positive_definite():
+        #    raise ValueError('The development coefficient must be taken with respect to a positive-definite sublattice.')
         if N:
             P = multilinear_gegenbauer_polynomial(N, k - 1 + Integer(S.nrows() - ell)/2, v, S)
         else:
@@ -1580,6 +1585,11 @@ class WeilRepModularForm(object):
             else:
                 X[i][2] = eps * X[indices[i]][2]
         return WeilRepModularForm(k + Integer(nrows) / 2 + N, w.gram_matrix(), X, weilrep = w)
+
+    def development_coefficient_perp(self, perp_basis, v = []):
+        S = self.gram_matrix()
+        A = S * matrix(perp_basis).transpose()
+        return self.development_coefficient(A.integer_kernel().basis(), v = v)
 
     def lowering_operator(self, _weight = None):
         r"""
