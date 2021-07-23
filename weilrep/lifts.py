@@ -314,7 +314,8 @@ class OrthogonalModularForms(object):
         except IndexError:
             Y = WeilRepModularFormsBasis(wt, [], w)
         if wt >= 0:
-            X = deepcopy(w.basis_vanishing_to_order(wt, max(0, -pole_order), prec))
+            X = w.basis_vanishing_to_order(wt, max(0, -pole_order), prec)
+            X = WeilRepModularFormsBasis(wt, [x for x in X], w)
             if X:
                 X.extend(Y)
                 return X
@@ -377,7 +378,8 @@ class OrthogonalModularForms(object):
         except IndexError:
             Y = WeilRepModularFormsBasis(wt, [], w)
         if wt >= 0:
-            X = X = deepcopy(w.basis_vanishing_to_order(wt, max(0, -pole_order), prec))
+            X = w.basis_vanishing_to_order(wt, max(0, -pole_order), prec)
+            X = WeilRepModularFormsBasis(wt, [x for x in X], w)
             if X:
                 X.extend(Y)
                 return X
@@ -418,7 +420,7 @@ class OrthogonalModularForm(object):
     - ``scale`` -- a natural number. If scale != 1 then all exponents in the Fourier expansion should be divided by `scale`. (This is done in the __repr__ method)
     - ``weylvec`` -- a ``Weyl vector``. For modular forms that are not constructed as Borcherds products this vector should be zero.
     """
-    def __init__(self, k, w, f, scale, weylvec, qexp_representation = None):
+    def __init__(self, k, w, f, scale, weylvec, qexp_representation = None, ppcoeffs = None):
         s = qexp_representation
         self.__fourier_expansion = f
         self.__qexp_representation = s
@@ -427,6 +429,8 @@ class OrthogonalModularForm(object):
         self.__weight = k
         self.__weilrep = w
         self.__weylvec = weylvec
+        if ppcoeffs:
+            self.__ppcoeffs = ppcoeffs
         ## change class
         if w.is_lorentzian() or w.is_lorentzian_plus_II():
             from .lorentz import OrthogonalModularFormLorentzian
@@ -470,6 +474,28 @@ class OrthogonalModularForm(object):
     def __bool__(self):
         return bool(self.true_fourier_expansion())
 
+    def divisor(self):
+        r"""
+        Compute the divisor of a Borcherds product.
+
+        The output is a function that accepts positive-norm vectors 'v' in the dual lattice L' as input, and outputs an integer (the order of vanishing of self on the rational-quadratic divisor v^{\perp}).
+        """
+        try:
+            d = self._principal_part_coefficients()
+            S = self.gram_matrix()
+            m = QQ(-min(x[-1] for x in d.keys()))
+            def a(v):
+                Sv = S * v
+                n = GCD(Sv)
+                v, Sv = v/n, Sv/n
+                x = v * Sv / 2
+                if x <= 0:
+                    raise ValueError('Not a positive norm vector.')
+                return sum(d[tuple(list(map(frac, v * b)) + [-x * (b * b)])] for b in srange(1, isqrt(m / x) + 1))
+            return a
+        except AttributeError:
+            raise NotImplementedError from None
+
     def gram_matrix(self):
         r"""
         Return our Gram matrix.
@@ -490,6 +516,9 @@ class OrthogonalModularForm(object):
         Return our precision.
         """
         return Integer(self.true_fourier_expansion().prec()) / self.scale()
+
+    def _principal_part_coefficients(self):
+        return self.__ppcoeffs
 
     def qexp_representation(self):
         return self.__qexp_representation
@@ -865,6 +894,8 @@ def omf_matrix(*X):
             X = Y
         except IndexError:
             Xref = X[0]
+    else:
+        Xref = X[0]
     nrows = Xref.nvars()
     k = Xref.weight()
     prec = min(x.precision() for x in X)
@@ -901,9 +932,10 @@ def omf_rank(*X):
     """
     return omf_matrix(*X).rank()
 
-def omf_relations(*X):
+def _omf_relations(*X):
     r"""
     Compute all linear relations among the list of orthogonal modular forms X.
+    This should no longer be called directly. Use weilrep_misc.relations instead.
 
     WARNING: we only check the relations up to the *minimal precision of all elements of X*. For best results let X be a list of forms with the same (sufficiently high) precision!
     """

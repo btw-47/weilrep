@@ -240,7 +240,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
             sage: X = m.borcherds_input_Qbasis(1, 10)
             sage: X[1].borcherds_lift().phi()
-            q + 8*q^2 + 28*q^3 + 64*q^4 + 126*q^5 + 224*q^6 + 344*q^7 + O(q^8)
+            q + 8*q^2 + 28*q^3 + 64*q^4 + 126*q^5 + 224*q^6 + O(q^7)
 
             sage: from weilrep import *
             sage: m = OrthogonalModularForms(matrix([[6]])) + II(3)
@@ -276,7 +276,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
             sage: X = m.borcherds_input_Qbasis(1/2, 15)
             sage: X[1].borcherds_lift().witt()
-            q + 8*q^2 - 16*q*s + 28*q^3 - 128*q^2*s + 112*q*s^2 + 64*q^4 - 448*q^3*s + 896*q^2*s^2 - 448*q*s^3 + 126*q^5 - 1024*q^4*s + 3136*q^3*s^2 - 3584*q^2*s^3 + 1136*q*s^4 + 224*q^6 - 2016*q^5*s + 7168*q^4*s^2 - 12544*q^3*s^3 + 9088*q^2*s^4 - 2016*q*s^5 + 344*q^7 - 3584*q^6*s + 14112*q^5*s^2 - 28672*q^4*s^3 + 31808*q^3*s^4 - 16128*q^2*s^5 + 3136*q*s^6 + 512*q^8 - 5504*q^7*s + 25088*q^6*s^2 - 56448*q^5*s^3 + 72704*q^4*s^4 - 56448*q^3*s^5 + 25088*q^2*s^6 - 5504*q*s^7 + O(q, s)^9
+            q + 8*q^2 - 16*q*s + 28*q^3 - 128*q^2*s + 112*q*s^2 + 64*q^4 - 448*q^3*s + 896*q^2*s^2 - 448*q*s^3 + 126*q^5 - 1024*q^4*s + 3136*q^3*s^2 - 3584*q^2*s^3 + 1136*q*s^4 + 224*q^6 - 2016*q^5*s + 7168*q^4*s^2 - 12544*q^3*s^3 + 9088*q^2*s^4 - 2016*q*s^5 + 344*q^7 - 3584*q^6*s + 14112*q^5*s^2 - 28672*q^4*s^3 + 31808*q^3*s^4 - 16128*q^2*s^5 + 3136*q*s^6 + O(q, s)^8
 
             sage: from weilrep import *
             sage: m = OrthogonalModularForms(matrix([[2, 1], [1, 2]])) + II(2)
@@ -425,6 +425,8 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
         self._WeilRep__eisenstein = {}
         self._WeilRep__cusp_forms_basis = {}
         self._WeilRep__modular_forms_basis = {}
+        self._WeilRep__vals = {}
+        self._WeilRep__valsm = {}
         self.lift_qexp_representation = 'PD+II'
 
     def _N(self):
@@ -527,7 +529,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             sage: from weilrep import *
             sage: w = WeilRep(matrix([[2]]))
             sage: (w + II(1) + II(4)).modular_forms_basis(1/2, 15)[0].theta_lift()
-            -1/4 - q - s - q^2 + (-r^-2 - 2 - r^2)*q*s - s^2 + (-2*r^-2 - 2*r^2)*q^2*s + (-2*r^-2 - 2*r^2)*q*s^2 - q^4 + (-r^-4 - 2 - r^4)*q^2*s^2 - s^4 + (-2)*q^5 + (-r^-4 - 2 - r^4)*q^4*s + (-r^-4 - 2 - r^4)*q*s^4 + (-2)*s^5 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q^5*s + (-2*r^-4 - 2*r^4)*q^4*s^2 + (-2*r^-4 - 2*r^4)*q^2*s^4 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q*s^5 + O(q, s)^7
+            -1/4 - q - s - q^2 + (-r^-2 - 2 - r^2)*q*s - s^2 + (-2*r^-2 - 2*r^2)*q^2*s + (-2*r^-2 - 2*r^2)*q*s^2 - q^4 + (-r^-4 - 2 - r^4)*q^2*s^2 - s^4 + (-2)*q^5 + (-r^-4 - 2 - r^4)*q^4*s + (-r^-4 - 2 - r^4)*q*s^4 + (-2)*s^5 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q^5*s + (-2*r^-4 - 2*r^4)*q^4*s^2 + (-2*r^-4 - 2*r^4)*q^2*s^4 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q*s^5 + (-2*r^-6 - 2*r^-2 - 2*r^2 - 2*r^6)*q^5*s^2 + (-2*r^-6 - 2*r^-2 - 2*r^2 - 2*r^6)*q^2*s^5 + O(q, s)^8
         """
         w = self.weilrep()
         extra_plane = w.is_lorentzian_plus_II()
@@ -1078,8 +1080,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             sage: m = OrthogonalModularForms(II(1))
             sage: X = m.borcherds_input_Qbasis(1, 15)
             sage: X[1].borcherds_lift()
-            q^-1 + (-s^-1 - 196884*s - 21493760*s^2 - 864299970*s^3 - 20245856256*s^4 - 333202640600*s^5 - 4252023300096*s^6) + 196884*q + 21493760*q^2 + 864299970*q^3 + 20245856256*q^4 + 333202640600*q^5 + 4252023300096*q^6 + O(q, s)^7
-
+            q^-1 + (-s^-1 - 196884*s - 21493760*s^2 - 864299970*s^3 - 20245856256*s^4) + 196884*q + 21493760*q^2 + 864299970*q^3 + 20245856256*q^4 + O(q, s)^5
 
         """
         w = self.weilrep()
@@ -1351,7 +1352,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 pass
             const_f *= C
         f = exp(log_f) * const_f
-        return OrthogonalModularForm(k, w, f.V(d) * weyl_monomial * (t ** weyl_vector[0]), scale = d, weylvec = weyl_vector, qexp_representation = w.lift_qexp_representation)
+        return OrthogonalModularForm(k, w, f.V(d) * weyl_monomial * (t ** weyl_vector[0]), scale = d, weylvec = weyl_vector, qexp_representation = w.lift_qexp_representation, ppcoeffs = self.principal_part_coefficients())
 
 class WeilRepLorentzianPlusII(WeilRepLorentzian):
 
@@ -1507,7 +1508,7 @@ def _theta_lifts(X, prec = None, constant_term_weight_one = True):
             sage: from weilrep import *
             sage: w = WeilRep(matrix([[2]]))
             sage: (w + II(1) + II(4)).modular_forms_basis(1/2, 15)[0].theta_lift()
-            -1/4 - q - s - q^2 + (-r^-2 - 2 - r^2)*q*s - s^2 + (-2*r^-2 - 2*r^2)*q^2*s + (-2*r^-2 - 2*r^2)*q*s^2 - q^4 + (-r^-4 - 2 - r^4)*q^2*s^2 - s^4 + (-2)*q^5 + (-r^-4 - 2 - r^4)*q^4*s + (-r^-4 - 2 - r^4)*q*s^4 + (-2)*s^5 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q^5*s + (-2*r^-4 - 2*r^4)*q^4*s^2 + (-2*r^-4 - 2*r^4)*q^2*s^4 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q*s^5 + O(q, s)^7
+            -1/4 - q - s - q^2 + (-r^-2 - 2 - r^2)*q*s - s^2 + (-2*r^-2 - 2*r^2)*q^2*s + (-2*r^-2 - 2*r^2)*q*s^2 - q^4 + (-r^-4 - 2 - r^4)*q^2*s^2 - s^4 + (-2)*q^5 + (-r^-4 - 2 - r^4)*q^4*s + (-r^-4 - 2 - r^4)*q*s^4 + (-2)*s^5 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q^5*s + (-2*r^-4 - 2*r^4)*q^4*s^2 + (-2*r^-4 - 2*r^4)*q^2*s^4 + (-2*r^-4 - 2*r^-2 - 2*r^2 - 2*r^4)*q*s^5 + (-2*r^-6 - 2*r^-2 - 2*r^2 - 2*r^6)*q^5*s^2 + (-2*r^-6 - 2*r^-2 - 2*r^2 - 2*r^6)*q^2*s^5 + O(q, s)^8
         """
         w = self.weilrep()
         extra_plane = w.is_lorentzian_plus_II()

@@ -35,9 +35,10 @@ from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.functions.other import ceil, floor, frac
 from sage.matrix.constructor import matrix
-from sage.matrix.special import block_diagonal_matrix, identity_matrix
+from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
 from sage.misc.cachefunc import cached_method
 from sage.misc.functional import denominator, isqrt, symbolic_sum
+from sage.misc.misc_c import prod
 from sage.modular.etaproducts import qexp_eta
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import is_ModularFormElement
@@ -99,6 +100,7 @@ class WeilRepModularForm(object):
         self.__weight = weight
         self.__gram_matrix = gram_matrix
         self.__fourier_expansions = fourier_expansions
+        self.flag = ''
         if weilrep.is_positive_definite() or weilrep._is_positive_definite_plus_II() or weilrep._is_positive_definite_plus_2II():
             from .positive_definite import WeilRepModularFormPositiveDefinite
             self.__class__ = WeilRepModularFormPositiveDefinite
@@ -130,7 +132,7 @@ class WeilRepModularForm(object):
                 return b
             w = self.weilrep()
             if w:
-                if w._is_hermitian_weilrep():
+                if w._is_hermitian_weilrep(): #pass to a lattice over an imaginary-quadratic field if necessary
                     ds = w.hds()
                     s = '\n'.join(['[%s, %s]'%(ds[i], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(ds[i], x[2]) for i, x in enumerate(X)])
                 else:
@@ -395,11 +397,12 @@ class WeilRepModularForm(object):
     ## methods relating to numerical evaluation or plots ##
 
     @cached_method
-    def _cached_call(self, z, q = False, isotherm = False, f = None):
+    def _cached_call(self, z, isotherm = False, f = None, **kwargs):
         r"""
         Apply __call__() but save the result in some cases. This should not be called directly.
         """
-        s = self.__call__(z, q = q, funct = self._cached_call)
+        _ = kwargs.pop('funct', None)
+        s = self.__call__(z, funct = self._cached_call, **kwargs)
         if f is not None:
             s = f(s)
             if isotherm:
@@ -419,7 +422,7 @@ class WeilRepModularForm(object):
             return v
         return s
 
-    def __call__(self, z, q = False, funct = None):
+    def __call__(self, z, q = False, funct = None, cayley = False):
         r"""
         Evaluate self at a point ``z`` in the upper half-plane.
 
@@ -437,6 +440,11 @@ class WeilRepModularForm(object):
         if q:
             if z:
                 z = cmath_log(z) / complex(0.0, two_pi)
+                return funct(z)
+            return vector([self[i][0] if not x else 0 for i, x in enumerate(self.weilrep().norm_list())])
+        elif cayley:
+            if z:
+                z = complex(0.0, 1.0) * (1 + z) / (1 - z)
                 return funct(z)
             return vector([self[i][0] if not x else 0 for i, x in enumerate(self.weilrep().norm_list())])
         if self.is_modular():
@@ -608,6 +616,10 @@ class WeilRepModularForm(object):
         self._cached_call.clear_cache()
         return L
 
+    def plot_cayley(self, **kwargs):
+        kwargs['_cayley'] = True
+        return self.plot_q(**kwargs)
+
     def plot_q(self, isotherm = True, show = True, **kwargs):
         r"""
         Plot self on the unit disc as a function of 'q' (q = exp(2*pi*i*z)).
@@ -627,12 +639,17 @@ class WeilRepModularForm(object):
         if isotherm and 'plot_points' not in kwargs:
             kwargs['plot_points'] = 150
         function = kwargs.pop('function', None)
+        cayley = kwargs.pop('_cayley', None)
+        if cayley:
+            q, cayley = False, True
+        else:
+            q, cayley = True, False
         if function is not None:
-            f = lambda z: self._cached_call(z, q = True, isotherm = isotherm, f = function) if abs(z) < 1 else Infinity
+            f = lambda z: self._cached_call(z, q = q, cayley = cayley, isotherm = isotherm, f = function) if abs(z) < 1 else Infinity
             P = complex_plot(f, [-1, 1], [-1, 1], **kwargs)
             self._cached_call.clear_cache()
             return P
-        f = lambda i: (lambda z: self._cached_call(z, q = True, isotherm = isotherm)[i] if abs(z) < 1 else Infinity)
+        f = lambda i: (lambda z: self._cached_call(z, q = q, cayley = cayley, isotherm = isotherm)[i] if abs(z) < 1 else Infinity)
         L = []
         rds = self.weilrep().rds(indices = True)
         ds = self.weilrep().ds()
@@ -901,7 +918,7 @@ class WeilRepModularForm(object):
             N, j = 0, 0
         return WeilRepModularForm(-self.weight(), self.gram_matrix(), [(x[0], N, (~x[2]).shift(j))])
 
-    def __mul__(self, other, w=None): #tensor product!
+    def __mul__(self, other, w=None, theta=None, _flag=0): #tensor product!
         r"""
         Tensor multiplication of WeilRepModularForms.
 
@@ -929,13 +946,14 @@ class WeilRepModularForm(object):
             [(2/3, 2/3, 1/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^(139/24))]
 
         """
-
         from .mock import WeilRepQuasiModularForm
         if isinstance(other, WeilRepQuasiModularForm):
             return other.__mul__(self)
         elif isinstance(other, WeilRepModularFormWithCharacter) and not isinstance(self, WeilRepModularFormWithCharacter):
             return other.__mul__(self)
         elif isinstance(other, WeilRepModularForm):
+            if self.flag == 'jacobi_form' and other.flag == 'jacobi_form' and not _flag:
+                return self._jacobi_form_multiplication(other, theta=theta)
             S1 = self.gram_matrix()
             S2 = other.gram_matrix()
             f1 = self.fourier_expansion()
@@ -1476,6 +1494,93 @@ class WeilRepModularForm(object):
                 Y[j] = [g, big_offset, eps * Y[i][2]]
         return WeilRepModularForm(self.weight(), N*S, Y )
 
+    def _jacobi_form_multiplication(self, other, theta = None):
+        S1 = self.gram_matrix()
+        S2 = other.gram_matrix()
+        N = S1.nrows()
+        if N != S2.nrows():
+            raise ValueError('Incompatible indices')
+        I = identity_matrix(ZZ, N)
+        Z = matrix(ZZ, N, N)
+        A = block_matrix([[I, Z], [I, I]])
+        f = (self.__mul__(other, _flag=1)).conjugate(A)
+        if theta is None:
+            for _ in range(N):
+                f = f.theta_contraction()
+        else:
+            f &= theta
+        f.flag = 'jacobi_form'
+        return f
+
+    def development_coefficient(self, lattice_basis, v = []):
+        from .weilrep import WeilRep
+        from .weilrep_misc import multilinear_gegenbauer_polynomial
+        coeffs = self.coefficients()
+        k = self.weight()
+        prec = self.precision()
+        r = self.fourier_expansion()[0][2].parent()
+        q, = r.gens()
+        S = self.gram_matrix()
+        symm = self.is_symmetric()
+        N = len(v)
+        if symm:
+            eps = (-1)**N
+        else:
+            eps = (-1)**(N+1)
+        val = self.valuation()
+        z = matrix(ZZ, lattice_basis)
+        ell = Integer(z.nrows())
+        if ell:
+            Sz = S * z.transpose()
+            if matrix(v) * Sz:
+                raise ValueError('The development coefficient must be evaluated along vectors orthogonal to the sublattice.')
+            A = Sz.integer_kernel().basis_matrix()
+        else:
+            Sz = matrix([])
+            A = identity_matrix(S.nrows())
+        w = WeilRep(z * Sz)
+        if not w.is_positive_definite():
+            raise ValueError('The development coefficient must be taken with respect to a positive-definite sublattice.')
+        if N:
+            P = multilinear_gegenbauer_polynomial(N, k - 1 + Integer(S.nrows() - ell)/2, v, S)
+        else:
+            P = lambda *_: 1
+        B = A * S * A.transpose()
+        B_inv = B.inverse()
+        nrows = B.nrows()
+        if nrows > 1:
+            _, _, vs_matrix = pari(B_inv).qfminim(prec + prec + 1, flag = 2)
+            vs_list = vs_matrix.sage().columns()
+        else:
+            vs_list = [vector([n]) for n in range(1, isqrt(2 * prec * B[0, 0]) + 1)]
+        ds = w.ds()
+        if ell:
+            gz_list = [g * z for g in ds]
+        else:
+            gz_list = [vector([0] * S.nrows())]
+        indices = w.rds(indices = True)
+        norm_list = w.norm_list()
+        X = [[g, norm_list[i], 0] for i, g in enumerate(ds)]
+        for v in vs_list:
+            x = B_inv * v
+            v_norm = v * x / 2
+            Ax = A.transpose() * x
+            for i, gz in enumerate(gz_list):
+                if indices[i] is None:
+                    offset = norm_list[i]
+                    h1 = list(map(frac, gz + Ax))
+                    h2 = list(map(frac, gz - Ax))
+                    u = v_norm - offset
+                    X[i][2] += r( [coeffs[tuple(h1 + [n-u])] * P(*Ax, (n+offset)) + coeffs[tuple(h2 + [n-u])] * P(*(-Ax), (n+offset)) for n in range(ceil(val + u), ceil(prec + u))]).shift(ceil(val + u))
+        for i, gz in enumerate(gz_list):
+            if indices[i] is None:
+                offset = norm_list[i]
+                h = list(map(frac, gz))
+                X[i][2] += r( [coeffs[tuple(h + [n + offset])] * P([0]*S.nrows() + [(n + offset)]) for n  in range(ceil(val - offset), ceil(prec - offset))] ).shift(ceil(val - offset)).add_bigoh(ceil(prec - offset))
+            else:
+                X[i][2] = eps * X[indices[i]][2]
+        return WeilRepModularForm(k + Integer(nrows) / 2 + N, w.gram_matrix(), X, weilrep = w)
+
     def lowering_operator(self, _weight = None):
         r"""
         Apply the Maass lowering operator.
@@ -1522,6 +1627,10 @@ class WeilRepModularForm(object):
             z = matrix(QQ, v)
         z *= S
         k = z.transpose().integer_kernel()
+        if 'print_basis' in kwargs.keys():
+            s = kwargs.pop('print_basis')
+            if s:
+                print('pullback to basis:', list(k.basis()))
         return self.pullback(list(k.basis()), **kwargs)
 
     def _pullback_perp_complex(self, v, **kwargs):
@@ -1540,8 +1649,6 @@ class WeilRepModularForm(object):
             x.append(g - a*h/b)
             x.append(h/b)
         x = vector(x)
-        print('v:', v)
-        print('x:', x)
         z = matrix(ZZ, [S*x, S*omega*x])
         k = z.transpose().integer_kernel()
         return self.pullback(list(k.basis()), **kwargs)
@@ -1846,6 +1953,10 @@ class WeilRepModularForm(object):
                 except TypeError:
                     R0, q = LaurentSeriesRing(QQ, 'q').objgen()
                     return R0(f)
+        if odd:
+            P = lambda x: x
+        else:
+            P = lambda x: 1
         for i, g in enumerate(_ds):
             offset = frac(g*S*g/2)
             prec_g = prec + ceil(offset)
@@ -2047,6 +2158,11 @@ class WeilRepModularFormsBasis:
     def _flag(self): #I don't remember what this is for but I am afraid to delete it. it appears a few times when you search for it but it doesn't seem to do anything
         return self.__flag
 
+    def __getattr__(self, x):
+        if len(self.__basis) == 1:
+            return self[0].x
+        raise AttributeError("%r object has no attribute %r" %(self.__class__.__name__, x))
+
     def __getitem__(self, n):
         if isinstance(n, slice):
             return WeilRepModularFormsBasis(self.__weight, self.__basis[n], self.__weilrep)
@@ -2214,6 +2330,22 @@ class WeilRepModularFormsBasis:
 
     def reduce_precision(self, prec, in_place = False):
         return WeilRepModularFormsBasis(self.weight(), [x.reduce_precision(prec, in_place = in_place) for x in self.__basis], self.weilrep())
+
+    def relations(self, starting_from = None, ending_with = None):
+        r"""
+        Find all relations among the modular forms in self.
+
+        INPUT:
+        - ``starting_from`` -- (default 0) the index at which we start looking at Fourier coefficients
+        - ``ending_with`` -- (default None) if given then it should be the index at which we stop looking at Fourier coefficients.
+        - ``integer`` -- (default False) if True then we assume all Fourier coefficients are integers. This is faster.
+        """
+        if starting_from is None:
+            starting_from = min(0, self.valuation())
+        if ending_with is None:
+            ending_with = self.__bound
+        m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis])
+        return m.kernel()
 
     def remove_nonpivots(self, starting_from = 0, ending_with = None):
         r"""
@@ -2713,7 +2845,7 @@ def smf_j(prec = 20):
     """
     return smf(Integer(0), j_invariant_qexp(prec))
 
-def smf_eisenstein_series(k, prec = 20):
+def smf_eisenstein_series(k, prec = 20, normalization='constant'):
     r"""
     Compute the (scalar) Eisenstein series, with Fourier expansion up to precision 'prec'.
 
@@ -2726,7 +2858,7 @@ def smf_eisenstein_series(k, prec = 20):
     if k == 2:
         from weilrep import WeilRep
         return WeilRep([]).eisenstein_series(2, prec)
-    return smf(Integer(k), eisenstein_series_qexp(k, prec, normalization='constant'))
+    return smf(Integer(k), eisenstein_series_qexp(k, prec, normalization=normalization))
 
 def smf_j_cube_root(prec = 20):
     r"""

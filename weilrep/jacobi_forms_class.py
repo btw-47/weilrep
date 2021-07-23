@@ -366,7 +366,7 @@ class JacobiForms:
             r, t = PolynomialRing(ZZ, 't').objgen()
             f = (r([1,0]+[1]*(m - 1)) * (1 + t**4 + t**8) * (1 + t**6))
             return sum(f[k_plus_m - 12*n] * (n + 1) for n in range(1 + k_plus_m // 12))
-        svn = self.short_vector_norms_by_component()
+        svn = self._short_vector_norms_by_component()
         w = self.weilrep()
         rds = w.rds()
         ds = w.ds()
@@ -444,7 +444,7 @@ class JacobiForms:
         d = []
         p = []
         discr = self.discriminant()
-        N = self.longest_short_vector_norm()
+        N = self._longest_short_vector_norm()
         k_min = floor(-12 * N)
         _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)]
         k, s = k_min, 0
@@ -637,7 +637,7 @@ class JacobiForms:
         dsdict = w.ds_dict()
         if verbose:
             print('I am looking for weak Jacobi forms of weight %d.' % weight)
-        svn = self.short_vector_norms_by_component()
+        svn = self._short_vector_norms_by_component()
         N = max(svn)
         if verbose:
             print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'% N)
@@ -667,7 +667,7 @@ class JacobiForms:
 
     ## other:
 
-    def short_vector_norms_by_component(self):
+    def _short_vector_norms_by_component(self):
         r"""
         Computes the expression min( Q(x): x in ZZ^N + g) for g in self.ds()
 
@@ -684,7 +684,7 @@ class JacobiForms:
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: JacobiForms(matrix([[2,1],[1,2]])).short_vector_norms_by_component()
+            sage: JacobiForms(matrix([[2,1],[1,2]]))._short_vector_norms_by_component()
             [0, 1/3, -1]
 
         """
@@ -737,8 +737,8 @@ class JacobiForms:
         self.__short_vector_norms = found_vectors
         return self.__short_vector_norms
 
-    def longest_short_vector_norm(self):
-        return max(self.short_vector_norms_by_component())
+    def _longest_short_vector_norm(self):
+        return max(self._short_vector_norms_by_component())
 
 
 class JacobiForm:
@@ -850,6 +850,105 @@ class JacobiForm:
             self.__coefficient_vector = v
         return v
 
+    def development_coefficient(self, lattice_basis, v = []):
+        r"""
+        Compute development coefficients.
+
+        Suppose 'self' is a Jacobi form of weight 'k' and lattice index 'L'. For any sublattice K <= L and any vectors v_1,...,v_N \in L orthogonal to K, the development coefficient D_{v_1,...,v_N} is a Jacobi form of weight k+N and lattice index K. It is a modification of the Taylor coefficient that transforms as a Jacobi form.
+
+        INPUT:
+        - ``lattice_basis" -- a list of linearly independent integral vectors (which span the sublattice K). This can be the empty list.
+        - ``v" -- the list [v_1,...,v_N]
+
+        NOTE: If 'self' is a Jacobi form of scalar index then we can instead call
+        self.development_coefficient(N)
+        to yield the N^th development coefficient as originally defined by Eichler--Zagier. (This corresponds to taking lattice_basis = [] and v_1 = ... = v_N = (1).)
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: f = JacobiForms(1).weak_forms_basis(0, 10)[0]
+            sage: f.development_coefficient(4)
+            4 + 960*q + 8640*q^2 + 26880*q^3 + 70080*q^4 + 120960*q^5 + 241920*q^6 + 330240*q^7 + 561600*q^8 + 726720*q^9 + O(q^10)
+
+            sage: from weilrep import *
+            sage: f = JacobiForms(37).cusp_forms_basis(2, 10)[0]
+            sage: f.development_coefficient(6)
+            O(q^10)
+
+            sage: from weilrep import *
+            sage: f = JacobiForms(37).cusp_forms_basis(2, 10)[0]
+            sage: f.development_coefficient(10) / 158018273280000
+            q - 24*q^2 + 252*q^3 - 1472*q^4 + 4830*q^5 - 6048*q^6 - 16744*q^7 + 84480*q^8 - 113643*q^9 + O(q^10)
+
+            sage: from weilrep import *
+            sage: J = JacobiForms([[2, 1], [1, 4]])
+            sage: f = J.cusp_forms_basis(7, 5)[0]
+            sage: f.development_coefficient([vector([1, 0])], [vector([1, -2])]*3)
+            (-360*w^-1 + 720 - 360*w)*q + (720*w^-2 + 5760*w^-1 - 12960 + 5760*w + 720*w^2)*q^2 + (-360*w^-3 - 12960*w^-2 - 35640*w^-1 + 97920 - 35640*w - 12960*w^2 - 360*w^3)*q^3 + (5760*w^-3 + 97920*w^-2 + 86400*w^-1 - 380160 + 86400*w + 97920*w^2 + 5760*w^3)*q^4 + O(q^5)
+        """
+        if isinstance(lattice_basis, Integer) and self.nvars() == 1:
+            v = [vector([1])]*lattice_basis
+            lattice_basis = []
+        try:
+            f = self.__theta
+            return f.development_coefficient(lattice_basis, v=v).jacobi_form()
+        except AttributeError:
+            pass
+        from .weilrep_misc import multilinear_gegenbauer_polynomial
+        k = self.weight()
+        K = self.base_ring().base_ring()
+        S = self.index_matrix()
+        S_inv = S.inverse()
+        z = matrix(ZZ, lattice_basis)
+        z_tr = z.transpose()
+        ell = Integer(z.nrows())
+        if ell:
+            Sz = S * z_tr
+            if matrix(v) * Sz:
+                raise ValueError('The development coefficient must be evaluated along vectors orthogonal to the sublattice.')
+            A = Sz.integer_kernel().basis_matrix()
+            Rb = LaurentPolynomialRing(K,list(var('w_%d' % i) for i in range(ell) ))
+        else:
+            A = identity_matrix(S.nrows())
+            Rb = K
+            Sz = matrix([])
+        j = JacobiForms(z * Sz)
+        N = len(v)
+        R = PowerSeriesRing(Rb, 'q')
+        if N:
+            P = multilinear_gegenbauer_polynomial(N, k - 1 - j.nvars()/2, v, S)
+        else:
+            P = lambda *_: 1
+        if ell == 1:
+            w, = Rb.gens()
+            def m(x):
+                return w ** x[0]
+        elif ell > 1:
+            def m(x):
+                return Rb.monomial(*x)
+        else:
+            m = lambda _:1
+        def a(n):
+            def b(x):
+                if ell:
+                    try:
+                        return sum( m(vector(x)*z_tr) * P(*S_inv*vector(x), n) * y for x, y in x.dict().items() )
+                    except AttributeError:
+                        return K(x)
+                    except TypeError:
+                        return sum( m(vector([x])*z_tr) * P(*S_inv*vector([x]), n) * y for x, y in x.dict().items() )
+                else:
+                    try:
+                        return sum( P(*S_inv*vector(x), n) * y for x, y in x.dict().items() )
+                    except AttributeError:
+                        return K(x)
+                    except TypeError:
+                        return sum( P(*S_inv*vector([x]), n) * y for x, y in x.dict().items() )
+            return b
+        f = R( [a(n)(h) for n, h in enumerate(self.q_coefficients())] ).add_bigoh(self.precision())
+        return JacobiForm(k + N, j.index_matrix(), f, jacobiforms = j)
+
     def fourier_expansion(self):
         r"""
         Return self's Fourier expansion.
@@ -911,8 +1010,8 @@ class JacobiForm:
             return all(x[2].valuation() / max(0, x[2].prec()) > 0 for x in X)
         except ZeroDivisionError:
             if self.precision() > 0:
-                raise ValueError('I am probably a cusp form. However unless my precision is at least %d it is impossible to say for sure.'%ceil(2 + self.jacobiforms().longest_short_vector_norm()))
-            raise ValueError('My precision must be at least %d to tell whether I am a cusp form.'%ceil(2 + self.jacobiforms().longest_short_vector_norm()))
+                raise ValueError('I am probably a cusp form. However unless my precision is at least %d it is impossible to say for sure.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
+            raise ValueError('My precision must be at least %d to tell whether I am a cusp form.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
 
     def is_holomorphic(self):
         r"""
@@ -925,8 +1024,8 @@ class JacobiForm:
             return all(x[2].valuation() / max(0, x[2].prec()) >= 0 and (not x[1] or x[2].valuation() / max(0, x[2].prec()) > 0) for x in X)
         except ZeroDivisionError:
             if self.precision() > 0:
-                raise ValueError('I am probably a holomorphic Jacobi form. However unless my precision is at least %d it is impossible to say for sure.'%ceil(2 + self.jacobiforms().longest_short_vector_norm()))
-            raise ValueError('My precision must be at least %d to tell whether I am holomorphic.'%ceil(2 + self.jacobiforms().longest_short_vector_norm()))
+                raise ValueError('I am probably a holomorphic Jacobi form. However unless my precision is at least %d it is impossible to say for sure.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
+            raise ValueError('My precision must be at least %d to tell whether I am holomorphic.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
 
     def jacobiforms(self):
         r"""
@@ -1042,10 +1141,10 @@ class JacobiForm:
                 return self.__theta
             except AttributeError:
                 pass
-            N = j.longest_short_vector_norm()
+            N = j._longest_short_vector_norm()
             norms = [N] * len(ds)
         elif correct:
-            norms = j.short_vector_norms_by_component()
+            norms = j._short_vector_norms_by_component()
         else:
             norms = [0] * len(ds)
         f, S, e, n_list = self.fourier_expansion(), self.index_matrix(), self.nvars(), w.norm_list()
@@ -1247,7 +1346,7 @@ class JacobiForm:
             except (AttributeError, TypeError):
                 modform = None
             sf, of = self.qexp(), other.qexp()
-            f = sf * of
+            f = sf * of.change_ring(sf.base_ring())
             return JacobiForm(self.weight() + other.weight(), self.index_matrix(), f, modform=modform, w_scale = self.scale())
         elif isinstance(other, WeilRepModularForm):
             if other.weilrep().gram_matrix().nrows() == 0:
@@ -1256,7 +1355,7 @@ class JacobiForm:
                 except (AttributeError, TypeError):
                     modform = None
                 sf, of = self.qexp(), other.fourier_expansion()[0][2]
-                f = sf * of
+                f = sf * of.change_ring(sf.base_ring())
                 qshift = other.fourier_expansion()[0][1]
                 if qshift:
                     return JacobiFormWithCharacter(self.weight() + other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale(), character = other.character(), qshift = qshift)
@@ -1322,6 +1421,9 @@ class JacobiForm:
                     modform = None
                 sf, of = self.qexp(), other.fourier_expansion()[0][2]
                 f = sf / of
+                R = f.base_ring()
+                if R is not LaurentPolynomialRing:
+                    f = f.change_ring(LaurentPolynomialRing(R.base_ring(), R.gens()))
                 qshift = other.fourier_expansion()[0][1]
                 if qshift:
                     return JacobiFormWithCharacter(self.weight() - other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale(), character = ~other.character(), qshift = -qshift)
@@ -1882,9 +1984,10 @@ def jf_rankin_cohen(N, f1, f2, direct = False):
         F = F.theta_contraction()
     return F.jacobi_form()
 
-def jf_relations(X):
+def _jf_relations(X):
     r"""
     Compute all relations among a set of Jacobi forms.
+    This should no longer be called directly. Use weilrep_misc.relations instead.
     """
     Xref = X[0]
     if Xref.scale() == 2:

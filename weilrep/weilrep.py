@@ -44,6 +44,7 @@ from sage.matrix.matrix_space import MatrixSpace
 from sage.matrix.special import block_matrix, diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, round, isqrt
 from sage.misc.misc_c import prod
+from sage.misc.persist import _base_save
 from sage.modular.dirichlet import DirichletGroup, kronecker_character
 from sage.modular.modform.constructor import CuspForms, ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
@@ -80,6 +81,7 @@ sage_three_half = Integer(3) / Integer(2)
 sage_five_half = Integer(5) / Integer(2)
 sage_seven_half = Integer(7) / Integer(2)
 sage_nine_half = Integer(9) / Integer(2)
+_automorphism_group_dict = {}
 
 
 class WeilRep(object):
@@ -209,7 +211,7 @@ class WeilRep(object):
             self.__dual = w
             return w
 
-    def __hash__(self): #just in case ??
+    def __hash__(self):
         r"""
         Create a hash from the Gram matrix.
         """
@@ -229,6 +231,14 @@ class WeilRep(object):
         else:
             return NotImplemented
     __rmul__ = __mul__
+
+    def save(self):
+        if hasattr(self, '__automorphism_group'):
+            G = self.__automorphism_group
+            del self.__automorphism_group
+            _base_save(self)
+            self.__automorphism_group = G
+        _base_save(self)
 
     ## basic attributes
 
@@ -3839,8 +3849,7 @@ class WeilRep(object):
             for n in range(j_order):
                 jl[n] = j0
                 j0 *= j
-            Y = copy(X)
-            Y.extend(WeilRepModularFormsBasis(k, [x * y for y in jl for x in X], self))
+            Y = WeilRepModularFormsBasis(k, [x for x in X] + [x * y for y in jl for x in X], self)
             for y in Y:
                 y.reduce_precision(prec)
             Y.echelonize(starting_from = -pole_order)
@@ -3959,8 +3968,8 @@ class WeilRep(object):
             [3 4]
         """
         try:
-            return self.__automorphism_group
-        except AttributeError:
+            return _automorphism_group_dict[self]
+        except KeyError:
             pass
         S = self.gram_matrix().inverse()
         S1, d = S._clear_denom()
@@ -3987,7 +3996,7 @@ class WeilRep(object):
         G = self.discriminant_form().orthogonal_group()
         X = G.conjugacy_classes()
         G = WeilRepAutomorphismGroup(self, [WeilRepAutomorphism(self, a(g)) for x in X for g in x], G)
-        self.__automorphism_group = G
+        _automorphism_group_dict[self] = G
         return G
 
     ## low weight ##

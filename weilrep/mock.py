@@ -508,11 +508,13 @@ class WeilRepAlmostHolomorphicModularForm:
 
     ## evaluate at points. partially copied from holomorphic case
 
-    def __call__(self, z, q = False, funct = None):
+    def __call__(self, z, q = False, funct = None, cayley = False):
         if funct is None:
             funct = self.__call__
         if q:
             return self.__call__(cmath.log(z) / complex(0.0, 2 * math.pi), funct = funct)
+        elif cayley:
+            return self.__call__(complex(0.0, 1.0) * (1 + z) / (1 - z), funct = funct)
         if 0 < abs(z) < 1:
             z = -1 / z
             return (z ** self.weight()) * (self.weilrep()._evaluate(0, -1, 1, 0) * funct(z))
@@ -539,8 +541,9 @@ class WeilRepAlmostHolomorphicModularForm:
         return sum(x.__call__(z) * four_pi_y_inv ** j for j, x in enumerate(self))
 
     @cached_method
-    def _cached_call(self, z, q = False, isotherm = False):
-        s = self.__call__(z, q = q, funct = self._cached_call)
+    def _cached_call(self, z, isotherm = False, **kwargs):
+        _ = kwargs.pop('funct', None)
+        s = self.__call__(z, funct = self._cached_call, **kwargs)
         if isotherm:
             v = [0] * len(s)
             for i, x in enumerate(s):
@@ -577,6 +580,10 @@ class WeilRepAlmostHolomorphicModularForm:
         self._cached_call.clear_cache()
         return L
 
+    def plot_cayley(self, **kwargs):
+        kwargs['_cayley'] = True
+        return self.plot_q(**kwargs)
+
     def plot_q(self, isotherm = True, show = True, **kwargs):
         r"""
         Plot self on the unit disc.
@@ -588,11 +595,16 @@ class WeilRepAlmostHolomorphicModularForm:
         if isotherm and 'plot_points' not in kwargs:
             kwargs['plot_points'] = 150
         function = kwargs.pop('function', None)
+        cayley = kwargs.pop('_cayley', None)
+        if cayley:
+            q, cayley = False, True
+        else:
+            q, cayley = True, False
         if function is not None:
-            f = lambda z: function(self._cached_call(z, q = True, isotherm = isotherm)) if abs(z) < 1 else Infinity
+            f = lambda z: function(self._cached_call(z, q = q, cayley = cayley, isotherm = isotherm)) if abs(z) < 1 else Infinity
             self._cached_call.clear_cache()
             return complex_plot(f, [-1, 1], [-1, 1], **kwargs)
-        f = lambda i: (lambda z: self._cached_call(z, q = True, isotherm = isotherm)[i] if abs(z) < 1 else Infinity)
+        f = lambda i: (lambda z: self._cached_call(z, q = q, cayley = cayley, isotherm = isotherm)[i] if abs(z) < 1 else Infinity)
         L = []
         rds = self.weilrep().rds(indices = True)
         ds = self.weilrep().ds()

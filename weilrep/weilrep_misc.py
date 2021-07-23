@@ -12,8 +12,10 @@ from bisect import bisect
 
 from sage.arith.misc import divisors, fundamental_discriminant, is_square, kronecker, prime_divisors
 from sage.arith.srange import srange
+from sage.calculus.var import var
+from sage.combinat.subset import Subsets
 from sage.functions.generalized import sgn
-from sage.functions.other import ceil, floor, frac, sqrt
+from sage.functions.other import ceil, factorial, floor, frac, sqrt
 from sage.functions.transcendental import zeta
 from sage.matrix.constructor import matrix
 from sage.misc.functional import denominator, isqrt
@@ -73,14 +75,90 @@ def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound)
 
 def gegenbauer_polynomial(N, s):
     r"""
-    Compute two-variable Gegenbauer polynomials.
+    Two-variable Gegenbauer polynomials.
     """
     x, y = PolynomialRing(QQ, ['x', 'y']).gens()
-    f = 0
-    for k in range(N // 2 + 1):
-        j = N - (k + k)
-        f += (-1)**k * QQ(gamma(s + k + j) /  gamma(s + ceil(N / 2))) / (factorial(k) * factorial(j)) * (x ** j) * (y ** k)
-    return f * factorial(N)
+    return factorial(N) * sum( prod(srange(s + ceil(N / 2), s + N - k)) / (factorial(k) * factorial(N - (k + k))) * x**(N - (k + k)) * (-y)**k for k in range(N // 2 + 1) )
+
+def multilinear_gegenbauer_polynomial(n, s, vectors, S):
+    r"""
+    Multilinear Gegenbauer polynomials.
+    """
+    a = Subsets(range(len(vectors)))
+    N = S.nrows()
+    h = 0
+    P = gegenbauer_polynomial(n, s)
+    R = PolynomialRing(QQ, list(var('z_%d' % i) for i in range(N + 1) ))
+    gens = R.gens()
+    mu = vector(gens[:-1])
+    n = gens[-1]
+    S_inv = S.inverse()
+    for s in a:
+        v = sum(vectors[i] for i in s)
+        if v:
+            Sv = S * v
+        else:
+            v = vector([0]*S.nrows())
+            Sv = vector([0] * S.nrows())
+        h += (-1) ** len(s) * P(mu * Sv, n * (v * Sv)/2)
+    return h / factorial(len(vectors))
+
+## linear relations
+
+def relations(*x):
+    r"""
+    Compute linear relations.
+
+    This computes the vector space of linear relations among the input 'x'. This can be vector-valued modular forms, Jacobi forms, or modular forms on orthogonal groups.
+
+    INPUT:
+    - ``x" -- one or more (or a list of) JacobiForm's; or WeilRepModularForm's; or OrthogonalModularForm's.
+
+    OUTPUT: a Free Module
+
+    EXAMPLES::
+
+        sage: from weilrep import *
+        sage: relations(JacobiForms(1).basis(10, 5) + [jacobi_eisenstein_series(4, 1, 5) * smf_eisenstein_series(6), jacobi_eisenstein_series(6, 1, 5) * smf_eisenstein_series(4)])
+        Vector space of degree 4 and dimension 2 over Rational Field
+        Basis matrix:
+        [     1      0 -11/18  -7/18]
+        [     0      1 -1/144  1/144]
+
+        sage: from weilrep import *
+        sage: e4, e6, e10, e14 = [ParamodularForms(1).eisenstein_series(k, 6) for k in [4, 6, 10, 14]]
+        sage: relations(e4*e4*e6, e4*e10, e14)
+        Vector space of degree 3 and dimension 1 over Rational Field
+        Basis matrix:
+        [                 1 -47200892/12330549  34870343/12330549]
+
+        sage: from weilrep import *
+        sage: relations(WeilRep([[2, 1], [1, 2]]).modular_forms_basis(15, 10))
+        Vector space of degree 3 and dimension 0 over Rational Field
+        Basis matrix:
+        []
+    """
+    from .jacobi_forms_class import JacobiForm, _jf_relations
+    from .lifts import OrthogonalModularForm, _omf_relations
+    from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
+    x_ref = x[0]
+    if isinstance(x_ref, list):
+        x = x_ref
+        x_ref = x[0]
+    if isinstance(x_ref, WeilRepModularForm):
+        k = x_ref.weight()
+        w = x_ref.weilrep()
+        if any(y.weight() != k or y.weilrep() != w for y in x[1:]):
+            raise ValueError('Incompatible modular forms.')
+        X = WeilRepModularFormsBasis(x_ref.weight(), x, x_ref.weilrep())
+        return X.relations()
+    elif isinstance(x_ref, WeilRepModularFormsBasis):
+        return x_ref.relations()
+    elif isinstance(x_ref, JacobiForm):
+        return _jf_relations(x)
+    elif isinstance(x_ref, OrthogonalModularForm):
+        return _omf_relations(x)
+    return NotImplemented
 
 ## theta blocks
 
@@ -99,16 +177,16 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose
 
     OUTPUT: a list of JacobiForm's
     """
+    from .jacobi_forms_class import theta_block
     if not jacobiforms:
         jacobiforms = JacobiForms(N)
     rank = 0
-    #the four families of weight two theta blocks from root lattices
+    #four families of weight two theta blocks from root lattices
     thetablockQ_1 = QuadraticForm(matrix([[4,3,2,1],[3,6,4,2],[2,4,6,3],[1,2,3,4]]))
     thetablockQ_2 = QuadraticForm(matrix([[24,12,0,0],[12,8,0,0],[0,0,12,6],[0,0,6,6]]))
     thetablockQ_3 = QuadraticForm(matrix([[4,0,0,0],[0,20,10,20],[0,10,10,20],[0,20,20,60]]))
     thetablockQ_4 = QuadraticForm(matrix([[4,0,0,0],[0,8,8,4],[0,8,16,8],[0,4,8,6]]))
     thetablock_tuple = thetablockQ_1, thetablockQ_2, thetablockQ_3, thetablockQ_4
-    from .jacobi_forms_class import theta_block
     thetablock_1 = lambda a, b, c, d, prec: theta_block([a, a+b, a+b+c, a+b+c+d, b, b+c, b+c+d, c, c+d, d], -6, prec, jacobiforms = jacobiforms)
     thetablock_2 = lambda a, b, c, d, prec: theta_block([a, 3*a+b, 3*a+b+b, a+a+b, a+b, b, c+c, c+c+d, 2*(c+d), d], -6, prec, jacobiforms = jacobiforms)
     thetablock_3 = lambda a, b, c, d, prec: theta_block([a+a, b+b, b+b+c, 2*(b+c+d+d), b+b+c+d+d, b+b+c+4*d, c, c+d+d, c+4*d, d+d], -6, prec, jacobiforms = jacobiforms)
@@ -165,6 +243,7 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
 
     OUTPUT: a list of JacobiForm's
     """
+    from .jacobi_forms_class import theta_block
     if not jacobiforms:
         jacobiforms = JacobiForms(N)
     rank = 0
@@ -186,7 +265,6 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
     args7 = lambda a, b, c, d, e, f : [a, a+b, a+b+c, a+b+c+d, a+b+c+d+e, a+b+c+d+e+f, b, b+c, b+c+d, b+c+d+e, b+c+d+e+f, c, c+d, c+d+e, c+d+e+f, d, d+e, d+e+f, e, e+f, f]
     args8 = lambda a, b, c, d, e, f : [a+a, b, c, d, b + d, c + d, b + c + d, e, d + e, b + d + e, c + d + e, b + c + d + e, b + c + 2*d + e, f, e + f, d + e + f, b + d + e + f, c + d + e + f, b + c + d + e + f, b + c + 2*d + e + f, b + c + 2*d + 2*e + f]
     args_tuple = args1, args2, args3, args4, args5, args6, args7, args8
-    from .jacobi_forms_class import theta_block
     thetablock_1 = lambda b, c, d, prec: theta_block(args1(b, c, d), -3, prec, jacobiforms = jacobiforms)
     thetablock_2 = lambda b, c, d, prec: theta_block(args2(b, c, d), -3, prec, jacobiforms = jacobiforms)
     thetablock_3 = lambda a, b, d, e, f, prec: theta_block(args3(a, b, d, e, f), -3, prec, jacobiforms = jacobiforms)

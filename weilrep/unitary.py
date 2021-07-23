@@ -33,6 +33,7 @@ from sage.matrix.special import block_diagonal_matrix
 from sage.misc.functional import denominator
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
+from sage.rings.fraction_field import FractionField
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
@@ -65,7 +66,10 @@ class HermitianWeilRep(WeilRep):
         gen = kwargs.pop('gen', None)
         if gen is None:
             gen = (d + K.gen() * (2 - (d % 4))) / 2
-        ell, m = gen.parts()
+        try:
+            ell, m = gen.parts()
+        except AttributeError:
+            ell, m = gen, 0
         u = ell * ell + m * m * (-d0)
         ell, m, u = ell + ell, m + m, u + u
         n = S.nrows()
@@ -307,6 +311,15 @@ class HermitianWeilRep(WeilRep):
             return L
 
     def unitary_reflection(self, r, alpha=-1):
+        r"""
+        Construct the complex reflection \sigma_{r, \alpha}(v) = v - (1 - \alpha) <r, v> r / <r, r>.
+
+        INPUT:
+        - ``r" -- a dual lattice vector
+        - ``\alpha" -- a unit in O_K which is not 1.
+
+        OUTPUT: WeilRepAutomorphism
+        """
         S = self.complex_gram_matrix()
         r_conj = vector([x.galois_conjugate() for x in r])
         r_norm = r * S * r_conj
@@ -601,12 +614,22 @@ class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
     def __init__(self, N, K = None, gen = None):
         if K is None:
             K = N.parent()
+            K = FractionField(K)
         if K:
             g = K.gen()
-            if g.norm() != abs(K.discriminant()):
+            try:
+                gn = g.norm()
+                Kd = K.discriminant()
+            except AttributeError:
+                gn = g * g
+                Kd = 1
+            if gn != abs(Kd):
                 g *= 2
             a = N / g
-            S = Matrix(K, [[0, a], [a.galois_conjugate(), 0]])
+            try:
+                S = Matrix(K, [[0, a], [a.galois_conjugate(), 0]])
+            except AttributeError:
+                S = Matrix(K, [[0, a], [a, 0]])
             super().__init__(S, gen = gen, plus_H = True)
             self.__class__ = HermitianRescaledHyperbolicPlane
         self.__N = N
