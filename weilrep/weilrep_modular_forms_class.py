@@ -1463,7 +1463,7 @@ class WeilRepModularForm(object):
             return smf(k_0, 0 + O(q ** self.precision()))
         prec = self.precision()
         w = self.weilrep()
-        val = self.valuation()
+        val = min(0, self.valuation())
         ds_dict = w.ds_dict()
         ds = w.ds()
         big_w = w(N)
@@ -1544,8 +1544,6 @@ class WeilRepModularForm(object):
             Sz = matrix([])
             A = identity_matrix(S.nrows())
         w = WeilRep(z * Sz)
-        #if not w.is_positive_definite():
-        #    raise ValueError('The development coefficient must be taken with respect to a positive-definite sublattice.')
         if N:
             P = multilinear_gegenbauer_polynomial(N, k - 1 + Integer(S.nrows() - ell)/2, v, S)
         else:
@@ -1614,7 +1612,11 @@ class WeilRepModularForm(object):
             z = matrix(ZZ, v)
         A = matrix(ZZ, z.transpose().echelon_form(transformation = True)[1].inverse())
         n = A.nrows() - len(v)
-        f = self.conjugate(A)
+        try:
+            f = self.conjugate(A)
+        except TypeError: #are you trying to use an empty matrix? then we do nothing
+            f = self
+            n = self.gram_matrix().nrows()
         i = 0
         while i < n:
             f = f.theta_contraction(**kwargs)
@@ -2062,13 +2064,16 @@ class WeilRepModularFormsBasis:
         return '[]'
 
     def __add__(self, other):
-        if self.weilrep() == other.weilrep() and self.weight() == other.weight():
-            X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
-            if self._flag() == 'quasimodular' or other._flag() == 'quasimodular':
-                X._WeilRepModularFormsBasis__flag = 'quasimodular'
-                X._WeilRepModularFormsBasis__bound = self.__weight
-            return X
-        return NotImplemented
+        try:
+            if self.weilrep() == other.weilrep() and self.weight() == other.weight():
+                X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
+                if self._flag() == 'quasimodular' or other._flag() == 'quasimodular':
+                    X._WeilRepModularFormsBasis__flag = 'quasimodular'
+                    X._WeilRepModularFormsBasis__bound = self.__weight
+                return X
+            return NotImplemented
+        except AttributeError:
+            return self.__basis + other
 
 
     def __radd__(self, other):
