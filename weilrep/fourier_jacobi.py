@@ -25,9 +25,9 @@ class FourierJacobiSeries:
             self.__coefficients[i + 1] = f
 
     def __repr__(self):
-        return 'Formal Fourier-Jacobi series with coefficients\n%s'%('\n%s\n'%('-' * 80)).join(map(str, self.fourier_jacobi_coefficients()))
+        return 'Formal Fourier-Jacobi series with coefficients\n%s'%('\n%s\n'%('-' * 80)).join(map(str, self.fourier_jacobi()))
 
-    def fourier_jacobi_coefficients(self):
+    def fourier_jacobi(self):
         return self.__coefficients
 
     def gram_matrix(self):
@@ -37,30 +37,30 @@ class FourierJacobiSeries:
         return self.__weight
 
     def __add__(self, other):
-        X = self.fourier_jacobi_coefficients()
-        Y = other.fourier_jacobi_coefficients()
+        X = self.fourier_jacobi()
+        Y = other.fourier_jacobi()
         return FourierJacobiSeries([x+Y[i] for i, x in enumerate(X[:min(len(X), len(Y))])])
     __radd__ = __add__
 
     def __div__(self, other):
-        return FourierJacobiSeries([x / other for x in self.fourier_jacobi_coefficients()])
+        return FourierJacobiSeries([x / other for x in self.fourier_jacobi()])
     __truediv__ = __div__
 
     def __eq__(self, other):
-        X = self.fourier_jacobi_coefficients()
-        Y = other.fourier_jacobi_coefficients()
+        X = self.fourier_jacobi()
+        Y = other.fourier_jacobi()
         return all(x == Y[i] for i, x in enumerate(X[:min(len(X), len(Y))]))
 
     def __mul__(self, other):
-        X = self.fourier_jacobi_coefficients()
+        X = self.fourier_jacobi()
         if other in CC:
             return FourierJacobiSeries([x*other for x in X])
-        Y = other.fourier_jacobi_coefficients()
+        Y = other.fourier_jacobi()
         return FourierJacobiSeries([sum(X[k] * Y[n-k] for k in range(n + 1)) for n in range(min(len(X), len(Y)))])
     __rmul__ = __mul__
 
     def __neg__(self):
-        return FourierJacobiSeries([-x for x in self.fourier_jacobi_coefficients()])
+        return FourierJacobiSeries([-x for x in self.fourier_jacobi()])
 
     def __pow__(self, other):
         if other in ZZ and other >= 1:
@@ -75,11 +75,21 @@ class FourierJacobiSeries:
             raise NotImplementedError
 
     def __sub__(self, other):
-        X = self.fourier_jacobi_coefficients()
-        Y = other.fourier_jacobi_coefficients()
+        X = self.fourier_jacobi()
+        Y = other.fourier_jacobi()
         return FourierJacobiSeries([x-Y[i] for i, x in enumerate(X[:min(len(X), len(Y))])])
 
-def lazy_lift(f, prec):
+    def is_lift(self):
+        try:
+            X = self.fourier_jacobi()
+            f = X[1]
+            if not bool(f):
+                return False
+            return all(f.hecke_V(N) == x for N, x in enumerate(X))
+        except NotImplementedError:
+            return False
+
+def formal_lift(f, prec):
     r"""
     Gritsenko lift.
 
@@ -88,8 +98,10 @@ def lazy_lift(f, prec):
     - ``prec`` -- precision
 
     Instead of calling this directly you should use
-    f.lazy_lift()
+    f.formal_lift()
     """
+    if not f.is_holomorphic():
+        return NotImplemented
     S = f.gram_matrix()
     N = S.nrows()
     k = f.weight() + Integer(N) / 2
@@ -103,14 +115,14 @@ def lazy_lift(f, prec):
         X.append(f.hecke_V(i))
     return FourierJacobiSeries(X)
 
-def fj_relations(*X):
+def _fj_relations(*X):
     r"""
     Compute linear relations among a list of formal Fourier-Jacobi series.
     """
     if len(X) == 1:
         X = X[0]
     k = X[0].weight()
-    X = [x.fourier_jacobi_coefficients() for x in X]
+    X = [x.fourier_jacobi() for x in X]
     prec = min(map(len, X))
     Z = [WeilRepModularFormsBasis(k, [x[i] for x in X], X[0][i].weilrep()) for i in range(prec)]
     V = Z[0].relations()

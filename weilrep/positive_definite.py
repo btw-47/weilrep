@@ -61,6 +61,7 @@ from sage.rings.real_mpfr import RR
 sage_one_half = Integer(1) / Integer(2)
 sage_three_half = Integer(3) / Integer(2)
 
+from .fourier_jacobi import formal_lift
 from .jacobi_forms_class import JacobiForm, JacobiForms, JacobiFormWithCharacter
 from .lifts import OrthogonalModularForm, OrthogonalModularForms
 from .weilrep import WeilRep
@@ -705,8 +706,8 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 for i in range(precval):
                     jf[i] += f[ceil(val) + i]
             except PariError: #oops!
-                lvl = Q.level()
                 Q = QuadraticForm(S)
+                lvl = Q.level()
                 S_adj = lvl*S_inv
                 vs = QuadraticForm(S_adj).short_vector_list_up_to_length(lvl*(prec - val))
                 for n in range(len(vs)):
@@ -1372,7 +1373,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 c = Integer(coeffs[tuple([Integer(1) / 2] + [0] * (nrows + 4))])
                 C *= Integer(2)**Integer(c / 2)
                 f *= C
-            X = OrthogonalModularForm(weight, self.weilrep(), f * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h)
+            X = OrthogonalModularForm(weight, self.weilrep(), f * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h, ppcoeffs = self.principal_part_coefficients())
             if verbose:
                 print('Multiplying by the factor (Weyl vector) %s'%(weyl_vector_term))
             try:
@@ -1382,6 +1383,9 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             return X
         except TypeError:
             raise RuntimeError('I caught a TypeError. This probably means you are trying to compute a Borcherds product that is not holomorphic.')
+
+    def formal_lift(self, prec = Infinity):
+        return formal_lift(self, min(prec, isqrt(4 * self.precision() + 8)))
 
 class WeilRepModularFormPositiveDefiniteWithCharacter(WeilRepModularFormWithCharacter, WeilRepModularFormPositiveDefinite):
     r"""

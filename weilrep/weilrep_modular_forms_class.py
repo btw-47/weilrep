@@ -1482,8 +1482,9 @@ class WeilRepModularForm(object):
                     try:
                         i = ds_dict[tuple(frac(d * x) for x in g)]
                         offset = X[i][1]
+                        prec_0 = X[i][2].prec()
                         n = big_offset + val * ceil(a / d)
-                        while n < (prec + offset) * (a / d):
+                        while n < (prec_0 + offset) * (a / d):
                             if (n + r_val) % a == 0:
                                 Y[j][2] += X[i][2][Integer(d * n / a - offset)] * q ** (ceil(n)) * a_pow
                             n += 1

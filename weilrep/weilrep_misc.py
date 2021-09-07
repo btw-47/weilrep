@@ -23,6 +23,7 @@ from sage.misc.misc_c import prod
 from sage.modular.dirichlet import kronecker_character
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.vm_basis import delta_qexp
+from sage.modules.free_module import FreeModule
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.quadratic_forms.special_values import quadratic_L_function__exact
@@ -84,15 +85,17 @@ def multilinear_gegenbauer_polynomial(n, s, vectors, S):
     r"""
     Multilinear Gegenbauer polynomials.
     """
-    a = Subsets(range(len(vectors)))
-    N = S.nrows()
-    h = 0
     P = gegenbauer_polynomial(n, s)
+    N = S.nrows()
     R = PolynomialRing(QQ, list(var('z_%d' % i) for i in range(N + 1) ))
     gens = R.gens()
     mu = vector(gens[:-1])
     n = gens[-1]
-    S_inv = S.inverse()
+    v = vectors[0]
+    if all(x == v for x in vectors[1:]):
+        return P(mu * S * v, n * (v * S * v) / 2)
+    a = Subsets(range(len(vectors)))
+    h = 0
     for s in a:
         v = sum(vectors[i] for i in s)
         if v:
@@ -138,13 +141,17 @@ def relations(*x):
         Basis matrix:
         []
     """
+    from .fourier_jacobi import FourierJacobiSeries, _fj_relations
     from .jacobi_forms_class import JacobiForm, _jf_relations
     from .lifts import OrthogonalModularForm, _omf_relations
     from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
     x_ref = x[0]
     if isinstance(x_ref, list):
         x = x_ref
-        x_ref = x[0]
+        try:
+            x_ref = x[0]
+        except IndexError:
+            return FreeModule(QQ, 0)
     if isinstance(x_ref, WeilRepModularForm):
         k = x_ref.weight()
         w = x_ref.weilrep()
@@ -158,6 +165,8 @@ def relations(*x):
         return _jf_relations(x)
     elif isinstance(x_ref, OrthogonalModularForm):
         return _omf_relations(x)
+    elif isinstance(x_ref, FourierJacobiSeries):
+        return _fj_relations(x)
     return NotImplemented
 
 ## theta blocks
