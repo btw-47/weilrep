@@ -110,18 +110,28 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
             raise ValueError('Too few coefficients')
         k = fj[0].weight()
         rb_w = fj[1].base_ring()
+        scale = fj[1].scale()
+        qshift = fj[1]._qshift()
+        if qshift:
+            inv_qshift = ~qshift
+            a = lcm(scale, inv_qshift)
+            fj = [fj[0]] + [x._rescale(a * qshift) for x in fj[1:]]
+        else:
+            a = scale
         S = self.gram_matrix()
         nrows = S.nrows()
         rb_r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(nrows)))
         rb_x, x = LaurentPolynomialRing(rb_r, 'x').objgen()
         rb_q, q = PowerSeriesRing(rb_r, 'q').objgen()
-        t, = PowerSeriesRing(rb_x, 't').gens()
+        rb_t, t = PowerSeriesRing(rb_x, 't').objgen()
         change_ring = {w_j:rb_r('r_%d'%j) for j, w_j in enumerate(rb_w.gens())}
-        f = sum([rb_q(fj[i].fourier_expansion().map_coefficients(lambda x: x.subs(change_ring)))(x*t) * (~x*t)**i for i in range(1, len(fj))]) + O(t ** len(fj))
+        f = sum([rb_t(rb_q(fj[i].fourier_expansion().map_coefficients(lambda z: z.subs(change_ring)))((x*t)**a)) * (~x*t)**(i*a) for i in range(1, len(fj))]) + O(t ** len(fj))
+        if qshift:
+            f *= (x*x)
         h = fj[0].fourier_expansion()
         if h:
             f += rb_q(h)(x * t)
-        return OrthogonalModularForm(k, self.weilrep(), f, 1, vector([0] * (nrows + 2)))
+        return OrthogonalModularForm(k, self.weilrep(), f, a, vector([0] * (nrows + 2)))
 
     def borcherds_input_by_weight(self, k, prec, pole_order = None, verbose = False, **kwargs):
         r"""
@@ -394,7 +404,8 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             sage: from weilrep import *
             sage: f = ParamodularForms(4).borcherds_input_by_weight(1/2, 5)[0].borcherds_lift()
             sage: (f ** 8).fourier_jacobi()
-            [O(q^6), (w^-4 - 8*w^-3 + 28*w^-2 - 56*w^-1 + 70 - 56*w + 28*w^2 - 8*w^3 + w^4)*q + (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q^2 + (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q^3 + (-56*w^-7 + 288*w^-6 - 616*w^-5 + 896*w^-4 - 1400*w^-3 + 2016*w^-2 - 2024*w^-1 + 1792 - 2024*w + 2016*w^2 - 1400*w^3 + 896*w^4 - 616*w^5 + 288*w^6 - 56*w^7)*q^4 + O(q^5), (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q + (8*w^-8 - 56*w^-7 + 224*w^-6 - 616*w^-5 + 1120*w^-4 - 1400*w^-3 + 1568*w^-2 - 2024*w^-1 + 2352 - 2024*w + 1568*w^2 - 1400*w^3 + 1120*w^4 - 616*w^5 + 224*w^6 - 56*w^7 + 8*w^8)*q^2 + (-56*w^-9 + 336*w^-8 - 1008*w^-7 + 2016*w^-6 - 2856*w^-5 + 3360*w^-4 - 4536*w^-3 + 6048*w^-2 - 5880*w^-1 + 5152 - 5880*w + 6048*w^2 - 4536*w^3 + 3360*w^4 - 2856*w^5 + 2016*w^6 - 1008*w^7 + 336*w^8 - 56*w^9)*q^3 + O(q^4), (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q + (-56*w^-9 + 336*w^-8 - 1008*w^-7 + 2016*w^-6 - 2856*w^-5 + 3360*w^-4 - 4536*w^-3 + 6048*w^-2 - 5880*w^-1 + 5152 - 5880*w + 6048*w^2 - 4536*w^3 + 3360*w^4 - 2856*w^5 + 2016*w^6 - 1008*w^7 + 336*w^8 - 56*w^9)*q^2 + O(q^3), (-56*w^-7 + 288*w^-6 - 616*w^-5 + 896*w^-4 - 1400*w^-3 + 2016*w^-2 - 2024*w^-1 + 1792 - 2024*w + 2016*w^2 - 1400*w^3 + 896*w^4 - 616*w^5 + 288*w^6 - 56*w^7)*q + O(q^2), O(q^1)]
+            [O(q^5), (w^-4 - 8*w^-3 + 28*w^-2 - 56*w^-1 + 70 - 56*w + 28*w^2 - 8*w^3 + w^4)*q + (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q^2 + (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q^3 + O(q^4), (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q + (8*w^-8 - 56*w^-7 + 224*w^-6 - 616*w^-5 + 1120*w^-4 - 1400*w^-3 + 1568*w^-2 - 2024*w^-1 + 2352 - 2024*w + 1568*w^2 - 1400*w^3 + 1120*w^4 - 616*w^5 + 224*w^6 - 56*w^7 + 8*w^8)*q^2 + O(q^3), (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q + O(q^2), O(q^1)]
+
 
         """
         try:
@@ -407,28 +418,36 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         z = rb.gens()[0]
         r, q = PowerSeriesRing(rb, 'q').objgen()
         k = self.weight()
-        if self.scale() != 1:
-            v = self.weyl_vector()
-            vfrac = frac(v[0])
-            if vfrac + vfrac and vfrac + vfrac != 1:
-                raise NotImplemented('Invalid character')
-            scale = denominator(vector(v[1:-1]))
+        scale = self.scale()
+        if scale != 1:
+            #v = self.weyl_vector()
+            #vfrac = frac(v[0])
+            #if vfrac + vfrac and vfrac + vfrac != 1:
+            #    raise NotImplemented('Invalid character')
+            #scale = denominator(vector(v[1:-1]))
             prec = self.precision()
-            L = [O(q ** (prec - ceil(vfrac) - n)) for n in range(prec)]
+            floor_prec = floor(prec)
+            if prec in ZZ:
+                floor_prec -= 1
+            L = [O(q ** (floor_prec - n)) for n in range(floor_prec)]
             coeffs = self.qs_coefficients()
             for x, y in coeffs.items():
                 a = x[0]
                 c = x[2]
-                b = [scale * x for x in x[1:-1]]
+                b = [x for x in x[1:-1]]
+                wscale = 1
+                if any(u not in ZZ for u in b):
+                    b = [b + b for b in b]
+                    wscale = 2
                 if nrows > 1:
                     u = rb.monomial(*b)
                 else:
                     u = z**(b[0])
-                L[c - vfrac] += (q ** ZZ(a - vfrac)) * u * y
-            if vfrac:
-                d = bool(vfrac)
-                chi = EtaCharacterPower(24 * v[0])
-                self.__fourier_jacobi = [JacobiFormWithCharacter(k, (n  + d - vfrac) * S, j, qshift = vfrac, character = chi, w_scale = scale) for n, j in enumerate(L)]
+                L[floor(c)] += (q ** floor(a)) * u * y
+            qshift = frac(c)
+            if qshift:
+                chi = EtaCharacterPower(24 * qshift)
+                self.__fourier_jacobi = [JacobiFormWithCharacter(k, (n  + qshift) * S, j, qshift = qshift, character = chi, w_scale = wscale) for n, j in enumerate(L)]
             else:
                 self.__fourier_jacobi = [JacobiForm(k, n * S, j) for n, j in enumerate(L)]
             return self.__fourier_jacobi

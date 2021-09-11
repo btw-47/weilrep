@@ -25,7 +25,7 @@ PariError = cypari2.PariError
 from collections import Counter
 from re import sub
 
-from sage.arith.misc import divisors
+from sage.arith.misc import divisors, is_square, XGCD
 from sage.calculus.var import var
 from sage.functions.other import binomial, ceil, floor, frac
 from sage.matrix.constructor import matrix
@@ -40,9 +40,11 @@ from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.all import CC
 from sage.rings.big_oh import O
+from sage.rings.fraction_field import FractionField
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
+from sage.rings.number_field.number_field import CyclotomicField
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
@@ -470,6 +472,9 @@ class JacobiForms:
             return t**(-m) * r([1,0]+[1]*(m - 1))
         return self.weak_hilbert_series(polynomial = True)
 
+    def zero(self, *args, **kwargs):
+        return self.weilrep().zero(*args, **kwargs).jacobi_form()
+
     ## bases of spaces associated to this index
 
     def cusp_forms_basis(self, weight, prec=0, try_theta_blocks=None, **kwargs):
@@ -882,10 +887,15 @@ class JacobiForm:
             q - 24*q^2 + 252*q^3 - 1472*q^4 + 4830*q^5 - 6048*q^6 - 16744*q^7 + 84480*q^8 - 113643*q^9 + O(q^10)
 
             sage: from weilrep import *
+            sage: f = JacobiForms(1).cusp_forms_basis(12, 10)[0]
+            sage: f.development_coefficient(0)
+            12*q - 288*q^2 + 3024*q^3 - 17664*q^4 + 57960*q^5 - 72576*q^6 - 200928*q^7 + 1013760*q^8 - 1363716*q^9 + O(q^10)
+
+            sage: from weilrep import *
             sage: J = JacobiForms([[2, 1], [1, 4]])
             sage: f = J.cusp_forms_basis(7, 5)[0]
             sage: f.development_coefficient([vector([1, 0])], [vector([1, -2])]*3)
-            (-360*w^-1 + 720 - 360*w)*q + (720*w^-2 + 5760*w^-1 - 12960 + 5760*w + 720*w^2)*q^2 + (-360*w^-3 - 12960*w^-2 - 35640*w^-1 + 97920 - 35640*w - 12960*w^2 - 360*w^3)*q^3 + (5760*w^-3 + 97920*w^-2 + 86400*w^-1 - 380160 + 86400*w + 97920*w^2 + 5760*w^3)*q^4 + O(q^5)
+            (360*w^-1 - 720 + 360*w)*q + (-720*w^-2 - 5760*w^-1 + 12960 - 5760*w - 720*w^2)*q^2 + (360*w^-3 + 12960*w^-2 + 35640*w^-1 - 97920 + 35640*w + 12960*w^2 + 360*w^3)*q^3 + (-5760*w^-3 - 97920*w^-2 - 86400*w^-1 + 380160 - 86400*w - 97920*w^2 - 5760*w^3)*q^4 + O(q^5)
         """
         if isinstance(lattice_basis, Integer) and self.nvars() == 1:
             v = [vector([1])]*lattice_basis
@@ -916,6 +926,8 @@ class JacobiForm:
         j = JacobiForms(z * Sz)
         N = len(v)
         R = PowerSeriesRing(Rb, 'q')
+        qshift = self._qshift()
+        wscale = self.scale()
         if N:
             P = multilinear_gegenbauer_polynomial(N, k - 1 - j.nvars()/2, v, S)
         else:
@@ -930,24 +942,27 @@ class JacobiForm:
         else:
             m = lambda _:1
         def a(n):
+            n += qshift
             def b(x):
                 if ell:
                     try:
-                        return sum( m(vector(x)*z_tr) * P(*S_inv*vector(x), n) * y for x, y in x.dict().items() )
+                        return sum( m(vector(x)*z_tr) * P(*S_inv*vector(x) / wscale, n) * y for x, y in x.dict().items() )
                     except AttributeError:
                         return K(x)
                     except TypeError:
-                        return sum( m(vector([x])*z_tr) * P(*S_inv*vector([x]), n) * y for x, y in x.dict().items() )
+                        return sum( m(vector([x])*z_tr) * P(*S_inv*vector([x]) / wscale, n) * y for x, y in x.dict().items() )
                 else:
                     try:
-                        return sum( P(*S_inv*vector(x), n) * y for x, y in x.dict().items() )
+                        return sum( P(*S_inv*vector(x) / wscale, n) * y for x, y in x.dict().items() )
                     except AttributeError:
                         return K(x)
                     except TypeError:
-                        return sum( P(*S_inv*vector([x]), n) * y for x, y in x.dict().items() )
+                        return sum( P(*S_inv*vector([x]) / wscale, n) * y for x, y in x.dict().items() )
             return b
         f = R( [a(n)(h) for n, h in enumerate(self.q_coefficients())] ).add_bigoh(self.precision())
-        return JacobiForm(k + N, j.index_matrix(), f, jacobiforms = j)
+        if qshift:
+            return JacobiFormWithCharacter(k + N, j.index_matrix(), f, jacobiforms = j, character = self.character(), qshift = qshift, w_scale = wscale)
+        return JacobiForm(k + N, j.index_matrix(), f, jacobiforms = j, w_scale = wscale)
 
     def fourier_expansion(self):
         r"""
@@ -1089,6 +1104,20 @@ class JacobiForm:
         """
         return list(self.fourier_expansion())
 
+    def _qshift(self):
+        return 0
+
+    def reduce_precision(self, new_prec):
+        return JacobiForm(self.weight(), self.index_matrix(), self.qexp().add_bigoh(new_prec), modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale())
+
+    def _rescale(self, a):
+        f = self.qexp()
+        e = self.nvars()
+        rb_w = f.base_ring()
+        d = {rb_w('w_%d' % j): rb_w('w_%d' % j)**a for j in range(e)}
+        f = f.map_coefficients(lambda x: x.subs(d))
+        return JacobiForm(self.weight(), self.index_matrix(), f, modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale() * a)
+
     def scale(self):
         return self.__wscale
 
@@ -1124,7 +1153,7 @@ class JacobiForm:
             pass
         w = self.weilrep()
         if w is None:
-            return NotImplemented
+            return self.hecke_U(2).theta_decomposition()
         if self.scale() == 2: #scale back down to 1. This should be OK now.
             self.__wscale = 1
             f = self.qexp()
@@ -1295,6 +1324,16 @@ class JacobiForm:
                 of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
         return JacobiForm(self.weight(), self.index_matrix(), sf - of, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = scale)
 
+    def __invert__(self):
+        f = self.qexp()
+        try:
+            f_inv = ~f
+        except ValueError:
+            R = f.parent()
+            R_frac = FractionField(R)
+            f_inv = ~R_frac(f)
+        return JacobiForm(-self.weight(), -self.index_matrix(), f_inv, w_scale = self.scale())
+
     def __neg__(self):
         r"""
         Return the negative of self.
@@ -1303,7 +1342,7 @@ class JacobiForm:
             modform = -self.modform()
         except (AttributeError, TypeError):
             modform = None
-        return JacobiForm(self.weight, self.index_matrix, -self.fourier_expansion(), modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = self.scale())
+        return JacobiForm(self.weight(), self.index_matrix(), -self.fourier_expansion(), modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = self.scale())
 
     def __mul__(self, other):
         r"""
@@ -1399,7 +1438,10 @@ class JacobiForm:
                 f = sf / of
             R = f.base_ring()
             if R is not LaurentPolynomialRing:
-                R = LaurentPolynomialRing(QQ, R.gens())
+                try:
+                    R = LaurentPolynomialRing(QQ, R.gens())
+                except ValueError:
+                    R = QQ
                 def a(x):
                     try:
                         u = R(x.numerator()) / R(x.denominator())
@@ -1416,7 +1458,7 @@ class JacobiForm:
         elif isinstance(other, WeilRepModularForm):
             if other.weilrep().gram_matrix().nrows() == 0:
                 try:
-                    modform = self.modform() * other
+                    modform = self.modform() / other
                 except (AttributeError, TypeError):
                     modform = None
                 sf, of = self.qexp(), other.fourier_expansion()[0][2]
@@ -1514,9 +1556,17 @@ class JacobiForm:
         if self.scale() == 2 or other.scale() == 2:
             r = self.base_ring()
             if self.scale() == 1:
-                sf = sf.power_series().map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
+                try:
+                    sf = sf.power_series()
+                except AttributeError:
+                    pass
+                sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
             if other.scale() == 1:
-                of = of.power_series().map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
+                try:
+                    of = of.power_series()
+                except AttributeError:
+                    pass
+                of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
         return sf == of
 
     ## other operations
@@ -1818,8 +1868,14 @@ class JacobiFormWithCharacter(JacobiForm):
         except AttributeError:
             x = self.__qshift
             N = min(0, self.valuation())
+            e = self.nvars()
             if super().__bool__():
-                s = ' + '.join('(%s)*q^(%s)'%(str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))'%(self.precision() + x)
+                if e:
+                    s = ' + '.join('(%s)*q^(%s)'%(str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))'%(self.precision() + x)
+                else:
+                    s = ' + '.join('%s*q^(%s)'%(str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))'%(self.precision() + x)
+                    s = s.replace('1*', '')
+                    s = s.replace('+ -', '- ')
             else:
                 s = 'O(q^(%s))'%(self.precision() + x)
             if self.scale() == 2:
@@ -1944,12 +2000,111 @@ class JacobiFormWithCharacter(JacobiForm):
         f = super().hecke_U(N)
         return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
+    def hecke_V(self, N):
+        r"""
+        Apply the Nth Hecke V-operator.
+
+        This was defined for Jacobi forms twisted by a power 'D' of the eta character by Cléry and Gritsenko [CG]. The power 'D' must divide 24.
+        NOTE: if self has precision 'prec' then self.hecke_V(N) has precision floor(prec / N)
+
+        INPUT:
+        - ``N`` -- a natural number that is coprime to (24 / D)
+
+        OUTPUT: JacobiForm of the same weight and of index N * self.index()
+        """
+        wt = self.weight()
+        chi = self.character()
+        k = chi._k()
+        if 24 % k :
+            return NotImplemented
+        Q = 24 // k
+        if Q > 2:
+            K = CyclotomicField(Q)
+            zeta = K.gen()
+        else:
+            K = QQ
+            if Q == 2:
+                zeta = -1
+            else:
+                zeta = 1
+        g, x, y = XGCD(N, Q)
+        Qy = Q * y
+        xQxy = x * (1 + Qy)
+        if g != 1:
+            return NotImplemented
+        S = self.index_matrix()
+        e = S.nrows()
+        f = self.fourier_expansion()
+        F = f.padded_list()
+        qshift = self._qshift()
+        new_shift = x * qshift
+        R, q = f.parent().objgen()
+        Rb = R.base_ring()
+        s = self.scale()
+        wt_1 = wt - 1
+        prec = self.precision()
+        max_prec = -(prec // -N) - 1
+        val = min(self.valuation(), 0)
+        h = O(q ** (max_prec + val))
+        for a in divisors(N):
+            d = N // ZZ(a)
+            m = matrix([[d * xQxy, -Qy], [Qy, a]])
+            multiplier = zeta ** (chi(m) // k)
+            sub_a = {Rb('w_%d' % j): Rb('w_%d' % j)**a for j in range(e)}
+            s = 0
+            for n in range(max(0, ceil(val * (Q / d - 1))), prec):
+                if Q * (n + qshift) % d == 0:
+                    u = ZZ(a * (n + qshift) / d - new_shift)
+                    s += q ** u * F[n].subs(sub_a)
+            if wt in ZZ or is_square(a):
+                h += a**wt_1 * multiplier * s
+        return JacobiFormWithCharacter(wt, N * S, h, w_scale = self.scale(), character = chi**x, qshift = new_shift)
+
+    def reduce_precision(self, new_prec):
+        return JacobiFormWithCharacter(self.weight(), self.index_matrix(), self.qexp().add_bigoh(new_prec), modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale(), character = self.character(), qshift = self._qshift())
+
+    def _rescale(self, a):
+        f = self.qexp()
+        e = self.nvars()
+        rb_w = f.base_ring()
+        d = {rb_w('w_%d' % j): rb_w('w_%d' % j)**a for j in range(e)}
+        f = f.map_coefficients(lambda x: x.subs(d))
+        return JacobiFormWithCharacter(self.weight(), self.index_matrix(), f, modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale() * a, character = self.character(), qshift = self._qshift())
+
     def serre_derivative(self):
         f = super().serre_derivative()
         return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
 
-    def hecke_V(self, N):
-        raise NotImplementedError
+    ## lift
+
+    def gritsenko_lift(self, prec=None):
+        from .lifts import OrthogonalModularForms
+        chi = self.character()
+        k = chi._k()
+        if 24 % k or not self.is_holomorphic():
+            return NotImplemented
+        Q = 24 // k
+        if prec is None:
+            prec = self.precision()
+        else:
+            prec = min(prec, self.precision())
+        qshift = self._qshift()
+        if qshift == 0:
+            c = self.theta_decomposition().fourier_expansion()[0][2][0]
+        else:
+            c = 0
+        prec_Q = prec // Q
+        fj = [None] * (prec_Q + 1)
+        wt = self.weight()
+        J = JacobiForms([])
+        if c:
+            fj[0] = c * J.eisenstein_series(wt, prec)
+        else:
+            fj[0] = J.zero(wt, prec)
+        for n in range(prec_Q):
+            m = Q * n + 1
+            fj[n + 1] = self.hecke_V(m)
+        return OrthogonalModularForms(self.index_matrix() / qshift).modular_form_from_fourier_jacobi_expansion(fj)
 
 
 ## Extra functions
@@ -1991,7 +2146,7 @@ def _jf_relations(X):
     """
     Xref = X[0]
     if Xref.scale() == 2:
-        return jf_relations([x.hecke_U(2) for x in X])
+        return _jf_relations([x.hecke_U(2) for x in X])
     if not all(x.weight() == Xref.weight() and x.index() == Xref.index() for x in X[1:]):
         raise ValueError('Incompatible Jacobi forms')
     X = [x.theta_decomposition() for x in X]

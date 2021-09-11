@@ -495,6 +495,9 @@ class WeilRepAlmostHolomorphicModularForm:
         except AttributeError as e:
             raise e
 
+    def is_holomorphic(self):
+        return False
+
     def raising_operator(self):
         return self[0].derivative().completion()
 

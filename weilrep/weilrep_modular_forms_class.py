@@ -30,7 +30,7 @@ from collections import defaultdict
 from copy import copy, deepcopy
 from re import sub
 
-from sage.arith.misc import divisors, GCD, kronecker, XGCD
+from sage.arith.misc import dedekind_sum, divisors, GCD, kronecker, XGCD
 from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.functions.other import ceil, floor, frac
@@ -946,8 +946,9 @@ class WeilRepModularForm(object):
             [(2/3, 2/3, 1/4), 27*q^(19/24) + 243*q^(43/24) + 675*q^(67/24) + 1566*q^(91/24) + 2646*q^(115/24) + O(q^(139/24))]
 
         """
+        from .jacobi_forms_class import JacobiForm
         from .mock import WeilRepQuasiModularForm
-        if isinstance(other, WeilRepQuasiModularForm):
+        if isinstance(other, WeilRepQuasiModularForm) or isinstance(other, JacobiForm):
             return other.__mul__(self)
         elif isinstance(other, WeilRepModularFormWithCharacter) and not isinstance(self, WeilRepModularFormWithCharacter):
             return other.__mul__(self)
@@ -2212,6 +2213,9 @@ class WeilRepModularFormsBasis:
         X = [x.fourier_expansion() for x in self.__basis]
         if not X:
             return []
+        z = self[0]
+        if z.character():
+            return [x.jacobi_form() for x in self]
         S = self.gram_matrix()
         prec = self.precision()
         val = self.valuation()
@@ -2691,6 +2695,19 @@ class EtaCharacterPower:
     def __repr__(self):
         return '%d%s power of the eta multiplier'%(self._k(), self._th())
 
+    ## formula ##
+    def __call__(self, M):
+        a, b, c, d = M.list()
+        k = self.__k
+        if not a*d == b * c + 1:
+            raise ValueError('This matrix does not lie in SL2(ZZ)!')
+        elif not c:
+            return (b * k) % 24
+        elif c < 0:
+            return (self.__call__(-M) - 6 * k) % 24
+        s = (a + d) / (12 * c) + dedekind_sum(-d, c) - 1/4
+        return ZZ(12 * s * k) % 24
+
     ## arithmetic ##
 
     def __bool__(self):
@@ -2790,6 +2807,8 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         f = super().__mul__(other)
         if f is NotImplemented:
             return NotImplemented
+        elif not isinstance(f, WeilRepModularForm):
+            return f
         try:
             k = other.character()
             x = self.character() * k
