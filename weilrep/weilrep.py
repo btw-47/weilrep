@@ -3728,7 +3728,7 @@ class WeilRep(object):
             return self.nearly_holomorphic_modular_forms_basis(weight, 0, prec, inclusive = True, reverse = False, force_N_positive = True, verbose = verbose)
     basis = modular_forms_basis
 
-    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, symmetry_data = None, verbose = False, eta_twist = 0):
+    def nearly_holomorphic_modular_forms_basis(self, k, pole_order, prec = 0, inclusive = True, reverse = True, force_N_positive = False, symmetry_data = None, verbose = False, eta_twist = 0, reduce_prec = True):
         r"""
         Computes a basis of nearly holomorphic modular forms.
 
@@ -3827,7 +3827,7 @@ class WeilRep(object):
             k = QQ(k)
         eta_twist = Integer(eta_twist % 24)
         if eta_twist:
-            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 + pole_order, prec = prec, reverse = reverse, symmetry_data = symmetry_data, verbose = verbose)
+            X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 + pole_order, prec = prec, reverse = reverse, symmetry_data = symmetry_data, verbose = verbose, reduce_prec = reduce_prec)
             from .weilrep_modular_forms_class import smf_eta
             f = smf_eta(prec) ** eta_twist
             return WeilRepModularFormsBasis(k, [x * f for x in X], self)
@@ -3842,7 +3842,7 @@ class WeilRep(object):
                 print('The pole order is large so I will compute modular forms with a smaller pole order and multiply them by the j-invariant.')
             j_order = floor(pole_order - dual_sturm_bound - 1)
             new_pole_order = pole_order - j_order
-            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, symmetry_data = symmetry_data, verbose = verbose)
+            X = self.nearly_holomorphic_modular_forms_basis(k, new_pole_order, prec = prec + j_order + 1, inclusive = inclusive, reverse = reverse, force_N_positive = force_N_positive, symmetry_data = symmetry_data, verbose = verbose, reduce_prec = reduce_prec)
             j = smf(0, j_invariant_qexp(prec + j_order + 1) - 744)
             j0 = j
             jl = [None]*j_order
@@ -3850,8 +3850,9 @@ class WeilRep(object):
                 jl[n] = j0
                 j0 *= j
             Y = WeilRepModularFormsBasis(k, [x for x in X] + [x * y for y in jl for x in X], self)
-            for y in Y:
-                y.reduce_precision(prec)
+            if reduce_prec:
+                for y in Y:
+                    y.reduce_precision(prec)
             Y.echelonize(starting_from = -pole_order)
             if reverse:
                 Y.reverse()
@@ -3875,7 +3876,9 @@ class WeilRep(object):
         Y.echelonize(starting_from = -N, ending_with = sturm_bound)
         if reverse:
             Y.reverse()
-        return Y.reduce_precision(prec)
+        if reduce_prec:
+            return Y.reduce_precision(prec)
+        return Y
     weakly_holomorphic_modular_forms_basis = nearly_holomorphic_modular_forms_basis
 
     def quasimodular_forms_basis(self, k, prec, depth = Infinity, verbose = False):

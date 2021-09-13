@@ -152,6 +152,9 @@ class JacobiForms:
         """
         return self.__index_matrix
 
+    def is_even(self):
+        return not any(x % 2 for x in self.index_matrix().diagonal())
+
     def nvars(self):
         r"""
         Return the number of elliptic variables.
@@ -292,6 +295,8 @@ class JacobiForms:
             sage: JacobiForms(13).cusp_forms_dimension(3)
             1
         """
+        if not self.is_even():
+            return len(self.cusp_forms_basis(weight, prec = ceil(weight / 12 - self.nvars() / 24) + 1, **kwargs))
         eta_twist = kwargs.pop('eta_twist', 0)
         if not eta_twist:
             if self.nvars() == 1 and weight == 2:
@@ -325,6 +330,8 @@ class JacobiForms:
             sage: JacobiForms(49).dimension(2)
             2
         """
+        if not self.is_even():
+            return len(self.basis(weight, prec = ceil(weight / 12 - self.nvars() / 24) + 1, **kwargs))
         eta_twist = kwargs.pop('eta_twist', 0)
         if not eta_twist:
             if self.nvars() == 1 and weight == 2:
@@ -361,13 +368,15 @@ class JacobiForms:
         """
         n = self.nvars()
         if n == 1:
-            m = self.index_matrix()[0, 0]
+            m = Integer(self.index_matrix()[0, 0])
             k_plus_m = k + m
             if k_plus_m < 0:
                 return 0
             r, t = PolynomialRing(ZZ, 't').objgen()
             f = (r([1,0]+[1]*(m - 1)) * (1 + t**4 + t**8) * (1 + t**6))
             return sum(f[k_plus_m - 12*n] * (n + 1) for n in range(1 + k_plus_m // 12))
+        if not self.is_even():
+            return len(self.weak_forms_basis(k))
         svn = self._short_vector_norms_by_component()
         w = self.weilrep()
         rds = w.rds()
@@ -468,7 +477,7 @@ class JacobiForms:
     def weak_hilbert_polynomial(self):
         if self.nvars() == 1:
             r, t = LaurentPolynomialRing(ZZ, 't').objgen()
-            m = self.index_matrix()[0, 0]
+            m = Integer(self.index_matrix()[0, 0])
             return t**(-m) * r([1,0]+[1]*(m - 1))
         return self.weak_hilbert_series(polynomial = True)
 
@@ -477,7 +486,7 @@ class JacobiForms:
 
     ## bases of spaces associated to this index
 
-    def cusp_forms_basis(self, weight, prec=0, try_theta_blocks=None, **kwargs):
+    def cusp_forms_basis(self, weight, prec=1, try_theta_blocks=None, **kwargs):
         r"""
         Compute a basis of Jacobi cusp forms.
 
@@ -505,6 +514,33 @@ class JacobiForms:
         """
         verbose = kwargs.pop('verbose', False)
         eta_twist = kwargs.pop('eta_twist', 0)
+        if not self.is_even():
+            from .weilrep_misc import relations
+            S = self.index_matrix()
+            d = self.index_matrix().diagonal()
+            odd_indices = [i for i, x in enumerate(d) if x % 2]
+            A = matrix(S.nrows())
+            U = []
+            n = Integer(0)
+            for i in odd_indices:
+                A[i, i] = 1
+                U.append(A.rows()[i])
+                n += 1
+            J = JacobiForms(S + A)
+            X = J.cusp_forms_basis(weight + n/2, prec = prec, eta_twist = eta_twist + 3 * n, verbose = verbose, try_theta_blocks = try_theta_blocks)
+            if not X:
+                return []
+            prec = max(1, X[0].precision())
+            V = relations([x.substitute_zero([odd_indices[0]]) for x in X])
+            for i in odd_indices[1:]:
+                V = V.intersection(relations([x.substitute_zero([i]) for x in X]))
+            V_rows = V.basis_matrix().rows()
+            if not V_rows:
+                return []
+            Z = [sum(x * u[i] for i, x in enumerate(X)) for u in V_rows]
+            f = jacobi_theta_series(prec = prec)
+            f = prod(f.pullback(matrix(u).transpose()) for u in U)
+            return [z / f for z in Z]
         if not eta_twist and self.nvars() == 1 and weight <= 3:
             dim = self.cusp_forms_dimension(weight)
             if not dim:
@@ -536,17 +572,7 @@ class JacobiForms:
             return L.jacobi_forms()
         return [L[0].jacobi_form()]
 
-    def _odd_index_cusp_forms_basis(self, weight, prec):
-        ## TODO ##
-        S = self.index_matrix()
-        n = S.nrows()
-        v = vector([0] * n)
-        for i, a in enumerate(S.diagonal()):
-            if a % 2:
-                v[i] = 1
-        pass
-
-    def jacobi_forms_basis(self, weight, prec=0, try_theta_blocks=None, **kwargs):
+    def jacobi_forms_basis(self, weight, prec=1, try_theta_blocks=None, **kwargs):
         r"""
         Compute a basis of Jacobi forms.
 
@@ -572,6 +598,33 @@ class JacobiForms:
         """
         verbose = kwargs.pop('verbose', False)
         eta_twist = kwargs.pop('eta_twist', 0)
+        if not self.is_even():
+            from .weilrep_misc import relations
+            S = self.index_matrix()
+            d = self.index_matrix().diagonal()
+            odd_indices = [i for i, x in enumerate(d) if x % 2]
+            A = matrix(S.nrows())
+            U = []
+            n = Integer(0)
+            for i in odd_indices:
+                A[i, i] = 1
+                U.append(A.rows()[i])
+                n += 1
+            J = JacobiForms(S + A)
+            X = J.basis(weight + n/2, prec = prec, eta_twist = eta_twist + 3 * n, verbose = verbose, try_theta_blocks = try_theta_blocks)
+            if not X:
+                return []
+            prec = max(1, X[0].precision())
+            V = relations([x.substitute_zero([odd_indices[0]]) for x in X])
+            for i in odd_indices[1:]:
+                V = V.intersection(relations([x.substitute_zero([i]) for x in X]))
+            V_rows = V.basis_matrix().rows()
+            if not V_rows:
+                return []
+            Z = [sum(x * u[i] for i, x in enumerate(X)) for u in V_rows]
+            f = jacobi_theta_series(prec = prec)
+            f = prod(f.pullback(matrix(u).transpose()) for u in U)
+            return [z / f for z in Z]
         if not eta_twist and self.nvars() == 1 and weight <= 3:
             if weight <= 1:
                 return []
@@ -607,7 +660,7 @@ class JacobiForms:
 
     basis = jacobi_forms_basis
 
-    def weak_forms_basis(self, weight, prec=0, verbose=False, convert_to_Jacobi_forms=True):
+    def weak_forms_basis(self, weight, prec=1, verbose=False, convert_to_Jacobi_forms=True, **kwargs):
         r"""
         Compute a basis of weak Jacobi forms.
 
@@ -637,6 +690,36 @@ class JacobiForms:
 
         """
         S = self.index_matrix()
+        if not self.is_even():
+            from .weilrep_misc import relations
+            from .weilrep_modular_forms_class import smf_eta
+            d = self.index_matrix().diagonal()
+            odd_indices = [i for i, x in enumerate(d) if x % 2]
+            A = matrix(S.nrows())
+            U = []
+            n = Integer(0)
+            for i in odd_indices:
+                A[i, i] = 1
+                U.append(A.rows()[i])
+                n += 1
+            J = JacobiForms(S + A)
+            kwargs['reduce_prec'] = False
+            X = J.weak_forms_basis(weight - n, prec = prec, verbose = verbose, **kwargs)
+            if not X:
+                return []
+            prec = max(1, X[0].precision())
+            V = relations([x.substitute_zero([odd_indices[0]]) for x in X])
+            for i in odd_indices[1:]:
+                V = V.intersection(relations([x.substitute_zero([i]) for x in X]))
+            V_rows = V.basis_matrix().rows()
+            if not V_rows:
+                return []
+            Z = [sum(x * u[i] for i, x in enumerate(X)) for u in V_rows]
+            if verbose:
+                print(r'I will now divide by the weak Jacobi form \phi_{-1, 0}.')
+            f = jacobi_theta_series(prec = prec) / smf_eta(prec = prec)**3
+            f = prod(f.pullback(matrix(u).transpose()) for u in U)
+            return [z / f for z in Z]
         w = self.weilrep()
         indices = w.rds(indices=True)
         dsdict = w.ds_dict()
@@ -648,7 +731,7 @@ class JacobiForms:
             print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'% N)
             print('-' * 60)
         k = weight - self.nvars() / 2
-        L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose)
+        L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose, **kwargs)
         if not L:
             return []
         v_list = w.coefficient_vector_exponents(prec, 1 - (weight % 2), starting_from = -N, include_vectors = True)
@@ -1179,7 +1262,10 @@ class JacobiForm:
         f, S, e, n_list = self.fourier_expansion(), self.index_matrix(), self.nvars(), w.norm_list()
         prec, val, S_inv= f.prec(), f.valuation(), S.inverse()
         lsr, q = LaurentSeriesRing(QQ, 'q').objgen()
-        q, = PowerSeriesRing(QQ, 'q').gens()
+        psr, q = PowerSeriesRing(QQ, 'q').objgen()
+        if e == 0:
+            self.__theta = WeilRepModularForm(self.weight(), matrix([]), [[vector([]), 0, psr(self.qexp())]])
+            return self.__theta
         L = [[g, n_list[i], O(q**(prec - ceil(norms[i]) - ceil(n_list[i])))] if prec > (1 + ceil(norms[i]) + ceil(n_list[i])) else [g, n_list[i], O(lsr(q)**(prec - ceil(norms[i]) - ceil(n_list[i])))] for i, g in enumerate(ds)]
         lower_bounds = [None] * len(ds)
         for i in range(val, prec):
@@ -1756,14 +1842,34 @@ class JacobiForm:
         S = self.index_matrix()
         e = S.nrows()
         Rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e)))
-        R, q = PowerSeriesRing(Rb, 'q').objgen()
+        try:
+            Rb_new = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e - len(indices))))
+        except ValueError:
+            Rb_new = QQ
+        R_new, q = PowerSeriesRing(Rb_new, 'q').objgen()
         val = f.valuation()
         prec = f.prec()
         L = [k for k in range(e) if k not in indices]
         d = {Rb('w_%d' % j): 1 for j in indices}
-        d.update({Rb('w_%d' % k): Rb('w_%d' % i) for i, k in enumerate(L)})
-        jf_sub = R([f[i].subs(d) for i in range(val, prec)])
-        return JacobiForm(self.weight(), S[L, L], q**val * R(jf_sub) + O(q**prec), scale = self.scale())
+        d.update({Rb('w_%d' % k): Rb_new('w_%d' % i) for i, k in enumerate(L)})
+        jf_sub = R_new([f[i].subs(d) for i in range(val, prec)])
+        k = self.character()._k()
+        try:
+            f = self.modform()
+            from .weilrep_modular_forms_class import smf_eta
+            if k:
+                f *= smf_eta(prec = f.precision())**(24 - k)
+            V = []
+            for i in L:
+                v = vector([0] * e)
+                v[i] = 1
+                V.append(v)
+            f = f.pullback(V)
+            if k:
+                f /= smf_eta(prec = f.precision())**(24 - k)
+        except AttributeError:
+            f = None
+        return JacobiForm(self.weight(), S[L, L], q**val * jf_sub + O(q**prec), modform = f, scale = self.scale())
 
     def derivative_at_zero(self, index):
         y = self.base_ring().gens()[index]

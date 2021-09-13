@@ -800,7 +800,7 @@ class WeilRepModularForm(object):
         try:
             return self.__is_symmetric
         except AttributeError:
-            self.__is_symmetric = [1,None,0,None][(Integer(2*self.weight()) + self.weilrep().signature()) % 4]
+            self.__is_symmetric = [1,None,0,None][(Integer(2*self.weight()) - self.character()._k() + self.weilrep().signature()) % 4]
             return self.__is_symmetric
 
     def principal_part_coefficients(self):
