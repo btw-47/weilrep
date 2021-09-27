@@ -96,7 +96,7 @@ class WeilRepMorphism:
             Z = self.__indices
             f = self.f()
             w = self.output_weilrep()
-            return WeilRepModularForm(X.weight(), w.gram_matrix(), [(f(Xf[i][0]), Xf[i][1], Xf[z][2]) for i,z in enumerate(Z)], weilrep = w)
+            return WeilRepModularForm(X.weight(), w.gram_matrix(), [(Xf[i][0], Xf[i][1], Xf[z][2]) for i,z in enumerate(Z)], weilrep = w)
         except AttributeError:
             return self.f()(X)
 
