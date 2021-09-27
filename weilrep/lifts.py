@@ -540,8 +540,10 @@ class OrthogonalModularForm(object):
         d = self.scale()
         nrows = self.nvars()
         w = self.weilrep()
-        if w.is_positive_definite():
+        if w.is_positive_definite() or w._is_positive_definite_plus_II():
             nrows -= 2
+        elif w._is_positive_definite_plus_2II():
+            nrows -= 4
         elif not self.has_fourier_jacobi_representation():
             raise NotImplementedError
         f = self.fourier_expansion()

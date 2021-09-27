@@ -23,6 +23,7 @@ pari = cypari2.Pari()
 PariError = cypari2.PariError
 
 from collections import Counter
+from itertools import product
 from re import sub
 
 from sage.arith.misc import divisors, is_square, XGCD
@@ -1627,12 +1628,12 @@ class JacobiForm:
         sf, f = self.qexp(), other.qexp()
         scale = 1
         if self.scale() == 2 or other.scale() == 2:
-            r = self.base_ring()
+            r0 = self.base_ring()
             scale = 2
             if self.scale() == 1:
-                sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
+                sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r0.gens()}))
             if other.scale() == 1:
-                f = f.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
+                f = f.map_coefficients(lambda x: x.subs({y: y*y for y in r0.gens()}))
         #val = other.valuation()
         jf = [rb(f[i]).subs({g[j]:g[j+e1] for j in range(e2)}) for i in range(f.valuation(), f.prec())]
         return JacobiForm(self.weight() + other.weight(), bigS, r(sf) * r(jf) + O(q**other.precision()), w_scale = scale)
@@ -1683,7 +1684,12 @@ class JacobiForm:
             from .lifts import OrthogonalModularForms
             return OrthogonalModularForms(self.weilrep()).modular_form_from_fourier_jacobi_expansion([self.hecke_V(N) for N in range(self.precision())])
 
+    def hecke_P(self, N):
+        ##fix this!!
+        return self.theta_decomposition().hecke_P().jacobi_form()
+
     def hecke_T(self, N):
+        ##fix this!!
         r"""
         Apply the Nth Hecke T-operator.
 

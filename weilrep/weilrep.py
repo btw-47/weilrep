@@ -2621,7 +2621,7 @@ class WeilRep(object):
             i = G.index(self.canonical_involution())
             if (-1)**symm + chi[i]:
                 raise ValueError('This character does not satisfy chi(-1) = (-1)^k.')
-        except AttributeError:
+        except IndexError:
             raise ValueError('The automorphism group you provided does not contain x --> -x.') from None
         if weight >= sage_five_half or force_Riemann_Roch:
             eps = 1 if symm else -1
@@ -3897,6 +3897,20 @@ class WeilRep(object):
     def almost_holomorphic_modular_forms_basis(self, *args, **kwargs):
         X = self.quasimodular_forms_basis(*args, **kwargs)
         return WeilRepModularFormsBasis(X.weight(), [x.completion() for x in X], self)
+
+    def construct_basis(self, X):
+        r"""
+        Construct a WeilRepModularFormsBasis instance.
+
+        INPUT:
+
+        - ``X`` -- a list of WeilRepModularForm instances.
+        """
+        pass
+        #try:
+        #    Xref = X[0]
+        #    k = Xref.weight()
+        #    if not all()
 
     ## automorphisms ##
 

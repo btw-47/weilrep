@@ -963,11 +963,10 @@ class WeilRepModularForm(object):
                 return WeilRepModularForm(self.weight() + other.weight(), S1, [(x[0], x[1], x[2]*f2[0][2]) for x in f1], weilrep = self.weilrep())
             else:
                 if w is None:
-                    from weilrep import WeilRep
-                    S = block_diagonal_matrix([S1,S2])
-                    w = WeilRep(S)
-                else:
-                    S = w.gram_matrix()
+                    w1 = self.weilrep()
+                    w2 = other.weilrep()
+                    w = w1 + w2
+                S = w.gram_matrix()
                 _ds_dict = w.ds_dict()
                 X = [None]*w.discriminant()
                 q, = PowerSeriesRing(QQ, 'q').gens()
@@ -1040,6 +1039,9 @@ class WeilRepModularForm(object):
             else:
                 nhalf = other // 2
                 return (self ** nhalf) * (self ** (other - nhalf))
+        elif other == 0:
+            q, = self.fourier_expansion()[0][2].parent().gens()
+            return WeilRepModularForm(0, matrix([]), [[vector([]), 0, 1 + O(q ** self.precision())]])
         else:
             raise NotImplementedError
 
@@ -1157,15 +1159,18 @@ class WeilRepModularForm(object):
             [(1/4), 2*q^(1/4) + 2*q^(9/4) + O(q^(21/4))]
             [(1/8), O(q^(81/16))]
         """
-        from weilrep import WeilRep
+        from .weilrep import WeilRep
+        w_old = self.weilrep()
         X = self.fourier_expansion()
         q, = X[0][2].parent().gens()
         S = self.gram_matrix()
         prec = self.precision()
-        S_conj = A.transpose()*S*A
-        _ds_dict = self.weilrep().ds_dict()
+        _ds_dict = w_old.ds_dict()
         if w is None:
+            S_conj = A.transpose()*S*A
             w = WeilRep(S_conj)
+        else:
+            S_conj = w.gram_matrix()
         ds_conj = w.ds()
         Y = [None] * len(ds_conj)
         for j, g in enumerate(ds_conj):
@@ -1220,7 +1225,7 @@ class WeilRepModularForm(object):
         r"""
         Apply the Nth Hecke projection map.
 
-        This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S)
+        This is the Hecke P_N operator of [BCJ]. It is a trace map on modular forms from WeilRep(N^2 * S) to WeilRep(S).
 
         NOTE: the Gram matrix must be of the form N^2 * S where S is a valid Gram matrix (integral with even diagonal) otherwise this is not defined.
 
@@ -1944,6 +1949,21 @@ class WeilRepModularForm(object):
         m = (big_S[e,e] - b*Sb)/2
         X = self.fourier_expansion()
         R, q = X[0][2].parent().objgen()
+        if m == 0:
+            w = self.weilrep()
+            A = w._embedding()
+            A0 = matrix(A[:, :-1])
+            from .weilrep import WeilRepDegenerate
+            w_new = WeilRepDegenerate(w.gram_matrix(), A0)
+            ds = w_new.ds()
+            under_ds = w._WeilRep__ds
+            dsdict = w_new.ds_dict()
+            nl = w_new.norm_list()
+            Z = [[x, nl[i], O(q ** self.precision())] for i, x in enumerate(ds)]
+            for i, x in enumerate(X):
+                j = dsdict[tuple(map(frac, A0 * under_ds[i]))]
+                Z[j][2] += x[2]
+            return WeilRepModularForm(self.weight(), S, Z, weilrep = w_new)
         g_list = []
         S_indices = []
         bound = 3 + 2*isqrt(m * (prec - val))

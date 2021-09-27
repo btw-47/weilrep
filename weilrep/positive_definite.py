@@ -420,11 +420,6 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         k = self.weight()
         scale = self.scale()
         if scale != 1:
-            #v = self.weyl_vector()
-            #vfrac = frac(v[0])
-            #if vfrac + vfrac and vfrac + vfrac != 1:
-            #    raise NotImplemented('Invalid character')
-            #scale = denominator(vector(v[1:-1]))
             prec = self.precision()
             floor_prec = floor(prec)
             if prec in ZZ:
@@ -679,7 +674,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         r"""
         Return the Jacobi form associated to self.
 
-        If the Gram matrix is positive-definite (this is not checked!!) then this returns the Jacobi form whose theta-decomposition is the vector valued modular form that we started with.
+        If the Gram matrix is positive-definite then this returns the Jacobi form whose theta-decomposition is the vector valued modular form that we started with.
 
         OUTPUT: a JacobiForm
 
@@ -689,6 +684,14 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             sage: WeilRep(matrix([[2,1],[1,2]])).eisenstein_series(3, 3).jacobi_form()
             1 + (w_0^2*w_1 + w_0*w_1^2 + 27*w_0*w_1 + 27*w_0 + 27*w_1 + w_0*w_1^-1 + 72 + w_0^-1*w_1 + 27*w_1^-1 + 27*w_0^-1 + 27*w_0^-1*w_1^-1 + w_0^-1*w_1^-2 + w_0^-2*w_1^-1)*q + (27*w_0^2*w_1^2 + 72*w_0^2*w_1 + 72*w_0*w_1^2 + 27*w_0^2 + 216*w_0*w_1 + 27*w_1^2 + 216*w_0 + 216*w_1 + 72*w_0*w_1^-1 + 270 + 72*w_0^-1*w_1 + 216*w_1^-1 + 216*w_0^-1 + 27*w_1^-2 + 216*w_0^-1*w_1^-1 + 27*w_0^-2 + 72*w_0^-1*w_1^-2 + 72*w_0^-2*w_1^-1 + 27*w_0^-2*w_1^-2)*q^2 + O(q^3)
         """
+        w = self.weilrep()
+        if not w.is_positive_definite():
+            if w.is_positive_semidefinite():
+                q = w._quotient_morphism()
+                D, V = w._smith_form
+                A = matrix([v for i, v in enumerate(V.inverse().rows()) if D[i]])
+                return q(self).jacobi_form().pullback(A.transpose())
+            raise ValueError('This Weil representation is not positive semidefinite!')
         X = self.fourier_expansion()
         S = self.gram_matrix()
         prec = self.precision()
@@ -1318,7 +1321,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                             corrector *= p.subs({t0 : m})
                         elif p != 1:
                             deg_p = p.degree()
-                            corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * (c * j + a * (deg_p - j))) * m ** (d*j) for j, p in enumerate(list(p))))
+                            corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * ((c - a) * j - c * deg_p)) * m ** (d*j) for j, p in enumerate(list(p))))
                             weyl_v[0] += c * d * deg_p
             return log_f
         if bool_1:
