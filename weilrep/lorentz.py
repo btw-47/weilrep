@@ -185,13 +185,6 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         try:
             return self.__q_s_exp
         except AttributeError:
-            if self.qexp_representation() == 'shimura':
-                q, = PowerSeriesRing(QQ, 'q').gens()
-                t, = h.parent().gens()
-                self.__q_s_exp = h.subs({t:q})
-                self.__q_s_scale = 1
-                self.__q_s_prec = h.prec()
-                return self.__q_s_exp
             hval = min(0, h.valuation())
             hprec = h.prec()
             if not h:
@@ -199,6 +192,12 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 self.__q_s_exp = O(q**hprec)
                 self.__q_s_scale = 1
                 self.__q_s_prec = hprec
+                return self.__q_s_exp
+            elif self.qexp_representation() == 'shimura':
+                q, = PowerSeriesRing(QQ, 'q').gens()
+                self.__q_s_exp = h(q)
+                self.__q_s_scale = 1
+                self.__q_s_prec = h.prec()
                 return self.__q_s_exp
             try:
                 try:
@@ -210,7 +209,6 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                     d += d
                     self.__q_s_exp = sum((q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents()) ).O(hprec)
             except (AttributeError, NotImplementedError):
-                #hval = h.valuation()
                 rs, s = LaurentSeriesRing(self.base_ring(), 's').objgen()
                 q, = LaurentSeriesRing(rs, 'q').gens()
                 try:
@@ -1705,3 +1703,4 @@ def _theta_lifts(X, prec = None, constant_term_weight_one = True):
         if eps == -1 and extra_plane and N >= 3:
             lift /= sum(zeta**i - zeta**(-i) for i in range(1, (N + 1)//2))
         return OrthogonalModularForm(k, w, lift + C + O(t ** prec), scale = 1, weylvec = vector([0]*nrows), qexp_representation = w.lift_qexp_representation)
+    

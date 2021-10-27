@@ -827,6 +827,11 @@ class WeilRepModularForm(object):
             return other
         elif isinstance(other, WeilRepQuasiModularForm): #return the sum as a quasimodular formm by using the 'add' method from quasimodular forms
             return other.__add__(self)
+        elif other in CC:
+            if not (self.weight() or self.weilrep()):
+                g, _, f = self.fourier_expansion()[0]
+                return WeilRepModularForm(0, self.gram_matrix(), [(g, _, f + other)], weilrep = self.weilrep())
+            return NotImplemented
         elif not self.gram_matrix() == other.gram_matrix():
             raise ValueError('Incompatible Gram matrices')
         elif not self.weight() == other.weight():
@@ -862,7 +867,6 @@ class WeilRepModularForm(object):
             minus_w = other.weilrep()
             S1 = w.gram_matrix()
             S2 = minus_w.gram_matrix()
-            #if w.dual() != minus_w:
             N1 = S1.nrows()
             N2 = S2.nrows()
             N = N1 - N2
@@ -1042,8 +1046,8 @@ class WeilRepModularForm(object):
         elif other == 0:
             q, = self.fourier_expansion()[0][2].parent().gens()
             return WeilRepModularForm(0, matrix([]), [[vector([]), 0, 1 + O(q ** self.precision())]])
-        else:
-            raise NotImplementedError
+        elif other < 0:
+            return ~self.__pow__(-other)
 
     def __rdiv__(self, other): #divide 'other' by 'self'
         return (~self).__mul__(other)
@@ -1058,6 +1062,11 @@ class WeilRepModularForm(object):
             return self
         elif isinstance(other, WeilRepQuasiModularForm):
             return other.__sub__(self).__neg__()
+        elif other in CC:
+            if not (self.weight() or self.weilrep()):
+                g, _, f = self.fourier_expansion()[0]
+                return WeilRepModularForm(0, self.gram_matrix(), [(g, _, f - other)], weilrep = self.weilrep())
+            return NotImplemented
         elif not self.gram_matrix() == other.gram_matrix():
             raise ValueError('Incompatible Gram matrices')
         elif not self.weight() == other.weight():
@@ -1091,7 +1100,7 @@ class WeilRepModularForm(object):
                 X_div_other.coefficient_vector(set_v = v / other)
             finally:
                 return WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]/other) for x in X], weilrep = self.weilrep())
-        return NotImplemented
+        return other.__rdiv__(self)
     __div__ = __truediv__
 
     ## other operations

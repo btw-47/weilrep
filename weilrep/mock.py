@@ -353,7 +353,8 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N * N, [x.hecke_U(N) for x in self._terms()])
 
     def hecke_V(self, N):
-        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N, [x.hecke_V(N) for x in self._terms()])
+        k = self.depth()
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N, [N**(k - j) * x.hecke_V(N) for j, x in enumerate(self._terms())])
 
     def bol(self):
         k = self.weight()

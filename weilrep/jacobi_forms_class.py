@@ -28,6 +28,7 @@ from re import sub
 
 from sage.arith.misc import divisors, is_square, XGCD
 from sage.calculus.var import var
+from sage.combinat.root_system.root_system import RootSystem
 from sage.functions.other import binomial, ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
@@ -1839,7 +1840,7 @@ class JacobiForm:
             sage: from weilrep import *
             sage: j = jacobi_eisenstein_series(4, matrix([[2, 1],[1, 4]]), 5)
             sage: j.substitute_zero([0])
-            1 + (14*w^2 + 64*w + 84 + 64*w^-1 + 14*w^-2)*q + (w^4 + 64*w^3 + 280*w^2 + 448*w + 574 + 448*w^-1 + 280*w^-2 + 64*w^-3 + w^-4)*q^2 + (84*w^4 + 448*w^3 + 840*w^2 + 1344*w + 1288 + 1344*w^-1 + 840*w^-2 + 448*w^-3 + 84*w^-4)*q^3 + (64*w^5 + 574*w^4 + 1344*w^3 + 2368*w^2 + 2688*w + 3444 + 2688*w^-1 + 2368*w^-2 + 1344*w^-3 + 574*w^-4 + 64*w^-5)*q^4 + O(q^5)
+            1 + (14*w^-2 + 64*w^-1 + 84 + 64*w + 14*w^2)*q + (w^-4 + 64*w^-3 + 280*w^-2 + 448*w^-1 + 574 + 448*w + 280*w^2 + 64*w^3 + w^4)*q^2 + (84*w^-4 + 448*w^-3 + 840*w^-2 + 1344*w^-1 + 1288 + 1344*w + 840*w^2 + 448*w^3 + 84*w^4)*q^3 + (64*w^-5 + 574*w^-4 + 1344*w^-3 + 2368*w^-2 + 2688*w^-1 + 3444 + 2688*w + 2368*w^2 + 1344*w^3 + 574*w^4 + 64*w^5)*q^4 + O(q^5)
 
         """
         if indices is None:
@@ -1954,6 +1955,32 @@ def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to 
     if qshift:
         return JacobiFormWithCharacter(weight, S, z, jacobiforms = jacobiforms, w_scale = scale, qshift = qshift / 24, character = EtaCharacterPower(qshift))
     return JacobiForm(weight, S, z, jacobiforms = jacobiforms, w_scale = scale)
+
+def root_lattice_theta_block(root_system, prec):
+    r"""
+    The theta block \vartheta_R of Gritsenko--Skoruppa--Zagier associated to a root system R.
+
+    INPUT:
+    - ``root_system`` -- a RootSystem. Can also be a list such as ['A', n], ['B', n], etc.
+    - ``prec`` -- precision
+
+    OUTPUT: a JacobiForm
+
+    EXAMPLES::
+        sage: from weilrep import *
+        sage: root_lattice_theta_block(['A', 2], 5)
+        (-w_0*w_1 + w_0 + w_1 - w_1^-1 - w_0^-1 + w_0^-1*w_1^-1)*q^(1/3) + (w_0^2*w_1^2 - w_0^2 - w_1^2 + w_1^-2 + w_0^-2 - w_0^-2*w_1^-2)*q^(4/3) + (-w_0^3*w_1^2 - w_0^2*w_1^3 + w_0^3*w_1 + w_0*w_1^3 + w_0^2*w_1^-1 + w_0^-1*w_1^2 - w_0*w_1^-2 - w_0^-2*w_1 - w_0^-1*w_1^-3 - w_0^-3*w_1^-1 + w_0^-2*w_1^-3 + w_0^-3*w_1^-2)*q^(7/3) + (w_0^4*w_1^3 + w_0^3*w_1^4 - w_0^4*w_1 - w_0*w_1^4 - w_0^3*w_1^-1 - w_0^-1*w_1^3 + w_0*w_1^-3 + w_0^-3*w_1 + w_0^-1*w_1^-4 + w_0^-4*w_1^-1 - w_0^-3*w_1^-4 - w_0^-4*w_1^-3)*q^(13/3) + O(q^(16/3))
+
+    """
+    from .weilrep_modular_forms_class import smf_eta
+    if isinstance(root_system, list):
+        root_system = RootSystem(root_system)
+    R = root_system.root_lattice()
+    P = list(R.positive_roots())
+    coords = [matrix([x.dense_coefficient_list()]).transpose() for x in P]
+    theta = jacobi_theta_series(prec)
+    eta = smf_eta(prec)
+    return eta ** (R.rank() - len(P)) * prod(theta.pullback(x) for x in coords)
 
 class JacobiFormWithCharacter(JacobiForm):
     r"""

@@ -40,7 +40,7 @@ from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
-from sage.modular.arithgroup.congroup_gamma0 import Gamma0_constructor
+from sage.modular.arithgroup.congroup_gamma1 import Gamma1_constructor
 from sage.modular.modform.constructor import ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
@@ -799,12 +799,15 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             x = x.conjugate(A, w = WeilRep(matrix([[n]])) + II(N))
         x = x.theta_lift(constant_term_weight_one = False)
         f = x.fourier_expansion()
-        m = ModularForms(Gamma0_constructor(-n*N // 2), 2, prec=x.precision()).echelon_basis()
+        m = ModularForms(Gamma1_constructor(-n*N // 2), 2, prec=x.precision()).echelon_basis()
         f -= sum(z.qexp() * f[z.qexp().valuation()] for z in m[1:])
-        i = f.exponents()[0]
-        return f[i] / m[0].qexp()[i]
+        try:
+            i = f.exponents()[0]
+            return f[i] / m[0].qexp()[i]
+        except IndexError:
+            return 0
 
-    def theta_lift(self, prec=Infinity, _L=None):
+    def theta_lift(self, prec=Infinity, _L=None, _omit_weight_one_constant_term = False):
         r"""
         Compute the additive theta lift.
 
@@ -862,7 +865,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             list_bool = False
             zero = 0
             C = 0
-            if wt == 1:
+            if wt == 1 and not _omit_weight_one_constant_term:
                 C = self._weight_one_theta_lift_constant_term()
         else:
             coeffs_list = [x.coefficients() for x in L]
@@ -873,7 +876,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             coeffs = defaultdict(lambda:zero, {d: vector(K, [x[d] for x in coeffs_list]) for d in items})
             list_bool = True
             C = [0 for _ in L]
-            if wt == 1:
+            if wt == 1 and not _omit_weight_one_constant_term:
                 C = [x._weight_one_theta_lift_constant_term() for x in L]
         if S:
             rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(S.nrows()) ))
