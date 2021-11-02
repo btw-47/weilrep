@@ -838,6 +838,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         """
         L = _L
         prec0 = self.precision() + 1
+        val = min(0, self.valuation(exact = True))
         min_prec = isqrt(4 * prec0 + 4)
         prec = min(prec, min_prec)
         w = self.weilrep()
@@ -969,7 +970,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 while c < (prec- a) * N:
                     a_plus_c = a + c
                     n = Integer(a * c) / N - v_norm
-                    if n >= 0:
+                    if n >= val * GCD(a, c)**2:
                         sum_coeff_1 = zero
                         sum_coeff_2 = zero
                         for d in divisors(GCD([a, c] + list(v))):
