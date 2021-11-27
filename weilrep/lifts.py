@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2021 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -551,6 +551,10 @@ class OrthogonalModularForm(object):
         r"""
         Reduce precision to 'new_prec'.
         """
+        try:
+            ppcoeffs = self.__ppcoeffs
+        except AttributeError:
+            ppcoeffs = None
         return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion().add_bigoh(new_prec), self.__scale, self.__weylvec, qexp_representation = self.__qexp_representation, ppcoeffs = ppcoeffs)
 
     def rescale(self, d):
@@ -567,7 +571,6 @@ class OrthogonalModularForm(object):
             if nrows > 2:
                 rbgens = rb_x.base_ring().gens()
                 rescale_dict = {a : a ** d for a in rbgens}
-                #return OrthogonalModularForm(self.weight(), w, (f.map_coefficients(lambda y: (x ** (d * y.polynomial_construction()[1])) * rb_x([p.subs(rescale_dict) for p in list(y)]).subs({x : x ** d}))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
                 return OrthogonalModularForm(self.weight(), w, (f.map_coefficients(lambda y: (x ** (d * y.polynomial_construction()[1])) * rb_x([y.polynomial_construction()[0][i // d].subs(rescale_dict) if i % d == 0 else 0 for i in range(d * len(list(y)))]))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
             return OrthogonalModularForm(self.weight(), w, (f.map_coefficients(lambda p: p.subs({x : x ** d}))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
         return OrthogonalModularForm(self.weight(), w, f.V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
