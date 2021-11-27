@@ -118,7 +118,20 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             elif self.has_fourier_jacobi_representation():
                 S = self.gram_matrix()
                 f = self._q_s_expansion()
-                self.__string = str(f)
+                s = str(f)
+                if not self._base_ring_is_laurent_polynomial_ring():#represent 'r'-terms as Laurent polynomials if possible
+                    n = self.nvars() - 2
+                    r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(n)))
+                    def _a(obj):
+                        obj_s = obj.string[slice(*obj.span())]
+                        j = 0
+                        if obj_s[:2] == '((':
+                            obj_s = obj_s[1:]
+                            j = 1
+                        i = obj_s.index(')/')
+                        return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:]))
+                    s = sub(r'\([^()]*?\)\/((\((r_\d*(\^\d*)?\*?)+\))|(r_\d*(\^\d*)?\*?)+)', _a, s)
+                self.__string = s
                 d = self.__q_s_scale
                 qs = len(f.parent().gens()) - 1
                 if not qs:

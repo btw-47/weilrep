@@ -1065,6 +1065,21 @@ class JacobiForm:
 
     qexp = fourier_expansion
 
+    def __getitem__(self, N):
+        r"""
+        Return the Nth coefficient (with respect to the variable 'q').
+        """
+        x = self.q_coefficients()
+        try:
+            if N < self.valuation():
+                return 0
+            return x[N]
+        except TypeError:
+            n, a = N
+            if n < self.valuation():
+                return 0
+            return x[n][a]
+
     def index(self):
         r"""
         Return self's index.
@@ -1942,11 +1957,11 @@ def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to 
     bound = isqrt(prec + prec + 1 / 4) + 1
     eps = 1 - 2 * (bound % 2)
     for i in range(-bound, bound):
-        eps = -eps
         for j, _a in enumerate(a0_list):
             thetas[j] += eps * w_0**(_a * i * scale) * q**binomial(i + 1, 2)
+        eps = -eps
         j = i * (3 * i + 1) / 2
-        if j < prec:
+        if n and j < prec:
             eta += eps * q**ZZ(j)
     S = matrix([[sum([a * a for a in a])]])
     if jacobiforms is None:

@@ -453,6 +453,9 @@ class WeilRep(object):
                 self.__valsm[A] = X
                 return X
 
+    def genus(self):
+        return self.quadratic_form().global_genus_symbol()
+
     def gram_matrix(self):
         return self.__gram_matrix
 
@@ -1285,7 +1288,7 @@ class WeilRep(object):
             ds = self.ds()
             indices = self.rds(indices = True)
             norm_list = self.norm_list()
-        eps = (-1) ** (self.signature() in range(3, 7))
+        eps = (-1) ** (3 <= self.signature() <= 6)
         S_rows_gcds = list(map(GCD, S.rows()))
         S_rows_sums = sum(S)
         level = self.level()
@@ -1354,12 +1357,12 @@ class WeilRep(object):
             if k_is_list:
                 k_shift_list = [Integer(j - sage_one_half) for j in k]
                 two_k_shift_list = [j + j for j in k_shift_list]
-                front_multiplier_list = [eps / zeta(1 - j) for j in two_k_shift_list]
+                front_multiplier_list = [-eps * j / bernoulli(j) for j in two_k_shift_list]
                 k_shift = k_shift_list[0]
             else:
                 k_shift = Integer(k - sage_one_half)
                 two_k_shift = k_shift + k_shift
-                front_multiplier = eps / zeta(1 - two_k_shift)
+                front_multiplier = -eps * two_k_shift / bernoulli(two_k_shift)
             for i_g, g in enumerate(ds):
                 norm = norm_list[i_g]
                 if indices[i_g] is None: #have we computed the negative component yet?
@@ -1570,6 +1573,46 @@ class WeilRep(object):
                 if _flag is None:
                     self.__eisenstein[k] = prec, e
                 return e
+
+    def _eisenstein_series_coefficient(self, k, g, n):
+        r"""
+        Compute the Fourier coefficient of q^n e_g in the Eisenstein series of weight k.
+        """
+        S = self.gram_matrix()
+        d_g = denominator(g)
+        Sg = vector(ZZ, S * g)
+        c = Integer(n + n + g * Sg)
+        dim = S.nrows()
+        eps = (-1) ** (3 <= dim <= 6)
+        det = self.discriminant()
+        if dim % 2:
+            two_det = 2 * det
+            old_modulus = two_det * d_g * d_g
+            k_shift = Integer(k - sage_one_half)
+            two_k_shift = k_shift + k_shift
+            first_factor = -eps * two_k_shift / bernoulli(two_k_shift)
+            n0 = 1
+            for p, e in factor(n):
+                if two_det % p and p != 2:
+                    n0 *= p ** (e % 2)
+                else:
+                    n0 *= p ** e
+            D = ((-1) ** k_shift) * old_modulus * n0
+            little_D = abs(fundamental_discriminant(D))
+            sqrt_factor = sqrt(two_det * n / little_D)
+            correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
+            main_term = correct_L_function * ((4 * n / little_D) ** k_shift) / sqrt_factor
+            local_term = prod((1 - kronecker_symbol(D, p) * p**(-k_shift)) * L_values(2 * Sg, [c], S, p, k)[0] / (1 - p**(-two_k_shift)) for p, _ in factor(abs(old_modulus * n)))
+            return first_factor * main_term * local_term
+        else:
+            det = self.discriminant()
+            D = ((-1) ** k) * det
+            littleD = fundamental_discriminant(D)
+            corrector = ~quadratic_L_function__corrector(k, D)
+            sqrt_factor = QQ(2 / isqrt(abs(littleD * det)))
+            multiplier = QQ(eps * corrector * (littleD ** k) * sqrt_factor / quadratic_L_function__cached(1 - k, littleD))
+            local_term = prod(L_values(2 * Sg, [c], S, p, k)[0] / (1 - kronecker_symbol(D, p) * p**(-k)) for p, _ in factor(2 * abs(D) * n * d_g * d_g))
+            return multiplier * local_term * n ** (k - 1)
 
     def _eisenstein_series_weight_one_constant_term(self):
         r"""
@@ -2387,6 +2430,60 @@ class WeilRep(object):
         o_q_2 = O(q ** (prec + 1))
         X = [[g, n_list[i], [o_q_2,o_q][n_list[i] == 0]] for i, g in enumerate(_ds)]
         return WeilRepModularForm(weight, self.gram_matrix(), X, weilrep = self)
+
+    def zwegers_theta(self, c1, c2, prec):
+        q = self.quadratic_form()
+        s = self.gram_matrix()
+        if not q.signature() == 2 - s.nrows():
+            raise ValueError
+        sc1, sc2 = s * c1, s * c2
+        if c1 * sc1 or c2 * sc2:
+            raise ValueError('c1, c2 must be isotropic')
+        n = -c1 * sc2
+        if n < 0:
+            raise ValueError('c1, c2 must lie on the boundary of a common negative cone')
+        ds = self.ds()
+        ds_dict = self.ds_dict()
+        n_dict = self.norm_dict()
+        a = matrix(ZZ, matrix([sc1, sc2]).transpose().integer_kernel().basis_matrix())
+        s_conj = a * s * a.transpose()
+        s_conj_inv = -s_conj.inverse()
+        _, _, vs_matrix = pari(s_conj_inv).qfminim(prec + prec + 1, flag=2)
+        vs_list = vs_matrix.sage().columns()
+        vs_list.append(vector([0] * (s.nrows() - 2)))
+        r, q = PowerSeriesRing(QQ, 'q').objgen()
+        X = [[g, n_dict[tuple(g)], O(q ** (prec - floor(n_dict[tuple(g)])))] for g in ds]
+        sgn = [2, -2, -2, 2]
+        for v in vs_list:
+            v = a.transpose() * s_conj_inv * v
+            v_norm = -v * s * v / 2
+            n0 = prec - v_norm
+            for i in srange(1, n0 * n):
+                ic1 = (i/n) * c1
+                for j in srange(1, 1 + n * n0 // i):
+                    u = ic1 - (j / n) * c2
+                    h1 = u + v
+                    h2 = -u + v
+                    h3 = -h1
+                    h4 = -h2
+                    g1, g2, g3, g4 = [tuple(map(frac, x)) for x in [h1, h2, h3, h4]]
+                    try:
+                        z = [ds_dict[x] for x in [g1, g2, g3, g4]]
+                        for b, k in enumerate(z):
+                            X[k][2] += sgn[b] * q ** (ceil(v_norm + i * j / n))
+                    except KeyError:
+                        pass
+        c1 /= GCD(sc1)
+        c2 /= GCD(sc2)
+        g1, g2, g3, g4 = [tuple(map(frac, x)) for x in [c1, -c1, c2, -c2]]
+        sgn = [1, -1, 1, -1]
+        try:
+            z = [ds_dict[x] for x in [g1, g2, g3, g4]]
+            for b, k in enumerate(z):
+                X[k][2] += sgn[b]
+        except KeyError:
+            pass
+        return WeilRepModularForm(ZZ(s.nrows()) / 2, s, X, weilrep = self)
 
     ## dimensions of spaces of modular forms associated to this representation
 

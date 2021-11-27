@@ -32,7 +32,7 @@ from sage.arith.functions import lcm
 from sage.arith.misc import bernoulli, divisors, GCD, is_prime, is_square
 from sage.arith.srange import srange
 from sage.calculus.var import var
-from sage.combinat.combinat import bernoulli_polynomial
+from sage.combinat.combinat import bernoulli_polynomial, eulerian_polynomial
 from sage.functions.log import exp, log
 from sage.functions.other import binomial, ceil, floor, frac, sqrt
 from sage.geometry.cone import Cone
@@ -343,6 +343,18 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         except AttributeError:
             s = str(self.fourier_expansion())
             d = self.scale()
+            if not self._base_ring_is_laurent_polynomial_ring():#represent 'r'-terms as Laurent polynomials if possible
+                n = self.nvars() - 2
+                r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(n)))
+                def m(obj):
+                    obj_s = obj.string[slice(*obj.span())]
+                    j = 0
+                    if obj_s[:2] == '((':
+                        obj_s = obj_s[1:]
+                        j = 1
+                    i = obj_s.index(')/')
+                    return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:]))
+                s = sub(r'\([^()]*?\)\/((\((r_\d*(\^\d*)?\*?)+\))|(r_\d*(\^\d*)?\*?)+)', m, s)
             if d == 1:
                 self.__string = s
             else: #divide by scale
@@ -366,6 +378,9 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
 
     def nvars(self):
         return 2 + Integer(self.gram_matrix().nrows())
+
+    def coefficients(self):
+        return self.qs_coefficients()
 
     ## Fourier series and Fourier--Jacobi series
 
@@ -860,7 +875,18 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             zeta = 1
         nrows = ZZ(S.nrows())
         k = self.weight()
-        wt = k + nrows / 2
+        wt = Integer(k + nrows / 2)
+        if val:
+            p = eulerian_polynomial(wt - 1)
+            P, t = LaurentPolynomialRing(QQ, 't').objgen()
+            P.inject_variables(verbose = False)
+            p = P(p)
+            if wt == 1:
+                p = 1
+            else:
+                p *= t
+            wp_const_term = p / (2 * (1 - t)**wt)
+            wp_const_term += (-1)**wt * wp_const_term(~t)
         if L is None:
             coeffs = self.coefficients()
             list_bool = False
@@ -881,10 +907,17 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 C = [x._weight_one_theta_lift_constant_term() for x in L]
         if S:
             rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(S.nrows()) ))
+            rb.inject_variables(verbose = False)
             z = rb.gens()[0]
+            if val:
+                rb_frac = FractionField(rb)
+            else:
+                rb_frac = rb
         else:
             rb = K
-        rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
+            rb_frac = rb
+        rb_x, x = LaurentPolynomialRing(rb_frac, 'x').objgen()
+        rb_x.inject_variables(verbose = False)
         t, = PowerSeriesRing(rb_x, 't').gens()
         try:
             N = w._N()
@@ -905,6 +938,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             f = O(t ** prec)
         bool_1 = w._is_positive_definite_plus_II()
         bool_2 = w._is_positive_definite_plus_2II()
+        bool_val = 1 - bool(val)
         if bool_1:
             def update(g_n, sum_coeff):
                 g_n = tuple([frac(c / (d*N))] + list(g_n)[:-1] + [frac(-a / (d*N)), g_n[-1]])
@@ -964,9 +998,10 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 v_monomial = z**v[0]
             else:
                 v_monomial = 1
-            a = 1
+            v_monomial = rb_frac(v_monomial)
+            a = bool_val
             while a < prec * N:
-                c = 1
+                c = bool_val
                 while c < (prec- a) * N:
                     a_plus_c = a + c
                     n = Integer(a * c) / N - v_norm
@@ -984,6 +1019,15 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                                 F[j0] += t**(a_plus_c) * x**(c - a) * (sum_coeff_1[j0] * v_monomial + sum_coeff_2[j0] * ~v_monomial)
                         else:
                             f += t**(a_plus_c) * x**(c - a) * (sum_coeff_1 * v_monomial + sum_coeff_2 * ~v_monomial)
+                    elif not (a or c):
+                        u = rb_frac(wp_const_term(v_monomial))
+                        if bool_1:
+                            C = coeffs[tuple([0] + [frac(y) for y in g] + [0, n])]
+                        elif bool_2:
+                            C = sum(coeffs[tuple([i/N2, 0] + [frac(y) for y in g] + [0, n])] * zeta**(i * d % N2) for i in srange(N2))
+                        else:
+                            C = coeffs[tuple([frac(y) for y in g] + [n])]
+                        f += C * rb_frac(wp_const_term(v_monomial))
                     c += 1
                 a += 1
         #now take b = zero vector
@@ -1028,101 +1072,6 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
     additive_lift = theta_lift
     gritsenko_lift = theta_lift
     maass_lift = theta_lift
-
-    def _singular_theta_lift(self, prec = None):
-        S = self.gram_matrix()
-        nrows = Integer(S.nrows())
-        k = self.weight() + nrows/2
-        if k < 2:
-            return NotImplemented
-        #eulerian polynomials
-        def a(n, m):
-            return sum((-1)**k * binomial(n + 1, k) * (m + 1 - k)**n for k in range(m + 1))
-        rpoly, t = PolynomialRing(QQ, 't').objgen()
-        def A(n) :
-            if n == 0:
-                return 1
-            return rpoly([a(n, k) for k in range(n)])
-        E = t * A(k - 1)
-        det_S = S.determinant()
-        prec0 = self.precision()
-        val = self.valuation()
-        eps = self.is_symmetric()
-        if eps == 0:
-            eps = -1
-        prec0val = prec0 - val
-        if prec is None:
-            prec = isqrt(4 * (prec0+val))
-        else:
-            prec = min(prec, isqrt(4 * (prec0+val)))
-        S_inv = self.inverse_gram_matrix()
-        coeffs = self.coefficients()
-        rb = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(nrows)) )
-        frb = FractionField(rb)
-        rb_x, x = LaurentPolynomialRing(frb, 'x').objgen()
-        r, t = PowerSeriesRing(rb_x, 't', prec).objgen()
-        rpoly, t0 = PolynomialRing(QQ, 't0').objgen()
-        ds_dict = self.weilrep().ds_dict()
-        if nrows > 1:
-            _, _, vs_matrix = pari(S_inv).qfminim(prec0val + prec0val + 1, flag = 2)
-            vs_list = vs_matrix.sage().columns()
-        else:
-            vs_list = [vector([n]) for n in range(1, isqrt(2*prec0*S[0, 0]) + 1)]
-        vs_list.append(vector([0]*nrows))
-        F = self.fourier_expansion()
-        h = O(t ** prec)
-        f = h
-        if k % 2 == 0:
-            try:
-                f -= coeffs[tuple([0]*(nrows + 1))] *  bernoulli(k) / (2 * k)
-            except KeyError:
-                pass
-        if nrows == 1:
-            rb_zero = rb.gens()[0]
-        for v in vs_list:
-            g = S_inv * v
-            v_norm = g * v / 2
-            g_frac = map(frac, g)
-            a_plus_c = -1
-            while a_plus_c <= prec:
-                a_plus_c += 1
-                for c in srange(val, a_plus_c + 1):
-                    a = a_plus_c - c
-                    a_times_c = a * c
-                    n = a_times_c - v_norm
-                    if val <= n < prec0:
-                        big_v = vector([a] + list(v) + [c])
-                        if v and not (a or c):
-                            j = next(j for j, v_j in enumerate(v) if v_j)
-                            if v[j] > 0:
-                                v = -v
-                        big_tuple = tuple(list(g_frac) + [n])
-                        try:
-                            C = coeffs[big_tuple]
-                            if C:
-                                if nrows > 1:
-                                    m = rb.monomial(*v)
-                                else:
-                                    m = rb_zero ** v[0]
-                                if (a or c) and c >= 0:
-                                    u = t**a_plus_c * x**(c - a)
-                                    if v:
-                                        f += C * (E.subs({t : u*m}) * (1 - u * m + h)**(-k) + eps * E.subs({t : u * ~m}) * (1 - u * ~m + h)**(-k))
-                                    else:
-                                        f += C  * E.subs({t : u}) * (1 - u + h)**(-k)
-                                elif n and v:
-                                    f += C * E.subs({t : m}) * frb(1 - m)**(-k)
-                        except KeyError:
-                            if n > prec:
-                                prec = a_plus_c
-                                h = O(t ** prec)
-                                f += h
-                            pass
-        try:
-            h = self.weilrep().lift_qexp_representation
-        except(AttributeError, IndexError, TypeError):
-            h = None
-        return OrthogonalModularForm(k, self.weilrep(), f, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h)
 
     def weyl_vector(self):
         r"""
@@ -1253,6 +1202,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         if S:
             rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(S.nrows()) ))
             rb_zero = rb.gens()[0]
+            rb.inject_variables(verbose = False)
         else:
             rb = K
         try:
@@ -1264,6 +1214,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         bool_1 = weilrep._is_positive_definite_plus_II()
         bool_2 = weilrep._is_positive_definite_plus_2II()
         rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
+        rb_x.inject_variables(verbose = False)
         r, t = PowerSeriesRing(rb_x, 't', prec).objgen()
         rpoly, t0 = PolynomialRing(K, 't0').objgen()
         ds_dict = weilrep.ds_dict()
