@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -44,7 +44,6 @@ from sage.misc.misc_c import prod
 from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
 from sage.rings.big_oh import O
-from sage.rings.complex_field import ComplexField_class
 from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
@@ -59,6 +58,11 @@ from sage.rings.real_mpfr import RealField_class, RR
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
 from .jacobi_forms_class import JacobiForm, JacobiForms
+
+try:
+    from sage.rings.complex_mpfr import ComplexField_class
+except ModuleNotFoundError:
+    from sage.rings.complex_field import ComplexField_class
 
 class OrthogonalModularForms(object):
     r"""

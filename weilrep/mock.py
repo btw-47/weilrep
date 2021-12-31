@@ -21,6 +21,7 @@ AUTHORS:
 import cmath
 import math
 
+from itertools import chain
 from re import sub
 from scipy.special import gamma, hyperu
 
@@ -76,6 +77,8 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             self.__depth = l - j
         else:
             self.__class__ = WeilRepModularForm
+
+    ## arithmetic ##
 
     def __add__(self, other):
         r"""
@@ -195,14 +198,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             return (self ** Nhalf) * (self ** (N - Nhalf))
         raise ValueError('Invalid exponent')
 
-    def depth(self):
-        r"""
-        Computes the "depth" of the quasimodular form.
-        """
-        try:
-            return self.__depth
-        except AttributeError:
-            return 0
+    ## other ##
 
     def _terms(self):
         r"""
@@ -216,8 +212,26 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             self.__class__ = WeilRepModularForm
             return [self]
 
-    def is_modular(self):
-        return False
+    def bol(self):
+        k = self.weight()
+        try:
+            k = Integer(k)
+        except TypeError:
+            raise TypeError('Invalid weight') from None
+        if k == 1:
+            return self
+        elif k == 0:
+            return self.derivative()
+        return (self.derivative()).bol().derivative()
+
+    def character(self):
+        return self.__terms[0].character()
+
+    def coefficient_vector(self, **kwargs):
+        completion = kwargs.pop('completion', False)
+        if completion:
+            return self.completion().coefficient_vector(**kwargs)
+        return super().coefficient_vector(**kwargs)
 
     def completion(self):
         r"""
@@ -261,6 +275,15 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             X.append(X[-1].shift() / j)
         return WeilRepAlmostHolomorphicModularForm(self.weight(), self.gram_matrix(), X, weilrep = self.weilrep(), character = self.character())
 
+    def depth(self):
+        r"""
+        Computes the "depth" of the quasimodular form.
+        """
+        try:
+            return self.__depth
+        except AttributeError:
+            return 0
+
     def derivative(self):
         r"""
         Compute self's derivative. This is a quasimodular form whose depth is (usually) one greater than self.
@@ -298,18 +321,52 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         X = [(r - k) * t[0]] + [(r - k - j) * t[j] + d(t[j-1]) for j in range(1, r+1)] + [d(t[-1])]
         return WeilRepQuasiModularForm(k + 2, self.gram_matrix(), X, weilrep = self.weilrep())
 
-    def character(self):
-        return self.__terms[0].character()
+    def hecke_P(self, N):
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() / (N * N), [x.hecke_P(N) for x in self._terms()], weilrep = self.weilrep())
 
-    def serre_derivative(self):
-        from weilrep import WeilRep
-        return self.derivative() - (QQ(self.weight()) / 12) * (self * WeilRep([]).eisenstein_series(2, self.precision()))
+    def hecke_T(self, N):
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.hecke_T(N) for x in self._terms()], weilrep = self.weilrep())
 
-    def raising_operator(self):
-        return NotImplemented
+    def hecke_U(self, N):
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N * N, [x.hecke_U(N) for x in self._terms()])
+
+    def hecke_V(self, N):
+        k = self.depth()
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N, [N**(k - j) * x.hecke_V(N) for j, x in enumerate(self._terms())])
+
+    def is_modular(self):
+        return False
 
     def lowering_operator(self):
-        return NotImplemented
+        r"""
+        Apply the Maass lowering operator to self's completion and take the first term.
+        """
+        return self.completion().lowering_operator()[0]
+
+    def raising_operator(self):
+        r"""
+        Apply the Maass raising operator to self's completion and take the first term.
+        """
+        return self.completion().raising_operator()[0]
+
+    def reduce_precision(self, prec, in_place = False):
+        r"""
+        Reduce self's precision.
+
+        Overwrite the reduce_precision() method for holomorphic modular forms to return a quasimodular form, all of whose shifts precisions are lowered.
+        """
+        if in_place:
+            for x in self.__terms:
+                x.reduce_precision(prec, in_place = True)
+        else:
+            return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.reduce_precision(prec) for x in self._terms()], weilrep = self.weilrep())
+
+    def serre_derivative(self):
+        r"""
+        Apply the Serre derivative (not the usual derivative!).
+        """
+        from .weilrep_modular_forms_class import smf_eisenstein_series
+        return self.derivative() - (QQ(self.weight()) / 12) * (self * smf_eisenstein_series(2, self.precision()))
 
     def shift(self):
         r"""
@@ -330,43 +387,6 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             k -= 1
         X = self._terms()
         return WeilRepQuasiModularForm(self.weight() - 2, self.gram_matrix(), [f[i]*y for i, y in enumerate(X[:-1])], weilrep=self.weilrep())
-
-    def reduce_precision(self, prec, in_place = False):
-        r"""
-        Reduce self's precision.
-
-        Overwrite the reduce_precision() method for holomorphic modular forms to return a quasimodular form, all of whose shifts precisions are lowered.
-        """
-        if in_place:
-            for x in self.__terms:
-                x.reduce_precision(prec, in_place = True)
-        else:
-            return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.reduce_precision(prec) for x in self._terms()], weilrep = self.weilrep())
-
-    def hecke_P(self, N):
-        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() / (N * N), [x.hecke_P(N) for x in self._terms()], weilrep = self.weilrep())
-
-    def hecke_T(self, N):
-        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.hecke_T(N) for x in self._terms()], weilrep = self.weilrep())
-
-    def hecke_U(self, N):
-        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N * N, [x.hecke_U(N) for x in self._terms()])
-
-    def hecke_V(self, N):
-        k = self.depth()
-        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N, [N**(k - j) * x.hecke_V(N) for j, x in enumerate(self._terms())])
-
-    def bol(self):
-        k = self.weight()
-        try:
-            k = Integer(k)
-        except TypeError:
-            raise TypeError('Invalid weight') from None
-        if k == 1:
-            return self
-        elif k == 0:
-            return self.derivative()
-        return (self.derivative()).bol().derivative()
 
     def theta_contraction(self):
         X = WeilRepModularFormsBasis(self.weight(), self._terms(), self.weilrep()).theta()
@@ -486,6 +506,10 @@ class WeilRepAlmostHolomorphicModularForm:
 
     def character(self):
         return self.__character
+
+    def coefficient_vector(self, *args, **kwargs):
+        kwargs['completion'] = False
+        return vector([y for x in self for y in x.coefficient_vector(*args, **kwargs)])
 
     def __getattr__(self, x):
         try:

@@ -194,7 +194,7 @@ class WeilRepModularForm(object):
         """
         return EtaCharacterPower(0)
 
-    def coefficient_vector(self, starting_from=None, ending_with=None, inclusive = True, G = None, set_v = None):
+    def coefficient_vector(self, starting_from=None, ending_with=None, inclusive = True, G = None, set_v = None, **kwargs):
         r"""
         Return self's Fourier coefficients as a vector.
 
@@ -352,7 +352,7 @@ class WeilRepModularForm(object):
             except TypeError:
                 j = 0
         val = min(0, X[j][2].valuation())
-        return defaultdict(f, {n - nl[j] + val : x for n, x in enumerate(X[j][2].list())})
+        return defaultdict(f, {n + nl[j] + val : x for n, x in enumerate(X[j][2].list())})
 
     def gram_matrix(self):
         r"""
@@ -2079,10 +2079,7 @@ class WeilRepModularFormsBasis:
         self.__basis = basis
         self.__weilrep = weilrep
         self.__flag = flag
-        if flag == 'quasimodular':
-            self.__bound = self.__weight
-        else:
-            self.__bound = self.__weight / 12
+        self.__bound = self.__weight / 12
 
     def __repr__(self):
         r"""
@@ -2100,7 +2097,6 @@ class WeilRepModularFormsBasis:
                 X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
                 if self._flag() == 'quasimodular' or other._flag() == 'quasimodular':
                     X._WeilRepModularFormsBasis__flag = 'quasimodular'
-                    X._WeilRepModularFormsBasis__bound = self.__weight
                 return X
             return NotImplemented
         except AttributeError:
@@ -2146,9 +2142,12 @@ class WeilRepModularFormsBasis:
             raise ValueError('Incompatible modular forms')
         val = min(self.valuation(), X.valuation())
         prec = min(self.precision(), X.precision())
-        m = matrix([v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False) for v in self.__basis])
+        L = [v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True) for v in self.__basis]
+        d = max(map(len, L))
+        m = matrix([list(x) + [0]*(d - len(x)) for x in L])
+        v = X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True)
         try:
-            return m.solve_left(X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False))
+            return m.solve_left(vector(list(v) + [0] * (d - len(v))))
         except ValueError:
             raise ValueError('No representation') from None
 
@@ -2162,17 +2161,21 @@ class WeilRepModularFormsBasis:
         - ``ending_with`` -- (default None) if given then it should be the index at which we stop looking at Fourier coefficients.
         - ``integer`` -- (default False) if True then we assume all Fourier coefficients are integers. This is faster.
         """
+        if not self.__basis:
+            return self
         if starting_from is None:
             starting_from = min(0, self.valuation())
         if ending_with is None:
             ending_with = self.__bound
         if integer:
-            m = matrix(ZZ, [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis])
+            m = matrix(ZZ, [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis])
             a, b = m.echelon_form(transformation = True)
             a_rows = a.rows()
             self.__basis = [self * v for i, v in enumerate(b.rows()) if a_rows[i]]
         else:
-            m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis]).extended_echelon_form(subdivide = True, proof = False)
+            L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+            d = max(map(len, L))
+            m = matrix([list(x) + [0]*(d - len(x)) for x in L]).extended_echelon_form(subdivide = True, proof = False)
             b = m.subdivision(0, 1)
             self.__basis = [self * v for v in b.rows()]
         if save_pivots:
@@ -2193,7 +2196,6 @@ class WeilRepModularFormsBasis:
         if self.weilrep() == other.weilrep() and self.weight() == other.weight():
             if other._flag() == 'quasimodular':
                 self.__flag = 'quasimodular'
-                self.__bound = self.__weight
             try:
                 self.__basis.extend(other.list())
             except:
@@ -2201,7 +2203,7 @@ class WeilRepModularFormsBasis:
         else:
             return NotImplemented
 
-    def _flag(self): #I don't remember what this is for but I am afraid to delete it. it appears a few times when you search for it but it doesn't seem to do anything
+    def _flag(self):
         return self.__flag
 
     def __getattr__(self, x):
@@ -2373,8 +2375,12 @@ class WeilRepModularFormsBasis:
         r"""
         Compute the dimension of the modular forms spanned by self.
         """
+        if not self:
+            return 0
         ending_with = self.__bound
-        m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
+        L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+        d = max(map(len, L))
+        m = matrix([list(x) + [0]*(d - len(x)) for x in L])
         return m.rank()
 
     def reduce_precision(self, prec, in_place = False):
@@ -2393,16 +2399,25 @@ class WeilRepModularFormsBasis:
             starting_from = min(0, self.valuation())
         if ending_with is None:
             ending_with = self.__bound
-        m = matrix([v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis])
+        if not self:
+            m = matrix([])
+        else:
+            L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+            d = max(map(len, L))
+            m = matrix([list(x) + [0]*(d - len(x)) for x in L])
         return m.kernel()
 
     def remove_nonpivots(self, starting_from = 0, ending_with = None):
         r"""
         Delete modular forms until we are left with a linearly independent list.
         """
+        if not self:
+            return self
         if ending_with is None:
             ending_with = self.__bound
-        m = matrix(v.coefficient_vector(starting_from = starting_from, ending_with = ending_with) for v in self.__basis)
+        L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+        d = max(map(len, L))
+        m = matrix([list(x) + [0]*(d - len(x)) for x in L])
         self.__basis = [self[j] for j in m.pivot_rows()]
 
     def reverse(self):
