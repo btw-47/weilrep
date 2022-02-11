@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -72,9 +72,9 @@ from sage.symbolic.ring import SR
 
 from .eisenstein_series import *
 from .mock import WeilRepMockModularForm, WeilRepQuasiModularForm
-from .morphisms import WeilRepAutomorphism, WeilRepAutomorphismGroup
+from .morphisms import WeilRepAutomorphism, WeilRepAutomorphismGroup, WeilRepMorphism
 from .weilrep_misc import QuadraticLFunction
-from .weilrep_modular_forms_class import smf,  WeilRepModularForm, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import EtaCharacterPower, smf,  WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
 
 sage_one_half = Integer(1) / Integer(2)
 sage_three_half = Integer(3) / Integer(2)
@@ -2409,7 +2409,7 @@ class WeilRep(object):
                 return [X]
             return X
 
-    def zero(self, weight = 0, prec = 20):
+    def zero(self, weight = 0, prec = 20, eta_twist = 0):
         r"""
         Construct a WeilRepModularForm of weight 'weight' and precision 'prec' which is identically zero.
 
@@ -2422,16 +2422,19 @@ class WeilRep(object):
             [(1/3, 1/3), O(q^(17/3))]
 
         """
-
         n_list = self.norm_list()
+        if eta_twist:
+            eta_shift = eta_twist / 24
+            n_list = [-frac(-x - eta_shift) for x in n_list]
         _ds = self.ds()
         q, = PowerSeriesRing(QQ, 'q').gens()
         o_q = O(q ** prec)
         o_q_2 = O(q ** (prec + 1))
         X = [[g, n_list[i], [o_q_2,o_q][n_list[i] == 0]] for i, g in enumerate(_ds)]
-        return WeilRepModularForm(weight, self.gram_matrix(), X, weilrep = self)
+        return WeilRepModularFormWithCharacter(weight, self.gram_matrix(), X, weilrep = self, character = EtaCharacterPower(eta_twist % 24))
 
     def zwegers_theta(self, c1, c2, prec):
+        ## unfinished ##
         q = self.quadratic_form()
         s = self.gram_matrix()
         if not q.signature() == 2 - s.nrows():
@@ -3620,38 +3623,18 @@ class WeilRep(object):
             G = self.automorphism_group()
         if chi is None:
             chi = [1] * len(G)
-        if any(denominator(x) not in [1, 2, 3, 4, 6] for x in b):
-            if verbose:
-                print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.')
-            return self.nearly_holomorphic_modular_forms_basis(k, 0, prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
-        elif k >= sage_seven_half or (symm and k >= sage_five_half):
+        if k >= sage_seven_half or (symm and k >= sage_five_half):
             if not symm and any(2 % denominator(x) for x in b):
                 return self.nearly_holomorphic_modular_forms_basis(k, 0, prec=prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
+            mod_dim = self.invariant_forms_dimension(k, G = G, chi = chi)
+            cusp_dim = self.invariant_cusp_forms_dimension(k, G = G, chi = chi)
+            E = [self.eisenstein_oldform(k, x, prec) for x in b]
+            E = WeilRepModularFormsBasis(k, [sum(chi[i] * g(y) for i, g in enumerate(G)) for y in E], self)
+            if E.rank() + cusp_dim < mod_dim:
+                print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.')
+                return self.nearly_holomorphic_modular_forms_basis(k, 0, prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
             X = self.invariant_cusp_forms_basis(k, prec = prec, G = G, chi = chi, verbose = verbose)
-            e = set([])
-            orbits = []
-            for i, b in enumerate(b):
-                tb = tuple(b)
-                if tb not in e:
-                    x = [g(b) for g in G]
-                    d = {}
-                    for i, s in enumerate(chi):
-                        y = x[i]
-                        if indices[dsdict[tuple(y)]] is None:
-                            eps = 1 + bool(2 % denominator(y))
-                            try:
-                                d[tuple(y)] += s * eps
-                            except KeyError:
-                                d[tuple(y)] = s * eps
-                    for x in x:
-                        e.add(tuple(x))
-                    orbits.append(d)
-            for x in orbits:
-                f = self.zero(k, prec)
-                for y, s in x.items():
-                    if s:
-                        f += s * self.eisenstein_oldform(k, vector(y), prec)
-                X.append(f)
+            X = X + E
             X.echelonize()
             return X
         else:
@@ -3995,7 +3978,7 @@ class WeilRep(object):
         X = self.quasimodular_forms_basis(*args, **kwargs)
         return WeilRepModularFormsBasis(X.weight(), [x.completion() for x in X], self)
 
-    def construct_basis(self, X):
+    def construct_basis(self, *x):
         r"""
         Construct a WeilRepModularFormsBasis instance.
 
@@ -4003,53 +3986,26 @@ class WeilRep(object):
 
         - ``X`` -- a list of WeilRepModularForm instances.
         """
-        pass
-        #try:
-        #    Xref = X[0]
-        #    k = Xref.weight()
-        #    if not all()
+        x_ref = x[0]
+        if isinstance(x_ref, list):
+            x = x_ref
+            try:
+                x_ref = x[0]
+            except IndexError:
+                raise ValueError('Undetermined weight') from None
+        k = x_ref.weight()
+        if any(y.weight() != k for y in x[1:]):
+            raise ValueError('Incompatible weights') from None
+        return WeilRepModularFormsBasis(k, x, self)
 
     ## automorphisms ##
 
-    def identity_morphism(self):
+    def automorphism(self, f):
+        return WeilRepAutomorphism(self, f)
+
+    def automorphism_group(self, gens = None):
         r"""
-        Construct the identity morphism x --> x.
-        """
-        return WeilRepAutomorphism(self, lambda x:x)
-
-    def canonical_involution(self):
-        r"""
-        Construct the map x --> -x
-        """
-        return WeilRepAutomorphism(self, lambda x: vector(map(frac, -x)))
-
-    def reflection(self, r):
-        r"""
-        Compute the reflection by a vector r \in L \otimes \QQ as a WeilRepAutomorphism.
-
-        This is the morphism
-        s_r : L'/L --> L'/L,  s_r(x) = x - <r, x> (r / Q(r)).
-        If r has norm Q(r) = 0 or if s_r does not map L' into L' and L into L, then raise a ValueError.
-
-        INPUT:
-        - ``r`` -- a rational vector of length equal to self's lattice rank
-
-        OUTPUT: WeilRepAutomorphism
-        """
-        S = self.gram_matrix()
-        r0 = S * r
-        try:
-            r0 = 2 * r0 / (r * r0)
-        except ZeroDivisionError:
-            raise ValueError('Not a valid reflection') from None
-        try:
-            return WeilRepAutomorphism(self, lambda x: vector(map(frac, x - (r0 * x) * r)))
-        except KeyError:
-            raise ValueError('Not a valid reflection') from None
-
-    def automorphism_group(self):
-        r"""
-        Compute all automorphisms of this WeilRep.
+        Compute all automorphisms of this WeilRe+p.
 
         If (A, Q) is the discriminant form then an automorphism is an isomorphism of groups f : A -> A with Q(f(x)) = Q(x) for all x in A.
 
@@ -4081,10 +4037,11 @@ class WeilRep(object):
             [6 3]
             [3 4]
         """
-        try:
-            return _automorphism_group_dict[self]
-        except KeyError:
-            pass
+        if gens is None:
+            try:
+                return _automorphism_group_dict[self]
+            except KeyError:
+                pass
         S = self.gram_matrix().inverse()
         S1, d = S._clear_denom()
         _, U, V = S1.smith_form()
@@ -4107,11 +4064,57 @@ class WeilRep(object):
         def a(g):
             g = Z_inv * block_diagonal_matrix([I, g.matrix()]) * Z
             return lambda x: vector(map(frac, g * x))
-        G = self.discriminant_form().orthogonal_group()
+        if gens:
+            gens = [Z * x.matrix() * Z_inv if isinstance(x, WeilRepMorphism) else Z * x * Z_inv for x in gens]
+            G = self.discriminant_form().orthogonal_group(gens = gens)
+            name = 'Subgroup of automorphism group'
+        else:
+            G = self.discriminant_form().orthogonal_group()
+            name = None
         X = G.conjugacy_classes()
-        G = WeilRepAutomorphismGroup(self, [WeilRepAutomorphism(self, a(g)) for x in X for g in x], G)
-        _automorphism_group_dict[self] = G
+        G = WeilRepAutomorphismGroup(self, [WeilRepAutomorphism(self, a(g)) for x in X for g in x], G, name = name)
+        if gens is None:
+            _automorphism_group_dict[self] = G
         return G
+
+    def canonical_involution(self):
+        r"""
+        Construct the map x --> -x
+        """
+        return WeilRepAutomorphism(self, lambda x: vector(map(frac, -x)))
+
+    def identity_morphism(self):
+        r"""
+        Construct the identity morphism x --> x.
+        """
+        return WeilRepAutomorphism(self, lambda x:x)
+
+    def morphism(self, target, f):
+        return WeilRepMorphism(self, target, f)
+
+    def reflection(self, r):
+        r"""
+        Compute the reflection by a vector r \in L \otimes \QQ as a WeilRepAutomorphism.
+
+        This is the morphism
+        s_r : L'/L --> L'/L,  s_r(x) = x - <r, x> (r / Q(r)).
+        If r has norm Q(r) = 0 or if s_r does not map L' into L' and L into L, then raise a ValueError.
+
+        INPUT:
+        - ``r`` -- a rational vector of length equal to self's lattice rank
+
+        OUTPUT: WeilRepAutomorphism
+        """
+        S = self.gram_matrix()
+        r0 = S * r
+        try:
+            r0 = 2 * r0 / (r * r0)
+        except ZeroDivisionError:
+            raise ValueError('Not a valid reflection') from None
+        try:
+            return WeilRepAutomorphism(self, lambda x: vector(map(frac, x - (r0 * x) * r)))
+        except KeyError:
+            raise ValueError('Not a valid reflection') from None
 
     ## low weight ##
 

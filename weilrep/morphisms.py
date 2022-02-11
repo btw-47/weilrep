@@ -5,7 +5,7 @@ Sage code for automorphisms of Weil representations
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,9 +14,12 @@ Sage code for automorphisms of Weil representations
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
+from inspect import isfunction
 from itertools import chain
 
+from sage.functions.other import frac
 from sage.matrix.constructor import matrix
+from sage.modules.free_module_element import vector
 from sage.rings.integer_ring import ZZ
 from sage.rings.rational_field import QQ
 
@@ -37,6 +40,9 @@ class WeilRepMorphism:
     """
 
     def __init__(self, w1, w2, f):
+        if not isfunction(f):
+            A = f
+            f = lambda x: vector(map(frac, A * x))
         self.__input_weilrep = w1
         self.__output_weilrep = w2
         self.__f = f
@@ -96,7 +102,7 @@ class WeilRepMorphism:
             Z = self.__indices
             f = self.f()
             w = self.output_weilrep()
-            return WeilRepModularForm(X.weight(), w.gram_matrix(), [(Xf[i][0], Xf[i][1], Xf[z][2]) for i,z in enumerate(Z)], weilrep = w)
+            return WeilRepModularForm(X.weight(), w.gram_matrix(), [(f(Xf[i][0]), Xf[i][1], Xf[z][2]) for i,z in enumerate(Z)], weilrep = w)
         except AttributeError:
             return self.f()(X)
 
@@ -118,6 +124,25 @@ class WeilRepMorphism:
         w1, w2 = self.input_weilrep(), self.output_weilrep()
         d1, d2 = w1.ds(), w2.ds_dict()
         return WeilRepMorphism(w2, w1, lambda x: d1[Z[d2[tuple(x)]]])
+
+    def matrix(self):
+        L = []
+        w = self.input_weilrep()
+        ds = w.ds()
+        i = 0
+        S = w.gram_matrix()
+        n = S.nrows()
+        A = matrix(L)
+        r = A.rank()
+        while r < n:
+            v = ds[i]
+            B = matrix(L + [v])
+            if B.rank() > r:
+                A = B
+                r = A.rank()
+                L = L + [v]
+            i += 1
+        return matrix([self(a) for a in A]) * A.inverse()
 
     def __mul__(self, other):
         r"""

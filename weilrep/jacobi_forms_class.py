@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1984,7 +1984,8 @@ def root_lattice_theta_block(root_system, prec):
     EXAMPLES::
         sage: from weilrep import *
         sage: root_lattice_theta_block(['A', 2], 5)
-        (-w_0*w_1 + w_0 + w_1 - w_1^-1 - w_0^-1 + w_0^-1*w_1^-1)*q^(1/3) + (w_0^2*w_1^2 - w_0^2 - w_1^2 + w_1^-2 + w_0^-2 - w_0^-2*w_1^-2)*q^(4/3) + (-w_0^3*w_1^2 - w_0^2*w_1^3 + w_0^3*w_1 + w_0*w_1^3 + w_0^2*w_1^-1 + w_0^-1*w_1^2 - w_0*w_1^-2 - w_0^-2*w_1 - w_0^-1*w_1^-3 - w_0^-3*w_1^-1 + w_0^-2*w_1^-3 + w_0^-3*w_1^-2)*q^(7/3) + (w_0^4*w_1^3 + w_0^3*w_1^4 - w_0^4*w_1 - w_0*w_1^4 - w_0^3*w_1^-1 - w_0^-1*w_1^3 + w_0*w_1^-3 + w_0^-3*w_1 + w_0^-1*w_1^-4 + w_0^-4*w_1^-1 - w_0^-3*w_1^-4 - w_0^-4*w_1^-3)*q^(13/3) + O(q^(16/3))
+        (w_0*w_1 - w_0 - w_1 + w_1^-1 + w_0^-1 - w_0^-1*w_1^-1)*q^(1/3) + (-w_0^2*w_1^2 + w_0^2 + w_1^2 - w_1^-2 - w_0^-2 + w_0^-2*w_1^-2)*q^(4/3) + (w_0^3*w_1^2 + w_0^2*w_1^3 - w_0^3*w_1 - w_0*w_1^3 - w_0^2*w_1^-1 - w_0^-1*w_1^2 + w_0*w_1^-2 + w_0^-2*w_1 + w_0^-1*w_1^-3 + w_0^-3*w_1^-1 - w_0^-2*w_1^-3 - w_0^-3*w_1^-2)*q^(7/3) + (-w_0^4*w_1^3 - w_0^3*w_1^4 + w_0^4*w_1 + w_0*w_1^4 + w_0^3*w_1^-1 + w_0^-1*w_1^3 - w_0*w_1^-3 - w_0^-3*w_1 - w_0^-1*w_1^-4 - w_0^-4*w_1^-1 + w_0^-3*w_1^-4 + w_0^-4*w_1^-3)*q^(13/3) + O(q^(16/3))
+
 
     """
     from .weilrep_modular_forms_class import smf_eta
