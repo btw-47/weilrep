@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -834,7 +834,7 @@ class WeilRepWeakMaassForm(WeilRepModularForm):
         w = '' if self.is_maass_form() else 'weak '
         return 'Harmonic %sMaass form with holomorphic part%s\n%s\nand shadow%s\n%s'%(w, t, super().__repr__(), s, self.__shadow.__repr__())
 
-    def __call__(self, z, q = False, funct = None):
+    def __call__(self, z, q = False, funct = None, **kwargs):
         if funct is None:
             funct = self.__call__
         if q:
@@ -900,7 +900,7 @@ class WeilRepWeakMaassForm(WeilRepModularForm):
         return a
 
     @cached_method
-    def _cached_call(self, z, q = False, isotherm = False, f = None):
+    def _cached_call(self, z, q = False, isotherm = False, f = None, **kwargs):
         s = self.__call__(z, q = q, funct = self._cached_call)
         if f is not None:
             s = f(s)

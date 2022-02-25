@@ -263,3 +263,64 @@ class WeilRepAutomorphismGroup:
 
     def index(self, x):
         return self.__G.index(x)
+
+    def orbits(self):
+        r"""
+        Compute the orbits of self's action on the discriminant group.
+
+        OUTPUT: a list of lists
+
+        EXAMPLES::
+
+        sage: from weilrep import *
+        sage: II(3).automorphism_group().orbits()
+        [[(0, 0)], [(0, 2/3), (1/3, 0), (0, 1/3), (2/3, 0)], [(1/3, 1/3), (2/3, 2/3)], [(2/3, 1/3), (1/3, 2/3)]]
+        """
+        X = []
+        L = []
+        ds = self.weilrep().ds()
+        r = []
+        for i, g in enumerate(ds):
+            tuple_g = tuple(g)
+            try:
+                _ = next(x for x in L if tuple_g in x)
+            except StopIteration:
+                y = set(tuple(h(g)) for h in self)
+                L.append(y)
+                X.append(list(y))
+                r.append(i)
+        self._orbit_rep_indices = r
+        return X
+
+    def orbit_representatives(self):
+        r"""
+        Compute a system of representatives of self's orbits.
+
+        OUTPUT: a list
+
+        EXAMPLES::
+
+        sage: from weilrep import *
+        sage: II(4).automorphism_group().orbit_representatives()
+        [(0, 0), (1/4, 0), (1/2, 0), (1/4, 1/4), (1/2, 1/4), (3/4, 1/4), (1/2, 1/2)]
+        """
+        ds = self.weilrep().ds()
+        return [ds[i] for i in self._orbit_representatives_indices()]
+
+    def _orbit_representatives_indices(self):
+        r"""
+        Compute a list [i_1, i_2, i_3, ...] where ds[i_k] represent the orbits of self on the discriminant group.
+
+        OUTPUT: a list
+
+        EXAMPLES::
+
+        sage: from weilrep import *
+        sage: II(4).automorphism_group()._orbit_representatives_indices()
+        [0, 1, 2, 5, 6, 7, 10]
+        """
+        try:
+            return self._orbit_rep_indices
+        except AttributeError:
+            _ = self.orbits()
+            return self._orbit_rep_indices

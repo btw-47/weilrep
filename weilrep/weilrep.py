@@ -3383,7 +3383,7 @@ class WeilRep(object):
             return X
         return e, X
 
-    def invariant_cusp_forms_basis(self, k, prec = 0, G = None, chi = None, verbose = False):
+    def invariant_cusp_forms_basis(self, k, prec = 0, G = None, chi = None, echelonize = True, verbose = False):
         r"""
         Compute a basis of cusp forms with specified symmetries.
 
@@ -3464,7 +3464,7 @@ class WeilRep(object):
         else:
             prec = ceil(max(prec, sturm_bound))
         if k <= 0:
-            return WeilRepModularFormsBasis(k, [], self)
+            return WeilRepModularFormsBasis(k, [], self, symmetry_data = (G, chi))
         elif k >= sage_seven_half or (symm and k >= sage_five_half):
             if verbose:
                 print('I am computing the dimension...')
@@ -3475,7 +3475,7 @@ class WeilRep(object):
                 chi = [1] * len(G)
             if verbose:
                 print('I need to find %d cusp forms.'%dim)
-            X = WeilRepModularFormsBasis(k, [], self)
+            X = WeilRepModularFormsBasis(k, [], self, symmetry_data = (G, chi))
             if not dim:
                 return X
             dsdict = self.ds_dict()
@@ -3521,13 +3521,18 @@ class WeilRep(object):
                     if f:
                         X.append(f)
                     if len(X) >= dim:
+                        if verbose:
+                            print('I will compute the current rank.')
                         r = X.rank()
+                        if verbose:
+                            print('I have found %s out of %s linearly independent forms.'%(r, dim))
                         if r == dim:
                             break
                 m += 1
-            if verbose:
-                print('I am computing an echelon form.')
-            X.echelonize()
+            if echelonize:
+                if verbose:
+                    print('I am computing an echelon form.')
+                X.echelonize()
             return X
         else:
             if verbose:
@@ -3542,10 +3547,14 @@ class WeilRep(object):
             try:
                 V1 = span((x * e4).coefficient_vector() for x in X1)
                 V2 = span((x * e6).coefficient_vector() for x in X2)
-                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self)
+                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self, symmetry_data = (G, chi))
+                if echelonize:
+                    if verbose:
+                        print('I am computing an echelon form.')
+                    X.echelonize()
                 return X
             except AttributeError:
-                return WeilRepModularFormsBasis(k, [], self)
+                return WeilRepModularFormsBasis(k, [], self, symmetry_data = (G, chi))
 
     def invariant_forms_basis(self, k, prec = 0, G = None, chi = None, verbose = False):
         r"""
@@ -3613,7 +3622,7 @@ class WeilRep(object):
         if symm is None:
             return []
         elif k < 0:
-            return WeilRepModularFormsBasis(k, [], self)
+            return WeilRepModularFormsBasis(k, [], self, symmetry_data = symmetry_data)
         ds = self.ds()
         dsdict = self.ds_dict()
         indices = self.rds(indices = True)
@@ -3623,18 +3632,25 @@ class WeilRep(object):
             G = self.automorphism_group()
         if chi is None:
             chi = [1] * len(G)
+        symmetry_data = G, chi
         if k >= sage_seven_half or (symm and k >= sage_five_half):
             if not symm and any(2 % denominator(x) for x in b):
                 return self.nearly_holomorphic_modular_forms_basis(k, 0, prec=prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
             mod_dim = self.invariant_forms_dimension(k, G = G, chi = chi)
             cusp_dim = self.invariant_cusp_forms_dimension(k, G = G, chi = chi)
             E = [self.eisenstein_oldform(k, x, prec) for x in b]
-            E = WeilRepModularFormsBasis(k, [sum(chi[i] * g(y) for i, g in enumerate(G)) for y in E], self)
-            if E.rank() + cusp_dim < mod_dim:
-                print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.')
+            E = WeilRepModularFormsBasis(k, [sum(chi[i] * g(y) for i, g in enumerate(G)) for y in E], self, symmetry_data = symmetry_data)
+            E_rank = E.rank()
+            if verbose:
+                print('I have computed %s invariant Eisenstein series.'%E_rank)
+            if E_rank + cusp_dim < mod_dim:
+                if verbose:
+                    print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.')
                 return self.nearly_holomorphic_modular_forms_basis(k, 0, prec, inclusive = True, reverse = False, force_N_positive = True, symmetry_data = [G, chi], verbose = verbose)
-            X = self.invariant_cusp_forms_basis(k, prec = prec, G = G, chi = chi, verbose = verbose)
+            X = self.invariant_cusp_forms_basis(k, prec = prec, G = G, chi = chi, verbose = verbose, echelonize = False)
             X = X + E
+            if verbose:
+                print('I am computing an echelon form.')
             X.echelonize()
             return X
         else:
@@ -3649,11 +3665,11 @@ class WeilRep(object):
                 V1 = span([(x * e4).coefficient_vector() for x in X1])
                 V2 = span([(x * e6).coefficient_vector() for x in X2])
                 V = (V1.intersection(V2)).basis()
-                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V], self)
+                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V], self, symmetry_data = symmetry_data)
                 X.echelonize()
                 return X
             except AttributeError:
-                X = WeilRepModularFormsBasis(k, [], self)
+                X = WeilRepModularFormsBasis(k, [], self, symmetry_data = symmetry_data)
                 return X
 
     def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False, symmetry_data = None, eta_twist = 0):
@@ -3929,7 +3945,7 @@ class WeilRep(object):
             for n in range(j_order):
                 jl[n] = j0
                 j0 *= j
-            Y = WeilRepModularFormsBasis(k, [x for x in X] + [x * y for y in jl for x in X], self)
+            Y = WeilRepModularFormsBasis(k, [x for x in X] + [x * y for y in jl for x in X], self, symmetry_data = symmetry_data)
             if reduce_prec:
                 for y in Y:
                     y.reduce_precision(prec)
@@ -3950,7 +3966,7 @@ class WeilRep(object):
             print('I will compute modular forms of weight %s which vanish in infinity to order %s and divide them by Delta^%d.' %(computed_weight, N - pole_order, N))
         X = self.basis_vanishing_to_order(computed_weight, N - pole_order, prec + N + 1, not inclusive, keep_N = True, symmetry_data = symmetry_data, verbose = verbose)
         delta_power = smf(-12 * N, ~(delta_qexp(max(ceil(prec) + N + 1, 1)) ** N))
-        Y = WeilRepModularFormsBasis(k, [(x * delta_power) for x in X], self)
+        Y = WeilRepModularFormsBasis(k, [(x * delta_power) for x in X], self, symmetry_data = symmetry_data)
         if verbose:
             print('I am computing an echelon form.')
         Y.echelonize(starting_from = -N, ending_with = sturm_bound)

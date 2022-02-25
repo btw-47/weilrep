@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -92,7 +92,7 @@ class WeilRepModularForm(object):
 
     NOTE: The class is automatically changed to WeilRepModularFormPositiveDefinite or WeilRepModularFormLorentzian if appropriate.
     """
-    def __init__(self, weight, gram_matrix, fourier_expansions, weilrep = None):
+    def __init__(self, weight, gram_matrix, fourier_expansions, weilrep = None, symmetry_data = None):
         if weilrep is None:
             from .weilrep import WeilRep
             weilrep = WeilRep(gram_matrix)
@@ -100,6 +100,7 @@ class WeilRepModularForm(object):
         self.__weight = weight
         self.__gram_matrix = gram_matrix
         self.__fourier_expansions = fourier_expansions
+        self.__symmetry_data = symmetry_data
         self.flag = ''
         if weilrep.is_positive_definite() or weilrep._is_positive_definite_plus_II() or weilrep._is_positive_definite_plus_2II():
             from .positive_definite import WeilRepModularFormPositiveDefinite
@@ -194,7 +195,7 @@ class WeilRepModularForm(object):
         """
         return EtaCharacterPower(0)
 
-    def coefficient_vector(self, starting_from=None, ending_with=None, inclusive = True, G = None, set_v = None, **kwargs):
+    def coefficient_vector(self, starting_from=None, ending_with=None, inclusive = True, set_v = None, sorted_indices = None, **kwargs):
         r"""
         Return self's Fourier coefficients as a vector.
 
@@ -231,13 +232,13 @@ class WeilRepModularForm(object):
                 return self.__coefficient_vector_sturm_bound
             except AttributeError: #this will probably be triggered anyway
                 pass
-        if G is None:
-            w = self.weilrep()
-            G = w.rds()
         symm = self.is_symmetric()
         prec = self.precision()
-        X = [x for x in self.fourier_expansion()]
-        X.sort(key = lambda x: x[1])
+        X = self.fourier_expansion()
+        if sorted_indices is None:
+            sorted_indices = sorted(range(len(X)), key = lambda i: X[i][1])
+            rds = self.weilrep().rds(indices = True)
+            sorted_indices = [i for i in sorted_indices if rds[i] is None]
         Y = []
         def b(n):
             if inclusive:
@@ -251,16 +252,17 @@ class WeilRepModularForm(object):
         if starting_from is None:
             starting_from = self.valuation()
         for n in range(floor(starting_from),ceil(ending_with)+1):
-            for x in X:
-                if b(n + x[1]) and (x[0] in G) and (symm or x[0].denominator() > 2):
+            for i in sorted_indices:
+                x = X[i]
+                if b(n + x[1]) and (symm or x[0].denominator() > 2):
                     try:
                         Y.append(x[2][n])
                     except IndexError:
                         pass
         v = vector(Y)
-        if not (starting_from or ending_with):
+        if not (starting_from or ending_with or sorted_indices):
             self.__coefficient_vector = v
-        elif (not starting_from) and (ending_with == self.weight() / 12):
+        elif (not starting_from) and (ending_with == self.weight() / 12) and not sorted_indices:
             self.__coefficient_vector_sturm_bound = v
         return v
 
@@ -524,7 +526,7 @@ class WeilRepModularForm(object):
                 if not u:
                     return f(0.0, q = True)
                 return f(z) * (u * complex(mpmath.qp(u)) ** 24) ** (-val)
-            except OverflowError:
+            except (OverflowError, ZeroDivisionError):
                 return vector([0.0 for _ in self.weilrep().ds()])
         w = self.weilrep()
         e = cmath_exp(complex(0.0, two_pi) * z)
@@ -712,6 +714,14 @@ class WeilRepModularForm(object):
             self.__precision = prec
         else:
             return WeilRepModularForm(self.__weight, self.__gram_matrix, X, weilrep = self.weilrep())
+
+    def symmetry_data(self):
+        r"""
+        Return the automorphism group and character with respect to which this form satisfies additional symmetries.
+
+        If self was constructed using the method invariant_forms_basis(..., G, chi) or similar, then we return the list [G, chi].
+        """
+        return self.__symmetry_data
 
     def valuation(self, exact = False):
         r"""
@@ -2067,19 +2077,18 @@ def smf(weight, f): #scalar modular forms
     """
     return WeilRepModularForm(weight, matrix([]), [[vector([]), 0, f]])
 
-
-
 class WeilRepModularFormsBasis:
     r"""
     The WeilRepModularFormsBasis class represents bases of vector-valued modular forms.
     """
 
-    def __init__(self, weight, basis, weilrep, flag = None):
+    def __init__(self, weight, basis, weilrep, flag = None, symmetry_data = None):
         self.__weight = weight
         self.__basis = basis
         self.__weilrep = weilrep
         self.__flag = flag
         self.__bound = self.__weight / 12
+        self.__symmetry_data = symmetry_data
 
     def __repr__(self):
         r"""
@@ -2097,6 +2106,8 @@ class WeilRepModularFormsBasis:
                 X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
                 if self._flag() == 'quasimodular' or other._flag() == 'quasimodular':
                     X._WeilRepModularFormsBasis__flag = 'quasimodular'
+                if self._WeilRepModularFormsBasis__symmetry_data and other._WeilRepModularFormsBasis__symmetry_data:
+                    X._WeilRepModularFormsBasis__symmetry_data = self._WeilRepModularFormsBasis__symmetry_data
                 return X
             return NotImplemented
         except AttributeError:
@@ -2142,16 +2153,16 @@ class WeilRepModularFormsBasis:
             raise ValueError('Incompatible modular forms')
         val = min(self.valuation(), X.valuation())
         prec = min(self.precision(), X.precision())
-        L = [v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True) for v in self.__basis]
+        L = [v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
         d = max(map(len, L))
         m = matrix([list(x) + [0]*(d - len(x)) for x in L])
-        v = X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True)
+        v = X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True, sorted_indices = self._sorted_indices())
         try:
             return m.solve_left(vector(list(v) + [0] * (d - len(v))))
         except ValueError:
             raise ValueError('No representation') from None
 
-    def echelonize(self, save_pivots = False, starting_from = None, ending_with = None, integer = False):
+    def echelonize(self, save_pivots = False, starting_from = None, ending_with = None, integer = False, verbose = False):
         r"""
         Reduce self to echelon form in place.
 
@@ -2168,12 +2179,12 @@ class WeilRepModularFormsBasis:
         if ending_with is None:
             ending_with = self.__bound
         if integer:
-            m = matrix(ZZ, [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis])
+            m = matrix(ZZ, [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis])
             a, b = m.echelon_form(transformation = True)
             a_rows = a.rows()
             self.__basis = [self * v for i, v in enumerate(b.rows()) if a_rows[i]]
         else:
-            L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+            L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
             d = max(map(len, L))
             m = matrix([list(x) + [0]*(d - len(x)) for x in L]).extended_echelon_form(subdivide = True, proof = False)
             b = m.subdivision(0, 1)
@@ -2200,6 +2211,8 @@ class WeilRepModularFormsBasis:
                 self.__basis.extend(other.list())
             except:
                 self.__basis.extend(other)
+            if self._WeilRepModularFormsBasis__symmetry_data and not other._WeilRepModularFormsBasis__symmetry_data:
+                self._WeilRepModularFormsBasis__symmetry_data = None
         else:
             return NotImplemented
 
@@ -2378,7 +2391,7 @@ class WeilRepModularFormsBasis:
         if not self:
             return 0
         ending_with = self.__bound
-        L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+        L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
         d = max(map(len, L))
         m = matrix([list(x) + [0]*(d - len(x)) for x in L])
         return m.rank()
@@ -2402,7 +2415,7 @@ class WeilRepModularFormsBasis:
         if not self:
             m = matrix([])
         else:
-            L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+            L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
             d = max(map(len, L))
             m = matrix([list(x) + [0]*(d - len(x)) for x in L])
         return m.kernel()
@@ -2415,7 +2428,7 @@ class WeilRepModularFormsBasis:
             return self
         if ending_with is None:
             ending_with = self.__bound
-        L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True) for v in self.__basis]
+        L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
         d = max(map(len, L))
         m = matrix([list(x) + [0]*(d - len(x)) for x in L])
         self.__basis = [self[j] for j in m.pivot_rows()]
@@ -2427,6 +2440,22 @@ class WeilRepModularFormsBasis:
 
     def sort(self, **kwargs):
         self.__basis.sort(**kwargs)
+
+    def _sorted_indices(self):
+        try:
+            return self.__sorted_indices
+        except AttributeError:
+            symmetry_data = self.__symmetry_data
+            w = self.weilrep()
+            if symmetry_data is not None:
+                G, _ = symmetry_data
+                indices = G._orbit_representatives_indices()
+            else:
+                rds = w.rds(indices = True)
+                indices = [i for i, x in enumerate(rds) if x is None]
+            nl = w.norm_list()
+            self.__sorted_indices = sorted(indices, key = nl.__getitem__)
+            return self.__sorted_indices
 
     def theta(self, odd = False, weilrep = None):
         r"""
