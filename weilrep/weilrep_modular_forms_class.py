@@ -837,15 +837,17 @@ class WeilRepModularForm(object):
             return other
         elif isinstance(other, WeilRepQuasiModularForm): #return the sum as a quasimodular formm by using the 'add' method from quasimodular forms
             return other.__add__(self)
-        elif other in CC:
-            if not (self.weight() or self.weilrep()):
-                g, _, f = self.fourier_expansion()[0]
-                return WeilRepModularForm(0, self.gram_matrix(), [(g, _, f + other)], weilrep = self.weilrep())
-            return NotImplemented
-        elif not self.gram_matrix() == other.gram_matrix():
-            raise ValueError('Incompatible Gram matrices')
-        elif not self.weight() == other.weight():
-            raise ValueError('Incompatible weights')
+        try:
+            if not self.gram_matrix() == other.gram_matrix():
+                raise ValueError('Incompatible Gram matrices')
+            if not self.weight() == other.weight():
+                raise ValueError('Incompatible weights')
+        except AttributeError:
+            if other in CC:
+                if not (self.weight() or self.weilrep()):
+                    g, _, f = self.fourier_expansion()[0]
+                    return WeilRepModularForm(0, self.gram_matrix(), [(g, _, f + other)], weilrep = self.weilrep())
+                return NotImplemented
         X = self.fourier_expansion()
         Y = other.fourier_expansion()
         X_plus_Y = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]+Y[i][2]) for i,x in enumerate(X)], weilrep = self.weilrep())
@@ -1072,15 +1074,17 @@ class WeilRepModularForm(object):
             return self
         elif isinstance(other, WeilRepQuasiModularForm):
             return other.__sub__(self).__neg__()
-        elif other in CC:
-            if not (self.weight() or self.weilrep()):
-                g, _, f = self.fourier_expansion()[0]
-                return WeilRepModularForm(0, self.gram_matrix(), [(g, _, f - other)], weilrep = self.weilrep())
-            return NotImplemented
-        elif not self.gram_matrix() == other.gram_matrix():
-            raise ValueError('Incompatible Gram matrices')
-        elif not self.weight() == other.weight():
-            raise ValueError('Incompatible weights')
+        try:
+            if not self.gram_matrix() == other.gram_matrix():
+                raise ValueError('Incompatible Gram matrices')
+            if not self.weight() == other.weight():
+                raise ValueError('Incompatible weights')
+        except AttributeError:
+            if other in CC:
+                if not (self.weight() or self.weilrep()):
+                    g, _, f = self.fourier_expansion()[0]
+                    return WeilRepModularForm(0, self.gram_matrix(), [(g, _, f - other)], weilrep = self.weilrep())
+                return NotImplemented
         X = self.fourier_expansion()
         Y = other.fourier_expansion()
         X_minus_Y = WeilRepModularForm(self.weight(), self.gram_matrix(), [(x[0],x[1],x[2]-Y[i][2]) for i,x in enumerate(X)], weilrep = self.weilrep())
@@ -2184,6 +2188,8 @@ class WeilRepModularFormsBasis:
             a_rows = a.rows()
             self.__basis = [self * v for i, v in enumerate(b.rows()) if a_rows[i]]
         else:
+            import time
+            t = time.time()
             L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
             d = max(map(len, L))
             m = matrix([list(x) + [0]*(d - len(x)) for x in L]).extended_echelon_form(subdivide = True, proof = False)

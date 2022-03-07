@@ -3458,6 +3458,10 @@ class WeilRep(object):
         except TypeError:
             k = QQ(k)
         symm = self.is_symmetric_weight(k)
+        if G is None:
+            G = self.automorphism_group()
+        if chi is None:
+            chi = [1] * len(G)
         sturm_bound = k / 12
         if not prec:
             prec = ceil(sturm_bound)
@@ -3469,10 +3473,6 @@ class WeilRep(object):
             if verbose:
                 print('I am computing the dimension...')
             dim = self.invariant_forms_dimension(k, cusp_forms = True, G = G, chi = chi)
-            if G is None:
-                G = self.automorphism_group()
-            if chi is None:
-                chi = [1] * len(G)
             if verbose:
                 print('I need to find %d cusp forms.'%dim)
             X = WeilRepModularFormsBasis(k, [], self, symmetry_data = (G, chi))
