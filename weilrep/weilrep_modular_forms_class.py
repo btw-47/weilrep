@@ -1629,6 +1629,16 @@ class WeilRepModularForm(object):
             _weight = self.weight() - 2
         return self.weilrep().zero(_weight, self.precision())
 
+    def puiseux_series(self):
+        d = {}
+        X = self.fourier_expansion()
+        for x in X:
+            n = x[1]
+            e = n.denominator()
+            assert False
+            #f = PuiseuxSeries(f[])
+            #d[tuple(x[0])] = 
+
     def pullback(self, *v, **kwargs):
         r"""
         Compute the pullback of self to the lattice spanned by *v.

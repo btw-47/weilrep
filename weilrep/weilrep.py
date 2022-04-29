@@ -20,6 +20,7 @@ AUTHORS:
 
 import cmath
 import math
+from numpy import array, matmul
 from scipy.special import iv, jv
 
 import cypari2
@@ -285,11 +286,16 @@ class WeilRep(object):
         A = (a, b, c, d)
         try:
             return self.__vals[A]
+        except AttributeError:
+            self.__vals = {}
+            pass
         except KeyError:
             pass
         try:
             return self.__valsm[A][0]
-        except KeyError:
+        except AttributeError:
+            self.__valsm = {}
+        finally:
             exp = cmath.exp
             # a few easy cases
             if A == (0, -1, 1, 0):
@@ -371,7 +377,9 @@ class WeilRep(object):
         A = (a, b, c, d)
         try:
             return self.__valsm[A]
-        except KeyError:
+        except AttributeError:
+            self.__valsm = {}
+        finally:
             exp = cmath.exp
             I = complex(0.0, 1.0)
             if A == (0, -1, 1, 0):
@@ -2431,6 +2439,8 @@ class WeilRep(object):
         o_q = O(q ** prec)
         o_q_2 = O(q ** (prec + 1))
         X = [[g, n_list[i], [o_q_2,o_q][n_list[i] == 0]] for i, g in enumerate(_ds)]
+        if not eta_twist:
+            return WeilRepModularForm(weight, self.gram_matrix(), X, weilrep = self)
         return WeilRepModularFormWithCharacter(weight, self.gram_matrix(), X, weilrep = self, character = EtaCharacterPower(eta_twist % 24))
 
     def zwegers_theta(self, c1, c2, prec):
@@ -2440,50 +2450,56 @@ class WeilRep(object):
         if not q.signature() == 2 - s.nrows():
             raise ValueError
         sc1, sc2 = s * c1, s * c2
+        c = matrix([sc1, sc2])
         if c1 * sc1 or c2 * sc2:
             raise ValueError('c1, c2 must be isotropic')
-        n = -c1 * sc2
-        if n < 0:
-            raise ValueError('c1, c2 must lie on the boundary of a common negative cone')
+        n = c1 * sc2
+        if n <= 0:
+            raise ValueError('c1, c2 must lie on the boundary of a common positive cone')
+        d = lcm(map(GCD, c.hermite_form().rows()))
         ds = self.ds()
         ds_dict = self.ds_dict()
         n_dict = self.norm_dict()
-        a = matrix(ZZ, matrix([sc1, sc2]).transpose().integer_kernel().basis_matrix())
+        a = matrix(ZZ, c.transpose().integer_kernel().basis_matrix())
         s_conj = a * s * a.transpose()
-        s_conj_inv = -s_conj.inverse()
+        s_conj_inv = s_conj.inverse()
         _, _, vs_matrix = pari(s_conj_inv).qfminim(prec + prec + 1, flag=2)
         vs_list = vs_matrix.sage().columns()
         vs_list.append(vector([0] * (s.nrows() - 2)))
         r, q = PowerSeriesRing(QQ, 'q').objgen()
         X = [[g, n_dict[tuple(g)], O(q ** (prec - floor(n_dict[tuple(g)])))] for g in ds]
-        sgn = [2, -2, -2, 2]
         for v in vs_list:
-            v = a.transpose() * s_conj_inv * v
+            v = v * s_conj_inv * a
             v_norm = -v * s * v / 2
             n0 = prec - v_norm
-            for i in srange(1, n0 * n):
-                ic1 = (i/n) * c1
-                for j in srange(1, 1 + n * n0 // i):
-                    u = ic1 - (j / n) * c2
-                    h1 = u + v
-                    h2 = -u + v
-                    h3 = -h1
-                    h4 = -h2
-                    g1, g2, g3, g4 = [tuple(map(frac, x)) for x in [h1, h2, h3, h4]]
-                    try:
-                        z = [ds_dict[x] for x in [g1, g2, g3, g4]]
-                        for b, k in enumerate(z):
-                            X[k][2] += sgn[b] * q ** (ceil(v_norm + i * j / n))
-                    except KeyError:
-                        pass
+            for i in srange(1, ceil(n0*d*d / n) + 1):
+                ic1 = i*c1/d
+                for j in srange(1, ceil(n0*d*d / (i*n)) + 1):
+                    jc2 = j*c2/d
+                    h = v + ic1 - jc2
+                    U = [h, -h]
+                    if v:
+                        h2 = -v + ic1 - jc2
+                        U = U + [h2, -h2]
+                    for h in U:
+                        try:
+                            k = ds_dict[tuple(map(frac, h))]
+                            h_norm = h * s * h/2
+                            sgn1 = sgn(sc1 * h)
+                            sgn2 = sgn(sc2 * h)
+                            sgn1_2 = sgn2 - sgn1
+                            if sgn1_2:
+                                X[k][2] += sgn1_2 * q**ceil(-h_norm)
+                        except KeyError:
+                            pass
         c1 /= GCD(sc1)
         c2 /= GCD(sc2)
         g1, g2, g3, g4 = [tuple(map(frac, x)) for x in [c1, -c1, c2, -c2]]
-        sgn = [1, -1, 1, -1]
+        sgn_list = [sage_one_half, -sage_one_half, -sage_one_half, sage_one_half]
         try:
             z = [ds_dict[x] for x in [g1, g2, g3, g4]]
             for b, k in enumerate(z):
-                X[k][2] += sgn[b]
+                X[k][2] += sgn_list[b]
         except KeyError:
             pass
         return WeilRepModularForm(ZZ(s.nrows()) / 2, s, X, weilrep = self)
@@ -4197,7 +4213,7 @@ class WeilRep(object):
         elif not(eps):
             return []
         if self.discriminant() == 1: #unimodular
-            f = self.zero(0, prec)
+            f = self.zero(weight = 0, prec = prec)
             f._WeilRepModularForm__fourier_expansions[0][2] += 1
             return WeilRepModularFormsBasis(0, [f], self)
         s, isotropic_vectors = self._s_matrix()

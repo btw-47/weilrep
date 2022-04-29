@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1066,7 +1066,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         #b = extend_vector([z, z_prime])
         return b, big_S
 
-    def borcherds_lift(self, prec = None, omit_weyl_vector = False):
+    def borcherds_lift(self, prec = None, omit_weyl_vector = False, verbose = False):
         r"""
         Compute the Borcherds lift.
 
@@ -1191,8 +1191,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             sv = s_0inv * v
             vnorm = v * sv / 2
             j_bound = 1
-            if val + vnorm > 0:
-                j_bound = max(j_bound, isqrt(-2 * b_norm * (val + vnorm)))
+            #if val + vnorm > 0:
+            #    j_bound = max(j_bound, isqrt(-2 * b_norm * (val + vnorm)))
             if j_bound < prec:
                 v *= d
                 m = x**v[0]
@@ -1209,9 +1209,10 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        if norm_z <= 0 or (any(v[1:]) or nrows == 2): #allow nrows = 2 because any([]) is False (we want it to be True?)
-                            c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                            log_f += c * log(1 - t**j * m + h)
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        log_f += c * log(1 - t**j * m + h)
+                        if verbose:
+                            print('Multiplying by factor: (%s)^%s'%(1 - t**j * m, c))
                     except KeyError:
                         if -norm_z >= prec0:
                             prec = j
@@ -1224,6 +1225,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             try:
                                 c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
                                 log_f += c * log(1 - (zeta**i) * (t ** j) * m + h)
+                                if verbose:
+                                    print('Multiplying by factor: (%s)^%s'%(1 - zeta**i * t**j * m, c))
                             except KeyError:
                                 pass
                     v_big = vector([-j / b_norm] + list(-sv))
@@ -1231,9 +1234,10 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        if norm_z <= 0 or (any(v[1:]) or nrows == 2):
-                            c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                            log_f += c * log(1 - t**j * ~m + h)
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        log_f += c * log(1 - t**j * ~m + h)
+                        if verbose:
+                            print('Multiplying by factor: (%s)^%s'%(1 - t**j * ~m, c))
                     except KeyError:
                         if -norm_z >= prec0:
                             prec = j
@@ -1246,6 +1250,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             try:
                                 c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
                                 log_f += c * log(1 - (zeta ** i) * (t ** j) * ~m + h)
+                                if verbose:
+                                    print('Multiplying by factor: (%s)^%s'%(1 - zeta**i * t**j * ~m, c))
                             except KeyError:
                                 pass
             if nrows > 1:
@@ -1312,6 +1318,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                                 pass
                 try:
                     const_f *= rb_x(rpoly(p).subs({tpoly:m}))
+                    if verbose:
+                        print('Multiplying by: %s'%rb_x(rpoly(p).subs({tpoly:m})))
                 except TypeError:
                     raise ValueError('I caught a TypeError. This probably means you are trying to compute a product that is not holomorphic.') from None
         v = a.rows()[0]
@@ -1324,6 +1332,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     try:
                         c = coeffs[tuple([i/N] + list(map(frac, jb * v)) + [0, norm_z])]
                         log_f += c * log(1 - zeta**i * t**j + h)
+                        if verbose:
+                            print('Multiplying by factor: (%s)^%s'%(1 - zeta**i * t**j, c))
                     except KeyError:
                         if not i and norm_z >= prec0:
                             prec = j
@@ -1335,6 +1345,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 try:
                     c = coeffs[tuple([frac(jb * y) for y in v] + [norm_z])]
                     log_f += c * log(1 - t**j + h)
+                    if verbose:
+                        print('Multiplying by factor: (%s)^%s'%(1 - t**j, c))
                 except KeyError:
                     if norm_z >= prec0:
                         prec = j
