@@ -4,7 +4,7 @@ Sage code for computing with vector-valued modular forms, Jacobi forms and theta
 
 # Installation
 
-First enter `git clone git://github.com/btw-47/weilrep.git`
+First enter `git clone https://github.com/btw-47/weilrep.git`
 
 Then install by typing `sage --python weilrep/setup.py install --user`
 
