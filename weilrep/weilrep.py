@@ -42,7 +42,7 @@ from sage.functions.transcendental import zeta
 from sage.functions.trig import cos
 from sage.matrix.constructor import matrix
 from sage.matrix.matrix_space import MatrixSpace
-from sage.matrix.special import block_matrix, diagonal_matrix, identity_matrix
+from sage.matrix.special import block_matrix, block_diagonal_matrix, diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, round, isqrt
 from sage.misc.misc_c import prod
 from sage.misc.persist import _base_save
@@ -158,7 +158,9 @@ class WeilRep(object):
         if isinstance(other, WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
         return NotImplemented
-    __radd__ = __add__
+
+    def __radd__(self, other):
+        return other.__add__(self)
 
     def __bool__(self):
         r"""
@@ -2444,7 +2446,59 @@ class WeilRep(object):
         return WeilRepModularFormWithCharacter(weight, self.gram_matrix(), X, weilrep = self, character = EtaCharacterPower(eta_twist % 24))
 
     def zwegers_theta(self, c1, c2, prec):
-        ## unfinished ##
+        r"""
+        --- NOT SUFFICIENTLY TESTED ---
+
+        Compute Zwegers' theta function associated to an indefinite lattice of signature (1, n).
+
+        This is the series
+        \Theta_{c_1, c_2}(q) = \sum_{x \in L'} ( sgn( <x, c1> ) - sgn( <x, c2> )) * q^{Q(x)} e_x.
+
+        This is implemented only when c1, c2 are isotropic vectors, (in which case the above series is a modular form of weight n/2 + 1/2).
+        The constant term diverges and is regularized by unterstanding this series as the radial limit,
+        \lim_{h \rightarrow 0} \Theta_{c_1 + h v_1, c_2 + h v_2},
+        where v_1, v_2 are (any) strictly positive elements and the Theta series above is the Theta function attached to the Schwartz function
+        ( E( <x, c_1 + h v_1> / ||c_1 + h v_1|| ) - E( <x, c_2 + h v_2> / ||c_2 + h v_2|| ) ) * e^{-2\pi Q(x)}
+        Unlike all other Fourier coefficients the constant term is usually nonintegral.
+
+        INPUT:
+        - ``c1``, ``c2`` -- isotropic vectors lying on the boundary of a common positive cone (i.e. <c1, c2> is positive)
+        - ``prec`` -- precision
+
+        OUTPUT: WeilRepModularForm
+
+        REFERENCE: 8.2 of Bringmann, Folsom, Ono, Rolen - Harmonic Maass forms and mock modular forms, Theory and applications
+
+        EXAMPLES::
+
+            sage: from weilrep import WeilRep
+            sage: WeilRep([[0, 5], [5, 0]]).zwegers_theta(vector([1/5, 0]), vector([0, 1/5]), 10)
+            [(0, 0), O(q^10)]
+            [(1/5, 0), -3/5 - 2*q - 2*q^2 - 2*q^3 - 2*q^5 - 4*q^6 - 2*q^7 + O(q^10)]
+            [(2/5, 0), -1/5 - 2*q^2 + 2*q^3 - 2*q^4 - 2*q^7 + 2*q^9 + O(q^10)]
+            [(3/5, 0), 1/5 + 2*q^2 - 2*q^3 + 2*q^4 + 2*q^7 - 2*q^9 + O(q^10)]
+            [(4/5, 0), 3/5 + 2*q + 2*q^2 + 2*q^3 + 2*q^5 + 4*q^6 + 2*q^7 + O(q^10)]
+            [(0, 1/5), 3/5 + 2*q + 2*q^2 + 2*q^3 + 2*q^5 + 4*q^6 + 2*q^7 + O(q^10)]
+            [(1/5, 1/5), O(q^(54/5))]
+            [(2/5, 1/5), 2*q^(3/5) + 2*q^(13/5) + 2*q^(18/5) + 2*q^(23/5) - 2*q^(28/5) + 4*q^(33/5) + 2*q^(43/5) + 2*q^(48/5) + O(q^(53/5))]
+            [(3/5, 1/5), 2*q^(2/5) + 2*q^(7/5) + 2*q^(12/5) + 2*q^(17/5) + 4*q^(22/5) + 2*q^(32/5) + 2*q^(37/5) + 4*q^(42/5) + 2*q^(47/5) + O(q^(52/5))]
+            [(4/5, 1/5), 2*q^(1/5) + 4*q^(6/5) + 4*q^(11/5) + 2*q^(16/5) + 4*q^(21/5) + 4*q^(26/5) + 4*q^(31/5) + 2*q^(36/5) + 4*q^(41/5) + 4*q^(46/5) + O(q^(51/5))]
+            [(0, 2/5), 1/5 + 2*q^2 - 2*q^3 + 2*q^4 + 2*q^7 - 2*q^9 + O(q^10)]
+            [(1/5, 2/5), -2*q^(3/5) - 2*q^(13/5) - 2*q^(18/5) - 2*q^(23/5) + 2*q^(28/5) - 4*q^(33/5) - 2*q^(43/5) - 2*q^(48/5) + O(q^(53/5))]
+            [(2/5, 2/5), O(q^(51/5))]
+            [(3/5, 2/5), 2*q^(4/5) - 2*q^(9/5) + 4*q^(14/5) + 4*q^(34/5) - 4*q^(39/5) + 4*q^(44/5) + 2*q^(49/5) + O(q^(54/5))]
+            [(4/5, 2/5), 2*q^(2/5) + 2*q^(7/5) + 2*q^(12/5) + 2*q^(17/5) + 4*q^(22/5) + 2*q^(32/5) + 2*q^(37/5) + 4*q^(42/5) + 2*q^(47/5) + O(q^(52/5))]
+            [(0, 3/5), -1/5 - 2*q^2 + 2*q^3 - 2*q^4 - 2*q^7 + 2*q^9 + O(q^10)]
+            [(1/5, 3/5), -2*q^(2/5) - 2*q^(7/5) - 2*q^(12/5) - 2*q^(17/5) - 4*q^(22/5) - 2*q^(32/5) - 2*q^(37/5) - 4*q^(42/5) - 2*q^(47/5) + O(q^(52/5))]
+            [(2/5, 3/5), -2*q^(4/5) + 2*q^(9/5) - 4*q^(14/5) - 4*q^(34/5) + 4*q^(39/5) - 4*q^(44/5) - 2*q^(49/5) + O(q^(54/5))]
+            [(3/5, 3/5), O(q^(51/5))]
+            [(4/5, 3/5), 2*q^(3/5) + 2*q^(13/5) + 2*q^(18/5) + 2*q^(23/5) - 2*q^(28/5) + 4*q^(33/5) + 2*q^(43/5) + 2*q^(48/5) + O(q^(53/5))]
+            [(0, 4/5), -3/5 - 2*q - 2*q^2 - 2*q^3 - 2*q^5 - 4*q^6 - 2*q^7 + O(q^10)]
+            [(1/5, 4/5), -2*q^(1/5) - 4*q^(6/5) - 4*q^(11/5) - 2*q^(16/5) - 4*q^(21/5) - 4*q^(26/5) - 4*q^(31/5) - 2*q^(36/5) - 4*q^(41/5) - 4*q^(46/5) + O(q^(51/5))]
+            [(2/5, 4/5), -2*q^(2/5) - 2*q^(7/5) - 2*q^(12/5) - 2*q^(17/5) - 4*q^(22/5) - 2*q^(32/5) - 2*q^(37/5) - 4*q^(42/5) - 2*q^(47/5) + O(q^(52/5))]
+            [(3/5, 4/5), -2*q^(3/5) - 2*q^(13/5) - 2*q^(18/5) - 2*q^(23/5) + 2*q^(28/5) - 4*q^(33/5) - 2*q^(43/5) - 2*q^(48/5) + O(q^(53/5))]
+            [(4/5, 4/5), O(q^(54/5))]
+        """
         q = self.quadratic_form()
         s = self.gram_matrix()
         if not q.signature() == 2 - s.nrows():
@@ -2452,25 +2506,30 @@ class WeilRep(object):
         sc1, sc2 = s * c1, s * c2
         c = matrix([sc1, sc2])
         if c1 * sc1 or c2 * sc2:
-            raise ValueError('c1, c2 must be isotropic')
+            raise NotImplementedError('c1, c2 must be isotropic')
         n = c1 * sc2
         if n <= 0:
-            raise ValueError('c1, c2 must lie on the boundary of a common positive cone')
-        d = lcm(map(GCD, c.hermite_form().rows()))
+            raise ValueError('<c1, c2> must be positive')
         ds = self.ds()
         ds_dict = self.ds_dict()
         n_dict = self.norm_dict()
         a = matrix(ZZ, c.transpose().integer_kernel().basis_matrix())
         s_conj = a * s * a.transpose()
         s_conj_inv = s_conj.inverse()
-        _, _, vs_matrix = pari(s_conj_inv).qfminim(prec + prec + 1, flag=2)
-        vs_list = vs_matrix.sage().columns()
-        vs_list.append(vector([0] * (s.nrows() - 2)))
+        d = lcm([denominator(c1), denominator(c2)])
+        d2 = d * prod(a[i, i] for i in range(len(a.rows())))
+        _, _, vs_matrix = pari(-s_conj_inv).qfminim(d2 * d2 * (prec + prec) + 1, flag=2)
+        vs_list = (vs_matrix.sage() / d2).columns()
+        vs_list = [v * s_conj_inv * a for v in vs_list]
+        v_norm_list = [-v * s * v / 2 for v in vs_list]
+        vs_list = vs_list + [-x for x in vs_list]
+        v_norm_list = v_norm_list + v_norm_list
+        vs_list.append(vector([0] * s.nrows()))
+        v_norm_list.append(0)
         r, q = PowerSeriesRing(QQ, 'q').objgen()
         X = [[g, n_dict[tuple(g)], O(q ** (prec - floor(n_dict[tuple(g)])))] for g in ds]
-        for v in vs_list:
-            v = v * s_conj_inv * a
-            v_norm = -v * s * v / 2
+        for vs_list_i, v in enumerate(vs_list):
+            v_norm = v_norm_list[vs_list_i]
             n0 = prec - v_norm
             for i in srange(1, ceil(n0*d*d / n) + 1):
                 ic1 = i*c1/d
@@ -2478,30 +2537,41 @@ class WeilRep(object):
                     jc2 = j*c2/d
                     h = v + ic1 - jc2
                     U = [h, -h]
-                    if v:
-                        h2 = -v + ic1 - jc2
-                        U = U + [h2, -h2]
+                    if v == vector([1, -2, -7/9, 4/9]):
+                        print('Hello!', i/d, j/d, h)
                     for h in U:
                         try:
                             k = ds_dict[tuple(map(frac, h))]
                             h_norm = h * s * h/2
                             sgn1 = sgn(sc1 * h)
                             sgn2 = sgn(sc2 * h)
-                            sgn1_2 = sgn2 - sgn1
+                            sgn1_2 = sgn1 - sgn2
                             if sgn1_2:
                                 X[k][2] += sgn1_2 * q**ceil(-h_norm)
                         except KeyError:
                             pass
         c1 /= GCD(sc1)
         c2 /= GCD(sc2)
-        g1, g2, g3, g4 = [tuple(map(frac, x)) for x in [c1, -c1, c2, -c2]]
-        sgn_list = [sage_one_half, -sage_one_half, -sage_one_half, sage_one_half]
-        try:
-            z = [ds_dict[x] for x in [g1, g2, g3, g4]]
-            for b, k in enumerate(z):
-                X[k][2] += sgn_list[b]
-        except KeyError:
-            pass
+        d1 = denominator(c1)
+        d2 = denominator(c2)
+        for a in range(1, d1):
+            for i, v in enumerate(vs_list):
+                g = tuple(map(frac, a * c1 + v))
+                v_norm = ceil(v_norm_list[i])
+                try:
+                    k = ds_dict[g]
+                    X[k][2] -= (1 - 2 * a / d1) * q**v_norm
+                except KeyError:
+                    pass
+        for a in range(1, d2):
+            for i, v in enumerate(vs_list):
+                g = tuple(map(frac, a * c2 + v))
+                v_norm = ceil(v_norm_list[i])
+                try:
+                    k = ds_dict[g]
+                    X[k][2] += (1 - 2 * a / d2) * q**v_norm
+                except KeyError:
+                    pass
         return WeilRepModularForm(ZZ(s.nrows()) / 2, s, X, weilrep = self)
 
     ## dimensions of spaces of modular forms associated to this representation

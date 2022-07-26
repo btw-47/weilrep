@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -348,12 +348,12 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
                 r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(n)))
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
-                    j = 0
+                    j = 1
                     if obj_s[:2] == '((':
                         obj_s = obj_s[1:]
-                        j = 1
+                        j = 2
                     i = obj_s.index(')/')
-                    return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:]))
+                    return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:])) + ')'*j
                 s = sub(r'\([^()]*?\)\/((\((r_\d*(\^\d*)?\*?)+\))|(r_\d*(\^\d*)?\*?)+)', m, s)
             if d == 1:
                 self.__string = s
@@ -639,7 +639,9 @@ class WeilRepPositiveDefinite(WeilRep):
         if isinstance(other, WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
         return NotImplemented
-    __radd__ = __add__
+
+    def __radd__(self, other, **kwargs):
+        return other.__add__(self, **kwargs)
 
     def is_lorentzian(self):
         return False
@@ -1247,7 +1249,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                     if (a or c) and c >= 0:
                         u = t ** (d * a_plus_c) * x **( d * (c - a))
                         log_f += exponent * log(1 - mu * u * m + h)
-                        if verbose and u*m+h != 0:
+                        if verbose and mu*u*m+h:
                             print('Multiplying by the factor (%s)^%s'%((1 - mu*u*m + h), exponent))
                     elif n and big_v not in excluded_vectors_2:
                         nonlocal corrector
@@ -1269,7 +1271,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                                 if exponent_k:
                                     p *= (1 - t0**k)**exponent_k
                                     if verbose:
-                                        print('Multiplying by the factor (%s)^%s'%((1 - m ** k), exponent_k))
+                                        print('Multiplying by the factor (%s)^%s'%((1 - t0 ** k), exponent_k))
                                 excluded_vectors.add(tuple(k * y for y in big_v))
                             excluded_vectors_2.add(big_v)
                         if c >= 0:
@@ -1372,7 +1374,8 @@ class WeilRepModularFormPositiveDefiniteWithCharacter(WeilRepModularFormWithChar
         from .weilrep_modular_forms_class import smf_eta
         chi = self.character()
         k = chi._k()
-        psi = smf_eta() ** (24 - k)
+        prec = ceil(self.precision())
+        psi = smf_eta(prec) ** (24 - k)
         f = (self.__mul__(psi)).jacobi_form(*args, **kwargs)
         return f / psi
 

@@ -26,7 +26,7 @@ from collections import Counter
 from itertools import product
 from re import sub
 
-from sage.arith.misc import divisors, is_square, XGCD
+from sage.arith.misc import divisors, GCD, is_square, XGCD
 from sage.calculus.var import var
 from sage.combinat.root_system.root_system import RootSystem
 from sage.functions.other import binomial, ceil, floor, frac
@@ -157,6 +157,12 @@ class JacobiForms:
     def is_even(self):
         return not any(x % 2 for x in self.index_matrix().diagonal())
 
+    def is_positive_definite(self):
+        return self.index_matrix().is_positive_definite()
+
+    def is_positive_semidefinite(self):
+        return self.index_matrix().is_positive_semidefinite()
+
     def nvars(self):
         r"""
         Return the number of elliptic variables.
@@ -172,6 +178,20 @@ class JacobiForms:
         except:
             self.__nvars = Integer(self.index_matrix().nrows())
             return self.__nvars
+
+    def _pos_def_quotient(self):
+        r"""
+        Auxiliary function for positive semidefinite indices.
+
+        OUTPUT: a tuple p, d for which 'd' is positive definite and for which self's index matrix factors in the form
+        p.transpose() * d * p
+        """
+        m = self.index_matrix()
+        p = span(m.rows()).basis()
+        p = matrix(ZZ, [x / GCD(x) for x in p])
+        d = matrix(ZZ, [p.solve_left(x) for x in m.rows()])
+        d = matrix(ZZ, [p.solve_left(x) for x in d.columns()])
+        return p, d
 
     def theta_decomposition(self):
         r"""
@@ -457,9 +477,13 @@ class JacobiForms:
         d = []
         p = []
         discr = self.discriminant()
-        N = self._longest_short_vector_norm()
+        try:
+            N = self._longest_short_vector_norm()
+            _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)]
+        except TypeError:
+            J0 = JacobiForms(2 * self.index_matrix())
+            N = J0._longest_short_vector_norm() / 2
         k_min = floor(-12 * N)
-        _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)]
         k, s = k_min, 0
         while s < discr:
             p.append(self.weak_forms_dimension(k))
@@ -488,7 +512,7 @@ class JacobiForms:
 
     ## bases of spaces associated to this index
 
-    def cusp_forms_basis(self, weight, prec=1, try_theta_blocks=None, **kwargs):
+    def cusp_forms_basis(self, weight, prec = 1, **kwargs):
         r"""
         Compute a basis of Jacobi cusp forms.
 
@@ -514,6 +538,14 @@ class JacobiForms:
             [(-w^-1 + w)*q + (w^-3 + 21*w^-1 - 21*w - w^3)*q^2 + (-21*w^-3 - 189*w^-1 + 189*w + 21*w^3)*q^3 + (-w^-5 + 189*w^-3 + 910*w^-1 - 910*w - 189*w^3 + w^5)*q^4 + O(q^5)]
 
         """
+        if not self.is_positive_definite():
+            #In this case we compute a basis of cusp forms of index L/R, where L is self's index (a lattice), and R is its radical, and then lift them to L.
+            p, a = self._pos_def_quotient()
+            pt = p.transpose()
+            J = JacobiForms(a)
+            X = J.cusp_forms_basis(weight, prec=prec, **kwargs)
+            return [x.pullback(pt) for x in X]
+        try_theta_blocks = kwargs.pop('try_theta_blocks', None)
         verbose = kwargs.pop('verbose', False)
         eta_twist = kwargs.pop('eta_twist', 0)
         if not self.is_even():
@@ -574,7 +606,7 @@ class JacobiForms:
             return L.jacobi_forms()
         return [L[0].jacobi_form()]
 
-    def jacobi_forms_basis(self, weight, prec=1, try_theta_blocks=None, **kwargs):
+    def jacobi_forms_basis(self, weight, prec=1, **kwargs):
         r"""
         Compute a basis of Jacobi forms.
 
@@ -597,9 +629,20 @@ class JacobiForms:
             sage: JacobiForms(1).jacobi_forms_basis(10, 5)
             [1 + (w^-2 - 266 + w^2)*q + (-266*w^-2 - 26752*w^-1 - 81396 - 26752*w - 266*w^2)*q^2 + (-81396*w^-2 - 1225728*w^-1 - 2582328 - 1225728*w - 81396*w^2)*q^3 + (w^-4 - 26752*w^-3 - 2582328*w^-2 - 17211264*w^-1 - 29700762 - 17211264*w - 2582328*w^2 - 26752*w^3 + w^4)*q^4 + O(q^5), (w^-1 - 2 + w)*q + (-2*w^-2 - 16*w^-1 + 36 - 16*w - 2*w^2)*q^2 + (w^-3 + 36*w^-2 + 99*w^-1 - 272 + 99*w + 36*w^2 + w^3)*q^3 + (-16*w^-3 - 272*w^-2 - 240*w^-1 + 1056 - 240*w - 272*w^2 - 16*w^3)*q^4 + O(q^5)]
 
+            sage: from weilrep import *
+            sage: J = JacobiForms(matrix([[2, 2], [2, 2]]))
+            sage: J.basis(4, 10)
+            [1 + (w_0^2*w_1^2 + 56*w_0*w_1 + 126 + 56*w_0^-1*w_1^-1 + w_0^-2*w_1^-2)*q + (126*w_0^2*w_1^2 + 576*w_0*w_1 + 756 + 576*w_0^-1*w_1^-1 + 126*w_0^-2*w_1^-2)*q^2 + (56*w_0^3*w_1^3 + 756*w_0^2*w_1^2 + 1512*w_0*w_1 + 2072 + 1512*w_0^-1*w_1^-1 + 756*w_0^-2*w_1^-2 + 56*w_0^-3*w_1^-3)*q^3 + (w_0^4*w_1^4 + 576*w_0^3*w_1^3 + 2072*w_0^2*w_1^2 + 4032*w_0*w_1 + 4158 + 4032*w_0^-1*w_1^-1 + 2072*w_0^-2*w_1^-2 + 576*w_0^-3*w_1^-3 + w_0^-4*w_1^-4)*q^4 + (126*w_0^4*w_1^4 + 1512*w_0^3*w_1^3 + 4158*w_0^2*w_1^2 + 5544*w_0*w_1 + 7560 + 5544*w_0^-1*w_1^-1 + 4158*w_0^-2*w_1^-2 + 1512*w_0^-3*w_1^-3 + 126*w_0^-4*w_1^-4)*q^5 + (756*w_0^4*w_1^4 + 4032*w_0^3*w_1^3 + 7560*w_0^2*w_1^2 + 12096*w_0*w_1 + 11592 + 12096*w_0^-1*w_1^-1 + 7560*w_0^-2*w_1^-2 + 4032*w_0^-3*w_1^-3 + 756*w_0^-4*w_1^-4)*q^6 + (56*w_0^5*w_1^5 + 2072*w_0^4*w_1^4 + 5544*w_0^3*w_1^3 + 11592*w_0^2*w_1^2 + 13664*w_0*w_1 + 16704 + 13664*w_0^-1*w_1^-1 + 11592*w_0^-2*w_1^-2 + 5544*w_0^-3*w_1^-3 + 2072*w_0^-4*w_1^-4 + 56*w_0^-5*w_1^-5)*q^7 + (576*w_0^5*w_1^5 + 4158*w_0^4*w_1^4 + 12096*w_0^3*w_1^3 + 16704*w_0^2*w_1^2 + 24192*w_0*w_1 + 24948 + 24192*w_0^-1*w_1^-1 + 16704*w_0^-2*w_1^-2 + 12096*w_0^-3*w_1^-3 + 4158*w_0^-4*w_1^-4 + 576*w_0^-5*w_1^-5)*q^8 + (w_0^6*w_1^6 + 1512*w_0^5*w_1^5 + 7560*w_0^4*w_1^4 + 13664*w_0^3*w_1^3 + 24948*w_0^2*w_1^2 + 27216*w_0*w_1 + 31878 + 27216*w_0^-1*w_1^-1 + 24948*w_0^-2*w_1^-2 + 13664*w_0^-3*w_1^-3 + 7560*w_0^-4*w_1^-4 + 1512*w_0^-5*w_1^-5 + w_0^-6*w_1^-6)*q^9 + O(q^10)]
         """
+        if not self.is_positive_definite():
+            p, a = self._pos_def_quotient()
+            pt = p.transpose()
+            J = JacobiForms(a)
+            X = J.jacobi_forms_basis(weight, prec=prec, **kwargs)
+            return [x.pullback(pt) for x in X]
         verbose = kwargs.pop('verbose', False)
         eta_twist = kwargs.pop('eta_twist', 0)
+        try_theta_blocks = kwargs.pop('try_theta_blocks', None)
         if not self.is_even():
             from .weilrep_misc import relations
             S = self.index_matrix()
@@ -662,7 +705,7 @@ class JacobiForms:
 
     basis = jacobi_forms_basis
 
-    def weak_forms_basis(self, weight, prec=1, verbose=False, convert_to_Jacobi_forms=True, **kwargs):
+    def weak_forms_basis(self, weight, prec=1, **kwargs):
         r"""
         Compute a basis of weak Jacobi forms.
 
@@ -690,8 +733,22 @@ class JacobiForms:
             sage: JacobiForms(matrix([[2,1],[1,2]])).weak_forms_basis(-3, 5)
             [-w_0*w_1 + w_0 + w_1 - w_1^-1 - w_0^-1 + w_0^-1*w_1^-1 + (w_0^2*w_1^2 - w_0^2 - 8*w_0*w_1 - w_1^2 + 8*w_0 + 8*w_1 - 8*w_1^-1 - 8*w_0^-1 + w_1^-2 + 8*w_0^-1*w_1^-1 + w_0^-2 - w_0^-2*w_1^-2)*q + (-w_0^3*w_1^2 - w_0^2*w_1^3 + w_0^3*w_1 + 8*w_0^2*w_1^2 + w_0*w_1^3 - 8*w_0^2 - 44*w_0*w_1 - 8*w_1^2 + w_0^2*w_1^-1 + 44*w_0 + 44*w_1 + w_0^-1*w_1^2 - w_0*w_1^-2 - 44*w_1^-1 - 44*w_0^-1 - w_0^-2*w_1 + 8*w_1^-2 + 44*w_0^-1*w_1^-1 + 8*w_0^-2 - w_0^-1*w_1^-3 - 8*w_0^-2*w_1^-2 - w_0^-3*w_1^-1 + w_0^-2*w_1^-3 + w_0^-3*w_1^-2)*q^2 + (-8*w_0^3*w_1^2 - 8*w_0^2*w_1^3 + 8*w_0^3*w_1 + 44*w_0^2*w_1^2 + 8*w_0*w_1^3 - 44*w_0^2 - 192*w_0*w_1 - 44*w_1^2 + 8*w_0^2*w_1^-1 + 192*w_0 + 192*w_1 + 8*w_0^-1*w_1^2 - 8*w_0*w_1^-2 - 192*w_1^-1 - 192*w_0^-1 - 8*w_0^-2*w_1 + 44*w_1^-2 + 192*w_0^-1*w_1^-1 + 44*w_0^-2 - 8*w_0^-1*w_1^-3 - 44*w_0^-2*w_1^-2 - 8*w_0^-3*w_1^-1 + 8*w_0^-2*w_1^-3 + 8*w_0^-3*w_1^-2)*q^3 + (w_0^4*w_1^3 + w_0^3*w_1^4 - w_0^4*w_1 - 44*w_0^3*w_1^2 - 44*w_0^2*w_1^3 - w_0*w_1^4 + 44*w_0^3*w_1 + 192*w_0^2*w_1^2 + 44*w_0*w_1^3 - w_0^3*w_1^-1 - 192*w_0^2 - 726*w_0*w_1 - 192*w_1^2 - w_0^-1*w_1^3 + 44*w_0^2*w_1^-1 + 726*w_0 + 726*w_1 + 44*w_0^-1*w_1^2 - 44*w_0*w_1^-2 - 726*w_1^-1 - 726*w_0^-1 - 44*w_0^-2*w_1 + w_0*w_1^-3 + 192*w_1^-2 + 726*w_0^-1*w_1^-1 + 192*w_0^-2 + w_0^-3*w_1 - 44*w_0^-1*w_1^-3 - 192*w_0^-2*w_1^-2 - 44*w_0^-3*w_1^-1 + w_0^-1*w_1^-4 + 44*w_0^-2*w_1^-3 + 44*w_0^-3*w_1^-2 + w_0^-4*w_1^-1 - w_0^-3*w_1^-4 - w_0^-4*w_1^-3)*q^4 + O(q^5)]
 
+            sage: from weilrep import *
+            sage: J = JacobiForms(matrix([[0, 0], [0, 2]]))
+            sage: J.weak_forms_basis(0, 10)
+            [w_1 + 10 + w_1^-1 + (10*w_1^2 - 64*w_1 + 108 - 64*w_1^-1 + 10*w_1^-2)*q + (w_1^3 + 108*w_1^2 - 513*w_1 + 808 - 513*w_1^-1 + 108*w_1^-2 + w_1^-3)*q^2 + (-64*w_1^3 + 808*w_1^2 - 2752*w_1 + 4016 - 2752*w_1^-1 + 808*w_1^-2 - 64*w_1^-3)*q^3 + (10*w_1^4 - 513*w_1^3 + 4016*w_1^2 - 11775*w_1 + 16524 - 11775*w_1^-1 + 4016*w_1^-2 - 513*w_1^-3 + 10*w_1^-4)*q^4 + (108*w_1^4 - 2752*w_1^3 + 16524*w_1^2 - 43200*w_1 + 58640 - 43200*w_1^-1 + 16524*w_1^-2 - 2752*w_1^-3 + 108*w_1^-4)*q^5 + (w_1^5 + 808*w_1^4 - 11775*w_1^3 + 58640*w_1^2 - 141826*w_1 + 188304 - 141826*w_1^-1 + 58640*w_1^-2 - 11775*w_1^-3 + 808*w_1^-4 + w_1^-5)*q^6 + (-64*w_1^5 + 4016*w_1^4 - 43200*w_1^3 + 188304*w_1^2 - 427264*w_1 + 556416 - 427264*w_1^-1 + 188304*w_1^-2 - 43200*w_1^-3 + 4016*w_1^-4 - 64*w_1^-5)*q^7 + (-513*w_1^5 + 16524*w_1^4 - 141826*w_1^3 + 556416*w_1^2 - 1201149*w_1 + 1541096 - 1201149*w_1^-1 + 556416*w_1^-2 - 141826*w_1^-3 + 16524*w_1^-4 - 513*w_1^-5)*q^8 + (10*w_1^6 - 2752*w_1^5 + 58640*w_1^4 - 427264*w_1^3 + 1541096*w_1^2 - 3189120*w_1 + 4038780 - 3189120*w_1^-1 + 1541096*w_1^-2 - 427264*w_1^-3 + 58640*w_1^-4 - 2752*w_1^-5 + 10*w_1^-6)*q^9 + O(q^10)]
+
         """
         S = self.index_matrix()
+        if not S.is_positive_definite():
+            p, a = self._pos_def_quotient()
+            pt = p.transpose()
+            J = JacobiForms(a)
+            X = J.weak_forms_basis(weight, prec=prec, **kwargs)
+            return [x.pullback(pt) for x in X]
+        eta_twist = kwargs.pop('eta_twist', 0)
+        verbose = kwargs.pop('verbose', False)
+        convert_to_Jacobi_forms = kwargs.pop('convert_to_Jacobi_forms', True)
         if not self.is_even():
             from .weilrep_misc import relations
             from .weilrep_modular_forms_class import smf_eta
@@ -1891,7 +1948,7 @@ class JacobiForm:
                 f /= smf_eta(prec = f.precision())**(24 - k)
         except AttributeError:
             f = None
-        return JacobiForm(self.weight(), S[L, L], q**val * jf_sub + O(q**prec), modform = f, scale = self.scale())
+        return JacobiForm(self.weight(), S[L, L], q**val * jf_sub + O(q**prec), modform = f, w_scale = self.scale())
 
     def derivative_at_zero(self, index):
         y = self.base_ring().gens()[index]
@@ -1985,7 +2042,6 @@ def root_lattice_theta_block(root_system, prec):
         sage: from weilrep import *
         sage: root_lattice_theta_block(['A', 2], 5)
         (w_0*w_1 - w_0 - w_1 + w_1^-1 + w_0^-1 - w_0^-1*w_1^-1)*q^(1/3) + (-w_0^2*w_1^2 + w_0^2 + w_1^2 - w_1^-2 - w_0^-2 + w_0^-2*w_1^-2)*q^(4/3) + (w_0^3*w_1^2 + w_0^2*w_1^3 - w_0^3*w_1 - w_0*w_1^3 - w_0^2*w_1^-1 - w_0^-1*w_1^2 + w_0*w_1^-2 + w_0^-2*w_1 + w_0^-1*w_1^-3 + w_0^-3*w_1^-1 - w_0^-2*w_1^-3 - w_0^-3*w_1^-2)*q^(7/3) + (-w_0^4*w_1^3 - w_0^3*w_1^4 + w_0^4*w_1 + w_0*w_1^4 + w_0^3*w_1^-1 + w_0^-1*w_1^3 - w_0*w_1^-3 - w_0^-3*w_1 - w_0^-1*w_1^-4 - w_0^-4*w_1^-1 + w_0^-3*w_1^-4 + w_0^-4*w_1^-3)*q^(13/3) + O(q^(16/3))
-
 
     """
     from .weilrep_modular_forms_class import smf_eta

@@ -351,7 +351,8 @@ class WeilRepLorentzian(WeilRep):
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide = False))
         return NotImplemented
 
-    __radd__ = __add__
+    def __radd__(self, other, **kwargs):
+        return other.__add__(self, **kwargs)
 
     def change_of_basis_matrix(self):
         r"""
