@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2022 Brandon Williams
+#       Copyright (C) 2020-2021 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1350,7 +1350,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                     c = Integer(coeffs[tuple([i / N2] + [0] * (nrows + 4))])
                     C *= (1 - zeta**i)**c
                 c = Integer(coeffs[tuple([Integer(1) / 2] + [0] * (nrows + 4))])
-                C *= Integer(2)**Integer(c / 2)
+                C *= Integer(2)**Integer(c // 2)
                 f *= C
             X = OrthogonalModularForm(weight, self.weilrep(), f * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h, ppcoeffs = self.principal_part_coefficients())
             if verbose:
