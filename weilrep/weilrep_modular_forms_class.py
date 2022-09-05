@@ -963,11 +963,11 @@ class WeilRepModularForm(object):
 
         """
         from .jacobi_forms_class import JacobiForm
-        from .mock import WeilRepQuasiModularForm
-        if isinstance(other, WeilRepQuasiModularForm) or isinstance(other, JacobiForm):
-            return other.__mul__(self)
+        from .mock import WeilRepAlmostHolomorphicModularForm, WeilRepQuasiModularForm
+        if isinstance(other, WeilRepQuasiModularForm) or isinstance(other, WeilRepAlmostHolomorphicModularForm) or isinstance(other, JacobiForm):
+            return other.__rmul__(self)
         elif isinstance(other, WeilRepModularFormWithCharacter) and not isinstance(self, WeilRepModularFormWithCharacter):
-            return other.__mul__(self)
+            return other.__rmul__(self)
         elif isinstance(other, WeilRepModularForm):
             if self.flag == 'jacobi_form' and other.flag == 'jacobi_form' and not _flag:
                 return self._jacobi_form_multiplication(other, theta=theta)
@@ -1094,6 +1094,7 @@ class WeilRepModularForm(object):
             X_minus_Y.coefficient_vector(setv = v1 - v2)
         finally:
             return X_minus_Y
+
     __rmul__ = __mul__
 
     def __truediv__(self, other):

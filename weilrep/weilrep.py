@@ -661,7 +661,8 @@ class WeilRep(object):
                 self.__ds_dict = dict(zip(_ds, range(len(_ds))))
                 return self.__ds_dict
             except AttributeError:
-                D, U, V = self.gram_matrix().smith_form()
+                D, _, V = self.gram_matrix().smith_form()
+                self._smith_form = D, V
                 L = [vector(range(D[k, k])) / D[k, k] for k in range(D.nrows())]
                 ds = [None] * prod(D.diagonal())
                 ds_dict = {}
@@ -672,6 +673,19 @@ class WeilRep(object):
                 self.__ds = ds
                 self.__ds_dict = ds_dict
                 return self.__ds_dict
+
+    def ds_gens(self):
+        try:
+            D, V = self._smith_form
+        except AttributeError:
+            D, _, V = self.gram_matrix().smith_form()
+        r = V.nrows()
+        def a(i, d):
+            v = [0] * r
+            v[i] = ~d
+            return vector(v)
+        L = [a(*x) for x in enumerate(D.diagonal()) if x[1] != 1]
+        return [vector(map(frac, x)) for x in ( matrix(L) * V.transpose() ).rows() ]
 
     def _embiggen(self, b, m):
         r"""
@@ -4117,20 +4131,26 @@ class WeilRep(object):
 
             sage: from weilrep import *
             sage: w = II(3)
-            sage: list(w.automorphism_group())
-            [Automorphism of Weil representation associated to the Gram matrix
+            sage: w.automorphism_group().display()
+            Automorphism of Weil representation associated to the Gram matrix
             [0 3]
             [3 0]
-            mapping (0, 0)->(0, 0), (0, 1/3)->(0, 1/3), (0, 2/3)->(0, 2/3), (1/3, 0)->(1/3, 0), (1/3, 1/3)->(1/3, 1/3), (1/3, 2/3)->(1/3, 2/3), (2/3, 0)->(2/3, 0), (2/3, 1/3)->(2/3, 1/3), (2/3, 2/3)->(2/3, 2/3), Automorphism of Weil representation associated to the Gram matrix
+            mapping (0, 1/3)->(0, 1/3), (1/3, 0)->(1/3, 0)
+            --------------------------------------------------------------------------------
+            Automorphism of Weil representation associated to the Gram matrix
             [0 3]
             [3 0]
-            mapping (0, 0)->(0, 0), (0, 1/3)->(1/3, 0), (0, 2/3)->(2/3, 0), (1/3, 0)->(0, 1/3), (1/3, 1/3)->(1/3, 1/3), (1/3, 2/3)->(2/3, 1/3), (2/3, 0)->(0, 2/3), (2/3, 1/3)->(1/3, 2/3), (2/3, 2/3)->(2/3, 2/3), Automorphism of Weil representation associated to the Gram matrix
+            mapping (0, 1/3)->(1/3, 0), (1/3, 0)->(0, 1/3)
+            --------------------------------------------------------------------------------
+            Automorphism of Weil representation associated to the Gram matrix
             [0 3]
             [3 0]
-            mapping (0, 0)->(0, 0), (0, 1/3)->(0, 2/3), (0, 2/3)->(0, 1/3), (1/3, 0)->(2/3, 0), (1/3, 1/3)->(2/3, 2/3), (1/3, 2/3)->(2/3, 1/3), (2/3, 0)->(1/3, 0), (2/3, 1/3)->(1/3, 2/3), (2/3, 2/3)->(1/3, 1/3), Automorphism of Weil representation associated to the Gram matrix
+            mapping (0, 1/3)->(0, 2/3), (1/3, 0)->(2/3, 0)
+            --------------------------------------------------------------------------------
+            Automorphism of Weil representation associated to the Gram matrix
             [0 3]
             [3 0]
-            mapping (0, 0)->(0, 0), (0, 1/3)->(2/3, 0), (0, 2/3)->(1/3, 0), (1/3, 0)->(0, 2/3), (1/3, 1/3)->(2/3, 2/3), (1/3, 2/3)->(1/3, 2/3), (2/3, 0)->(0, 1/3), (2/3, 1/3)->(2/3, 1/3), (2/3, 2/3)->(1/3, 1/3)]
+            mapping (0, 1/3)->(2/3, 0), (1/3, 0)->(0, 2/3)
 
             sage: from weilrep import *
             sage: w = WeilRep(matrix([[6, 3], [3, 4]]))

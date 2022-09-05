@@ -479,11 +479,12 @@ class JacobiForms:
         discr = self.discriminant()
         try:
             N = self._longest_short_vector_norm()
+            k_min = floor(-12 * N)
             _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)]
         except TypeError:
             J0 = JacobiForms(2 * self.index_matrix())
             N = J0._longest_short_vector_norm() / 2
-        k_min = floor(-12 * N)
+            k_min = floor(-12 * N)
         k, s = k_min, 0
         while s < discr:
             p.append(self.weak_forms_dimension(k))
@@ -501,6 +502,21 @@ class JacobiForms:
         return r(p) * (t ** k_min) / ((1 - t**4) * (1 - t**6))
 
     def weak_hilbert_polynomial(self):
+        r"""
+        Compute the numerator in the Hilbert series of weak Jacobi forms.
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: J = JacobiForms([[2, 1], [1, 4]])
+            sage: J.weak_hilbert_polynomial()
+            t^-5 + t^-4 + t^-3 + 2*t^-2 + t^-1 + 1
+
+            sage: from weilrep import *
+            sage: J = JacobiForms(matrix([[3, 1], [1, 1]]))
+            sage: J.weak_hilbert_polynomial()
+            t^-3 + t^-1
+        """
         if self.nvars() == 1:
             r, t = LaurentPolynomialRing(ZZ, 't').objgen()
             m = Integer(self.index_matrix()[0, 0])
@@ -656,7 +672,8 @@ class JacobiForms:
                 U.append(A.rows()[i])
                 n += 1
             J = JacobiForms(S + A)
-            X = J.basis(weight + n/2, prec = prec, eta_twist = eta_twist + 3 * n, verbose = verbose, try_theta_blocks = try_theta_blocks)
+            w = J.weilrep()
+            X = w.basis_vanishing_to_order(weight + n/2, 1/8, prec = prec, eta_twist = eta_twist + 3 * n, verbose = verbose).jacobi_forms()
             if not X:
                 return []
             prec = max(1, X[0].precision())

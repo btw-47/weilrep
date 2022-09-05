@@ -141,7 +141,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         (Tensor) Product of quasimodular forms
         """
         if other in CC:
-            return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [other*x for x in self._terms()], weilrep=self.weilrep())
+            return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x * other for x in self._terms()], weilrep=self.weilrep())
         k = self.weight() + other.weight()
         if w is None:
             w1 = self.weilrep()
@@ -160,7 +160,39 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
                 X[i + j] += t1[i]*t2[j]
         return WeilRepQuasiModularForm(k, w.gram_matrix(), X, weilrep=w)
 
-    __rmul__ = __mul__
+    def __rmul__(self, other, w = None):
+        r"""
+        (Tensor) Product of quasimodular forms, reversed
+
+        EXAMPLES::
+            sage: from weilrep import *
+            sage: f = WeilRep([[-2]]).theta_series(10)
+            sage: fd = f.derivative()
+            sage: f * fd - fd * f
+            [(0, 0), O(q^10)]
+            [(0, 1/2), 1/2*q^(1/4) - 3*q^(5/4) + 9/2*q^(9/4) + 5*q^(13/4) - 15*q^(17/4) + 11/2*q^(25/4) + 21*q^(29/4) - 35*q^(37/4) + O(q^(41/4))]
+            [(1/2, 0), -1/2*q^(1/4) + 3*q^(5/4) - 9/2*q^(9/4) - 5*q^(13/4) + 15*q^(17/4) - 11/2*q^(25/4) - 21*q^(29/4) + 35*q^(37/4) + O(q^(41/4))]
+            [(1/2, 1/2), O(q^(21/2))]
+        """
+        if other in CC:
+            return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [other * x for x in self._terms()], weilrep=self.weilrep())
+        k = self.weight() + other.weight()
+        if w is None:
+            w1 = self.weilrep()
+            w2 = other.weilrep()
+            w = w2 + w1
+        t1 = self._terms()
+        t2 = other._terms()
+        r = self.depth()
+        s = other.depth()
+        rs = r + s
+        j = k - rs - rs
+        p = self.precision()
+        X = [w.zero(i + i + j, p) for i in range(rs + 1)]
+        for i in range(r + 1):
+            for j in range(s + 1):
+                X[i + j] += t2[j] * t1[i]
+        return WeilRepQuasiModularForm(k, w.gram_matrix(), X, weilrep=w)
 
     def __div__(self, other):
         r"""
@@ -479,17 +511,20 @@ class WeilRepAlmostHolomorphicModularForm:
             return (self[0] - other).completion()
 
     def __mul__(self, other, **kwargs):
+        if other in CC:
+            return (other * self[0]).completion()
         try:
-            if other in QQ:
-                return (other * self[0]).completion()
-            try:
-                return (self[0].__mul__(other[0], **kwargs)).completion()
-            except AttributeError:
-                return (self[0] * other).completion()
-        except TypeError:
-            print('self:', self)
+            return (self[0].__mul__(other[0], **kwargs)).completion()
+        except AttributeError:
+            return (self[0] * other).completion()
 
-    __rmul__ = __mul__
+    def __rmul__(self, other, **kwargs):
+        if other in CC:
+            return (other * self[0]).completion()
+        try:
+            return (self[0].__rmul__(other[0], **kwargs)).completion()
+        except AttributeError:
+            return (other * self[0]).completion()
 
     def __neg__(self):
         return (-self[0]).completion()

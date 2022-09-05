@@ -39,13 +39,49 @@ class WeilRepMorphism:
     f is meant to be an morphism, i.e. f(x+y) = f(x) + f(y) and  Q2(f(x)) = Q1(x) for all x, y if Q1 is the quadratic form of w1 and Q2 of w2.
     """
 
-    def __init__(self, w1, w2, f):
+    def __init__(self, w1, w2, f, check = True):
         if not isfunction(f):
             A = f
             f = lambda x: vector(map(frac, A * x))
         self.__input_weilrep = w1
         self.__output_weilrep = w2
         self.__f = f
+        if check:
+            dsdict = w2.ds_dict()
+            dsgens = w1.ds_gens()
+            s1 = w1.gram_matrix()
+            s2 = w2.gram_matrix()
+            gen_imgs = [None] * len(dsgens)
+            for i, g in enumerate(dsgens):
+                h = f(g)
+                if frac(g * s1 * g / 2) != frac(h * s2 * h / 2):
+                    raise ValueError('This is not a morphism.')
+                for j, g2 in enumerate(dsgens[: i]):
+                    h2 = f(g2)
+                    if frac(g * s1 * g2) != frac(h * s2 * h2):
+                        raise ValueError('This is not a morphism.')
+                gen_imgs[i] = h
+            self.__gen_imgs = gen_imgs
+        if w1 == w2:
+            self.__class__ = WeilRepAutomorphism
+
+    def __repr__(self, gens = None):
+        w = self.input_weilrep()
+        f = self.__f
+        if gens is None:
+            gens = w.ds_gens()
+        return 'Morphism from %s to %s\nmapping %s'%(w, self.output_weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in gens]))
+
+    def f(self):
+        r"""
+        The underlying function.
+        """
+        return self.__f
+
+    def _compute_indices(self):
+        w1 = self.input_weilrep()
+        w2 = self.output_weilrep()
+        f = self.__f
         dsdict = w2.ds_dict()
         ds = w1.ds()
         n1 = w1.norm_list()
@@ -61,21 +97,8 @@ class WeilRepMorphism:
                 Z_inv[j] = i
             else:
                 Z_inv = None
-        self.__indices = tuple(Z)
+        self.__indices = Z
         self.__inverse = Z_inv
-        if w1 == w2:
-            self.__class__ = WeilRepAutomorphism
-
-    def __repr__(self):
-        w = self.input_weilrep()
-        f = self.__f
-        return 'Morphism from %s to %s\nmapping %s'%(w, self.output_weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in w.ds()]))
-
-    def f(self):
-        r"""
-        The underlying function.
-        """
-        return self.__f
 
     def input_weilrep(self):
         return self.__input_weilrep
@@ -99,7 +122,11 @@ class WeilRepMorphism:
             if X.weilrep() != self.input_weilrep():
                 raise ValueError('Invalid Weil representation')
             Xf = X.fourier_expansion()
-            Z = self.__indices
+            try:
+                Z = self.__indices
+            except AttributeError:
+                self._compute_indices()
+                Z = self.__indices
             f = self.f()
             w = self.output_weilrep()
             return WeilRepModularForm(X.weight(), w.gram_matrix(), [(f(Xf[i][0]), Xf[i][1], Xf[z][2]) for i,z in enumerate(Z)], weilrep = w)
@@ -180,17 +207,18 @@ class WeilRepAutomorphism(WeilRepMorphism):
     def weilrep(self):
         return self.input_weilrep()
 
-    def __repr__(self):
+    def __repr__(self, gens = None):
         w = self.weilrep()
         f = self.f()
+        if gens is None:
+            gens = self.weilrep().ds_gens()
         try:
             d = w._unitary_ds_to_ds()
             d2 = w._ds_to_unitary_ds()
             uds = self.weilrep().unitary_ds()
             return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, d2[tuple(f(d[tuple(x)]))]) for x in uds]))
         except AttributeError:
-            ds = self.weilrep().ds()
-            return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in ds]))
+            return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in gens]))
 
     def __pow__(self, n):
         r"""
@@ -234,6 +262,10 @@ class WeilRepAutomorphismGroup:
 
     def weilrep(self):
         return self.__weilrep
+
+    def display(self, gens = None):
+        h = '\n' + '-'*80 + '\n'
+        print(h.join(x.__repr__(gens = gens) for x in self.__G))
 
     def gens(self):
         r"""
