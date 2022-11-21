@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2022 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -820,7 +820,7 @@ class OrthogonalModularForm(object):
             f1 = X1.true_fourier_expansion()
             f2 = X2.true_fourier_expansion()
             f = f1 * f2
-            if f1.valuation() < 0 or f2.valuation() < 0 and f.valuation >= 0:
+            if f1.valuation() < 0 or f2.valuation() < 0 and f.valuation() >= 0:
                 r = PowerSeriesRing(f.base_ring(), 't')
                 f = r(f)
             return OrthogonalModularForm(self.__weight + other.weight(), self.__weilrep, f, scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector(), qexp_representation = self.qexp_representation())
@@ -882,6 +882,62 @@ class OrthogonalModularForm(object):
         else:
             f = sum(a.n() * t**g[0] for g, a in d.items()).add_bigoh(f.prec())
         return OrthogonalModularForm(self.weight(), self.__weilrep, f, scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+
+    ### other operations
+
+    def hessian(self):
+        r"""
+        Compute the inhomogeneous Hessian.
+
+        If self has weight 'k' and is a modular form on O(2, n) then the result is a cusp form of weight (n+1)*k + 2*n.
+        """
+        f = self.true_fourier_expansion()
+        k = self.weight()
+        p = f.parent()
+        t, = p.gens()
+        rb_x = f.base_ring()
+        x, = rb_x.gens()
+        nvars = self.nvars()
+        r_list = rb_x.base_ring().gens()
+        r_deriv = []
+        t_deriv = t * f.derivative()
+        t_double_deriv = t * t_deriv.derivative()
+        #R = PolynomialRing(p, names = ['u', 'v'])
+        #u, v = R.gens()
+        if nvars > 1:
+            x_deriv = f.map_coefficients(lambda a: x * a.derivative())
+            x_double_deriv = x_deriv.map_coefficients(lambda a: x * a.derivative())
+            x_t_deriv = t * x_deriv.derivative()
+            u = k*(k+1)
+            v = (k+1)
+            M = matrix([[u*f, v*t_deriv, v*x_deriv], [v*t_deriv, t_double_deriv, x_t_deriv], [v*x_deriv, x_t_deriv, x_double_deriv]])
+            if nvars > 2:
+                rvars = nvars - 2
+                S = matrix(f.parent(), rvars)
+                r_nabla = []
+                r_nabla_t = []
+                r_nabla_x = []
+                for i, r in enumerate(r_list):
+                    r_i = f.map_coefficients(lambda a: rb_x([r * y.derivative(r) for y in list(a)]) * (x ** (a.polynomial_construction()[1]) ))
+                    for j, rj in enumerate(r_list[:i+1]):
+                        r_i_j = r_i.map_coefficients(lambda a: rb_x([rj * y.derivative(rj) for y in list(a)]) * (x ** (a.polynomial_construction()[1]) ))
+                        S[i, j] = r_i_j
+                        S[j, i] = r_i_j
+                    r_i_x = r_i.map_coefficients(lambda a: x * a.derivative())
+                    r_i_t = t * r_i.derivative()
+                    r_nabla_t.append(r_i_t)
+                    r_nabla_x.append(r_i_x)
+                    r_nabla.append((k+1)*r_i)
+                r = matrix([r_nabla, r_nabla_t, r_nabla_x])
+                M = block_matrix([[M, r], [r.transpose(), S]])
+                g = M.determinant()
+            else:
+                g = M.determinant()
+                return g
+        else:
+            M = matrix([[k*(k+1)*f, (k+1)*t_deriv], [(k+1)*t_deriv, t_double_deriv]])
+            g = M.determinant()
+        return OrthogonalModularForm((nvars + 1) * k + 2, self.weilrep(), g, scale = self.scale(), weylvec = None, qexp_representation = self.qexp_representation())
 
 def orthogonal_eisenstein_series(k, S, prec, w = None):
     r"""

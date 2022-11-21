@@ -50,12 +50,14 @@ from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.all import CC
 from sage.rings.big_oh import O
 from sage.rings.fraction_field import FractionField
-from sage.rings.infinity import Infinity
+from sage.rings.infinity import Infinity, SignError
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
+from sage.rings.puiseux_series_ring import PuiseuxSeriesRing
+from sage.rings.puiseux_series_ring_element import PuiseuxSeries
 from sage.rings.rational_field import QQ
 from sage.rings.real_mpfr import RealField, RR
 from sage.structure.element import is_Matrix
@@ -380,6 +382,42 @@ class WeilRepModularForm(object):
 
     __bool__ = __nonzero__
 
+    def puiseux_series(self):
+        r"""
+        Return self's Fourier series as a list of Puiseux series in the variable 'q'.
+        """
+        x = self.fourier_expansion()
+        r, q = PuiseuxSeriesRing(self.base_ring(), 'q').objgen()
+        prec = self.precision()
+        def a(f, n):
+            # construct Puiseux series this way to try not to break things. This is not really good
+            e = f.exponents()
+            c = f.coefficients()
+            return sum(c * q**(e[i] + n) for i, c in enumerate(c))
+        return [(g, a(f, n).add_bigoh(prec)) for g, n, f in x]
+
+    def puiseux_series_component(self, v):
+        r"""
+        Return the component of 'v' in self as a Puiseux series in the variable 'q'.
+        """
+        v = tuple(map(frac, v))
+        j = self.weilrep().ds_dict()[v]
+        f = self.fourier_expansion()[j]
+        _, n, f = f
+        e = f.exponents()
+        c = f.coefficients()
+        r, q = PuiseuxSeriesRing(self.base_ring(), 'q').objgen()
+        prec = self.precision()
+        return sum(c * q**(e[i] + n) for i, c in enumerate(c)).add_bigoh(prec)
+
+    def qexp(self):
+        r"""
+        Return self's Fourier series, as a simple series if self's weilrep is empty.
+        """
+        if self.weilrep():
+            return self.fourier_expansion()
+        return self.fourier_expansion()[0][2]
+
     def weight(self):
         r"""
         Return the weight.
@@ -412,7 +450,10 @@ class WeilRepModularForm(object):
                     return s
                 else:
                     c = abs(s)
-                    return 2 * s * math.frexp(c)[0] / c
+                    try:
+                        return 2 * s * math.frexp(c)[0] / c
+                    except SignError:
+                        return Infinity
         elif isotherm:
             v = [0] * len(s)
             for i, x in enumerate(s):
@@ -1629,16 +1670,6 @@ class WeilRepModularForm(object):
         if _weight is None:
             _weight = self.weight() - 2
         return self.weilrep().zero(_weight, self.precision())
-
-    def puiseux_series(self):
-        d = {}
-        X = self.fourier_expansion()
-        for x in X:
-            n = x[1]
-            e = n.denominator()
-            assert False
-            #f = PuiseuxSeries(f[])
-            #d[tuple(x[0])] = 
 
     def pullback(self, *v, **kwargs):
         r"""

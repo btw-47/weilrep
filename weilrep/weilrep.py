@@ -547,9 +547,17 @@ class WeilRep(object):
             self.__signature = self.__true_signature % 8
             return self.__signature
 
+    def overlattice(self, A):
+        r"""
+        Return the WeilRep attached to the overlattice associated to the isotropic group A < L'/L.
+        """
+        L = IntegralLattice(self.gram_matrix())
+        L = L.overlattice(A)
+        return WeilRep(L.gram_matrix())
+
     ## methods for the discriminant form
 
-    def coefficient_vector_exponents(self, prec, symm, starting_from = 0, include_vectors = False):
+    def coefficient_vector_exponents(self, prec, symm, starting_from = 0, include_vectors = False, eta_twist = 0):
         r"""
         Interpret the ``coefficient vectors`` of modular forms for this Weil representation.
 
@@ -593,8 +601,14 @@ class WeilRep(object):
                 pass
             finally:
                 pass
-        G = self.sorted_rds()
-        n_dict = self.norm_dict()
+        if eta_twist:
+            G = self.rds()
+            S = self.gram_matrix()
+            n_dict = {tuple(g): -frac(g*S*g/2 - eta_twist/24) for g in G}
+            G = sorted(map(tuple, G), key = n_dict.get)
+        else:
+            G = self.sorted_rds()
+            n_dict = self.norm_dict()
         X1 = []
         Y1 = []
         X2 = []
@@ -832,7 +846,7 @@ class WeilRep(object):
                 self.__order_two_in_rds_list = order_two_rds
             return [self.__rds, self.__rds_indices][indices]
 
-    def sorted_rds(self):
+    def sorted_rds(self, eta_twist = 0):
         r"""
         Computes a copy of the reduced discriminant group self.rds(), sorted by the norm dictionary norm_dict().
 
@@ -2236,7 +2250,7 @@ class WeilRep(object):
                 Z[i] = Y[i][0], Y[i][1], Y[i][2] - epsilon * sum((n + offset) * theta_f[n] * (q ** n) for n in range(1, len(theta_f)) if theta_f[n])
         return WeilRepModularForm(weight, S, Z, weilrep = self)
 
-    def recover_modular_form_from_coefficient_vector(self, k, coefficient_vector, prec, starting_from = 0):
+    def recover_modular_form_from_coefficient_vector(self, k, coefficient_vector, prec, starting_from = 0, eta_twist = 0):
         r"""
         Recover a WeilRepModularForm for this representation from its coefficient vector.
 
@@ -2259,15 +2273,18 @@ class WeilRep(object):
 
         """
         q, = PowerSeriesRing(QQ, 'q').gens()
-        symm = self.is_symmetric_weight(k)
-        Y = self.coefficient_vector_exponents(prec, symm = symm, starting_from = starting_from, include_vectors = True)
+        symm = self.is_symmetric_weight(k - eta_twist / 2)
+        Y = self.coefficient_vector_exponents(prec, symm = symm, starting_from = starting_from, include_vectors = True, eta_twist = eta_twist)
+        N = len(Y)
         eps = 2 * symm - 1
         _ds = self.ds()
         _ds_dict = self.ds_dict()
         _indices = self.rds(indices = True)
         _norm_list = self.norm_list()
+        if eta_twist:
+            _norm_list = [-frac(-x - eta_twist / 24) for x in _norm_list]
         X = [None] * len(_ds)
-        for i, c in enumerate(coefficient_vector):
+        for i, c in enumerate(coefficient_vector[:N]):
             g, n = Y[i]
             j = _ds_dict[tuple(g)]
             if X[j]:
@@ -2286,6 +2303,8 @@ class WeilRep(object):
                 X[i] = g, _norm_list[i], O(q**(prec - floor(_norm_list[i])))
             else:
                 X[i] = tuple(X[i])
+        if eta_twist:
+            return WeilRepModularFormWithCharacter(k, self.gram_matrix(), X, weilrep = self, character = EtaCharacterPower(eta_twist))
         return WeilRepModularForm(k, self.gram_matrix(), X, weilrep = self)
 
     def theta_series(self, prec, P = None, _list = False, _flag = True, funct = None):
@@ -4025,7 +4044,7 @@ class WeilRep(object):
         if eta_twist:
             X = self.nearly_holomorphic_modular_forms_basis(k - eta_twist / 2, eta_twist / 24 + pole_order, prec = prec, reverse = reverse, symmetry_data = symmetry_data, verbose = verbose, reduce_prec = reduce_prec)
             from .weilrep_modular_forms_class import smf_eta
-            f = smf_eta(prec) ** eta_twist
+            f = smf_eta(prec + 1) ** eta_twist
             return WeilRepModularFormsBasis(k, [x * f for x in X], self)
         sturm_bound = k/12
         prec = max(prec, sturm_bound)

@@ -755,6 +755,11 @@ class JacobiForms:
             sage: J.weak_forms_basis(0, 10)
             [w_1 + 10 + w_1^-1 + (10*w_1^2 - 64*w_1 + 108 - 64*w_1^-1 + 10*w_1^-2)*q + (w_1^3 + 108*w_1^2 - 513*w_1 + 808 - 513*w_1^-1 + 108*w_1^-2 + w_1^-3)*q^2 + (-64*w_1^3 + 808*w_1^2 - 2752*w_1 + 4016 - 2752*w_1^-1 + 808*w_1^-2 - 64*w_1^-3)*q^3 + (10*w_1^4 - 513*w_1^3 + 4016*w_1^2 - 11775*w_1 + 16524 - 11775*w_1^-1 + 4016*w_1^-2 - 513*w_1^-3 + 10*w_1^-4)*q^4 + (108*w_1^4 - 2752*w_1^3 + 16524*w_1^2 - 43200*w_1 + 58640 - 43200*w_1^-1 + 16524*w_1^-2 - 2752*w_1^-3 + 108*w_1^-4)*q^5 + (w_1^5 + 808*w_1^4 - 11775*w_1^3 + 58640*w_1^2 - 141826*w_1 + 188304 - 141826*w_1^-1 + 58640*w_1^-2 - 11775*w_1^-3 + 808*w_1^-4 + w_1^-5)*q^6 + (-64*w_1^5 + 4016*w_1^4 - 43200*w_1^3 + 188304*w_1^2 - 427264*w_1 + 556416 - 427264*w_1^-1 + 188304*w_1^-2 - 43200*w_1^-3 + 4016*w_1^-4 - 64*w_1^-5)*q^7 + (-513*w_1^5 + 16524*w_1^4 - 141826*w_1^3 + 556416*w_1^2 - 1201149*w_1 + 1541096 - 1201149*w_1^-1 + 556416*w_1^-2 - 141826*w_1^-3 + 16524*w_1^-4 - 513*w_1^-5)*q^8 + (10*w_1^6 - 2752*w_1^5 + 58640*w_1^4 - 427264*w_1^3 + 1541096*w_1^2 - 3189120*w_1 + 4038780 - 3189120*w_1^-1 + 1541096*w_1^-2 - 427264*w_1^-3 + 58640*w_1^-4 - 2752*w_1^-5 + 10*w_1^-6)*q^9 + O(q^10)]
 
+            sage: from weilrep import *
+            sage: J = JacobiForms(4)
+            sage: J.weak_forms_basis(1, 5, eta_twist = 6)
+            [(w^-2 - 2 + w^2)*q^(1/4) + (-2*w^-4 + 2*w^-2 + 2*w^2 - 2*w^4)*q^(5/4) + (w^-6 - 2 + w^6)*q^(9/4) + (2*w^-6 - 2*w^-4 - 2*w^4 + 2*w^6)*q^(13/4) + O(q^(17/4)), (w^-3 + 15*w^-1 - 32 + 15*w + w^3)*q^(1/4) + (w^-5 + 32*w^-4 - 153*w^-3 + 696*w^-1 - 1152 + 696*w - 153*w^3 + 32*w^4 + w^5)*q^(5/4) + (-153*w^-5 + 1152*w^-4 - 2460*w^-3 + 7749*w^-1 - 12576 + 7749*w - 2460*w^3 + 1152*w^4 - 153*w^5)*q^(9/4) + (15*w^-7 - 2460*w^-5 + 12576*w^-4 - 21740*w^-3 + 55449*w^-1 - 87680 + 55449*w - 21740*w^3 + 12576*w^4 - 2460*w^5 + 15*w^7)*q^(13/4) + O(q^(17/4)), (w^-4 + 64*w^-1 - 130 + 64*w + w^4)*q^(1/4) + (-118*w^-4 + 2496*w^-3 - 13376*w^-2 + 32448*w^-1 - 42900 + 32448*w - 13376*w^2 + 2496*w^3 - 118*w^4)*q^(5/4) + (2496*w^-5 - 43095*w^-4 + 265472*w^-3 - 853632*w^-2 + 1653120*w^-1 - 2048722 + 1653120*w - 853632*w^2 + 265472*w^3 - 43095*w^4 + 2496*w^5)*q^(9/4) + (64*w^-7 - 13376*w^-6 + 265472*w^-5 - 2047526*w^-4 + 8539584*w^-3 - 22165248*w^-2 + 38407552*w^-1 - 45973044 + 38407552*w - 22165248*w^2 + 8539584*w^3 - 2047526*w^4 + 265472*w^5 - 13376*w^6 + 64*w^7)*q^(13/4) + O(q^(17/4))]
+
         """
         S = self.index_matrix()
         if not S.is_positive_definite():
@@ -780,7 +785,7 @@ class JacobiForms:
                 n += 1
             J = JacobiForms(S + A)
             kwargs['reduce_prec'] = False
-            X = J.weak_forms_basis(weight - n, prec = prec, verbose = verbose, **kwargs)
+            X = J.weak_forms_basis(weight - n, prec = prec, verbose = verbose, eta_twist = eta_twist, **kwargs)
             if not X:
                 return []
             prec = max(1, X[0].precision())
@@ -807,16 +812,16 @@ class JacobiForms:
             print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'% N)
             print('-' * 60)
         k = weight - self.nvars() / 2
-        L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose, **kwargs)
+        L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose, eta_twist = eta_twist, **kwargs)
         if not L:
             return []
-        v_list = w.coefficient_vector_exponents(prec, 1 - (weight % 2), starting_from = -N, include_vectors = True)
+        v_list = w.coefficient_vector_exponents(prec, 1 - (Integer(weight - eta_twist/2) % 2), starting_from = -N, include_vectors = True, eta_twist = eta_twist)
         n = len(v_list)
+        V = span([x.coefficient_vector(starting_from = -N, ending_with = prec)[:n] for x in L])
         e = lambda i: vector([0] * i + [1] + [0] * (n - 1 - i))
         Z = [e(j) for j, (v, i) in enumerate(v_list) if i + svn[dsdict[tuple(v)]] >= 0]
-        V = span([x.coefficient_vector(starting_from = -N, ending_with = prec)[:n] for x in L])
         V = V.intersection(span(Z)).basis()
-        X = WeilRepModularFormsBasis(k, [w.recover_modular_form_from_coefficient_vector(k, v, prec, starting_from = -N) for v in V], w)
+        X = WeilRepModularFormsBasis(k, [w.recover_modular_form_from_coefficient_vector(k, v, prec, starting_from = -N, eta_twist = eta_twist) for v in V], w)
         X.reverse()
         if not convert_to_Jacobi_forms:
             return X
@@ -826,7 +831,10 @@ class JacobiForms:
             print('I am converting these modular forms to Jacobi forms.')
         jf = X.jacobi_forms()
         for y in jf:
-            y._JacobiForm__fourier_expansion = y._JacobiForm__fourier_expansion.power_series()
+            try:
+                y._JacobiForm__fourier_expansion = y._JacobiForm__fourier_expansion.power_series()
+            except (AttributeError, TypeError):
+                pass
         return jf
 
     ## other:
@@ -1755,6 +1763,37 @@ class JacobiForm:
         This converts to a vector-valued modular form and computes the Borcherds lift as in the 'lifts.py' file. The Jacobi form should have weight zero; it does not need to be holomorphic (or even a weak Jacobi form).
         """
         return self.theta_decomposition().borcherds_lift()
+
+    def __call__(self, *args):
+        r"""
+        Apply a linear substitution.
+
+        This applies an integer linear substitution to the elliptic variables of a Jacobi form, i.e. it maps
+        f(z) --> f(Mz)
+
+        INPUT: rank(self's index) many linear polynomials
+        OUTPUT: Jacobi form
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: theta = jacobi_theta_series(10)
+            sage: R.<x, y> = QQ[]
+            sage: theta(x+y)*theta(x-y)
+            (w_0 - w_1 - w_1^-1 + w_0^-1)*q^(1/4) + (-w_0^2*w_1 + w_0*w_1^2 - w_0^2*w_1^-1 + w_0^-1*w_1^2 + w_0*w_1^-2 - w_0^-2*w_1 + w_0^-1*w_1^-2 - w_0^-2*w_1^-1)*q^(5/4) + (w_0^3 - w_1^3 - w_1^-3 + w_0^-3)*q^(9/4) + (w_0^3*w_1^2 - w_0^2*w_1^3 + w_0^3*w_1^-2 - w_0^-2*w_1^3 - w_0^2*w_1^-3 + w_0^-3*w_1^2 - w_0^-2*w_1^-3 + w_0^-3*w_1^-2)*q^(13/4) + (-w_0^4*w_1 + w_0*w_1^4 - w_0^4*w_1^-1 + w_0^-1*w_1^4 + w_0*w_1^-4 - w_0^-4*w_1 + w_0^-1*w_1^-4 - w_0^-4*w_1^-1)*q^(17/4) + (-w_0^4*w_1^3 + w_0^3*w_1^4 + w_0^5 - w_1^5 - w_0^4*w_1^-3 + w_0^-3*w_1^4 + w_0^3*w_1^-4 - w_0^-4*w_1^3 - w_1^-5 + w_0^-5 + w_0^-3*w_1^-4 - w_0^-4*w_1^-3)*q^(25/4) + (w_0^5*w_1^2 - w_0^2*w_1^5 + w_0^5*w_1^-2 - w_0^-2*w_1^5 - w_0^2*w_1^-5 + w_0^-5*w_1^2 - w_0^-2*w_1^-5 + w_0^-5*w_1^-2)*q^(29/4) + (-w_0^6*w_1 + w_0*w_1^6 - w_0^6*w_1^-1 + w_0^-1*w_1^6 + w_0*w_1^-6 - w_0^-6*w_1 + w_0^-1*w_1^-6 - w_0^-6*w_1^-1)*q^(37/4) + O(q^(41/4))
+
+            sage: from weilrep import *
+            sage: f = jacobi_eisenstein_series(4, matrix([[2, 1], [1, 2]]), 5)
+            sage: R.<x, y, z> = QQ[]
+            sage: f(x+y, 2*z)
+            1 + (w_0^2*w_1^2*w_2^2 + w_0*w_1*w_2^4 + 27*w_0*w_1*w_2^2 + 27*w_0*w_1 + 27*w_2^2 + w_0*w_1*w_2^-2 + 72 + w_0^-1*w_1^-1*w_2^2 + 27*w_2^-2 + 27*w_0^-1*w_1^-1 + 27*w_0^-1*w_1^-1*w_2^-2 + w_0^-1*w_1^-1*w_2^-4 + w_0^-2*w_1^-2*w_2^-2)*q + (27*w_0^2*w_1^2*w_2^4 + 72*w_0^2*w_1^2*w_2^2 + 72*w_0*w_1*w_2^4 + 27*w_0^2*w_1^2 + 216*w_0*w_1*w_2^2 + 27*w_2^4 + 216*w_0*w_1 + 216*w_2^2 + 72*w_0*w_1*w_2^-2 + 270 + 72*w_0^-1*w_1^-1*w_2^2 + 216*w_2^-2 + 216*w_0^-1*w_1^-1 + 27*w_2^-4 + 216*w_0^-1*w_1^-1*w_2^-2 + 27*w_0^-2*w_1^-2 + 72*w_0^-1*w_1^-1*w_2^-4 + 72*w_0^-2*w_1^-2*w_2^-2 + 27*w_0^-2*w_1^-2*w_2^-4)*q^2 + (w_0^3*w_1^3*w_2^6 + 27*w_0^3*w_1^3*w_2^4 + 27*w_0^2*w_1^2*w_2^6 + 27*w_0^3*w_1^3*w_2^2 + 216*w_0^2*w_1^2*w_2^4 + 27*w_0*w_1*w_2^6 + w_0^3*w_1^3 + 270*w_0^2*w_1^2*w_2^2 + 270*w_0*w_1*w_2^4 + w_2^6 + 216*w_0^2*w_1^2 + 459*w_0*w_1*w_2^2 + 216*w_2^4 + 27*w_0^2*w_1^2*w_2^-2 + 459*w_0*w_1 + 459*w_2^2 + 27*w_0^-1*w_1^-1*w_2^4 + 270*w_0*w_1*w_2^-2 + 720 + 270*w_0^-1*w_1^-1*w_2^2 + 27*w_0*w_1*w_2^-4 + 459*w_2^-2 + 459*w_0^-1*w_1^-1 + 27*w_0^-2*w_1^-2*w_2^2 + 216*w_2^-4 + 459*w_0^-1*w_1^-1*w_2^-2 + 216*w_0^-2*w_1^-2 + w_2^-6 + 270*w_0^-1*w_1^-1*w_2^-4 + 270*w_0^-2*w_1^-2*w_2^-2 + w_0^-3*w_1^-3 + 27*w_0^-1*w_1^-1*w_2^-6 + 216*w_0^-2*w_1^-2*w_2^-4 + 27*w_0^-3*w_1^-3*w_2^-2 + 27*w_0^-2*w_1^-2*w_2^-6 + 27*w_0^-3*w_1^-3*w_2^-4 + w_0^-3*w_1^-3*w_2^-6)*q^3 + (w_0^4*w_1^4*w_2^4 + 72*w_0^3*w_1^3*w_2^6 + w_0^2*w_1^2*w_2^8 + 216*w_0^3*w_1^3*w_2^4 + 216*w_0^2*w_1^2*w_2^6 + 216*w_0^3*w_1^3*w_2^2 + 459*w_0^2*w_1^2*w_2^4 + 216*w_0*w_1*w_2^6 + 72*w_0^3*w_1^3 + 720*w_0^2*w_1^2*w_2^2 + 720*w_0*w_1*w_2^4 + 72*w_2^6 + 459*w_0^2*w_1^2 + 1080*w_0*w_1*w_2^2 + 459*w_2^4 + 216*w_0^2*w_1^2*w_2^-2 + 1080*w_0*w_1 + 1080*w_2^2 + 216*w_0^-1*w_1^-1*w_2^4 + w_0^2*w_1^2*w_2^-4 + 720*w_0*w_1*w_2^-2 + 936 + 720*w_0^-1*w_1^-1*w_2^2 + w_0^-2*w_1^-2*w_2^4 + 216*w_0*w_1*w_2^-4 + 1080*w_2^-2 + 1080*w_0^-1*w_1^-1 + 216*w_0^-2*w_1^-2*w_2^2 + 459*w_2^-4 + 1080*w_0^-1*w_1^-1*w_2^-2 + 459*w_0^-2*w_1^-2 + 72*w_2^-6 + 720*w_0^-1*w_1^-1*w_2^-4 + 720*w_0^-2*w_1^-2*w_2^-2 + 72*w_0^-3*w_1^-3 + 216*w_0^-1*w_1^-1*w_2^-6 + 459*w_0^-2*w_1^-2*w_2^-4 + 216*w_0^-3*w_1^-3*w_2^-2 + 216*w_0^-2*w_1^-2*w_2^-6 + 216*w_0^-3*w_1^-3*w_2^-4 + w_0^-2*w_1^-2*w_2^-8 + 72*w_0^-3*w_1^-3*w_2^-6 + w_0^-4*w_1^-4*w_2^-4)*q^4 + O(q^5)
+
+        """
+        if not all(x.is_homogeneous() and x.degree() == 1 for x in args):
+            raise ValueError('Not a linear substitution.')
+        P = args[0].parent()
+        g = P.gens()
+        return self.pullback(matrix(ZZ, [[x.coefficient(h) for x in args] for h in g]))
 
     def gritsenko_lift(self):
         r"""
