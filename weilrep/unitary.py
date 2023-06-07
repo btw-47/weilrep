@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2021 Brandon Williams
+#       Copyright (C) 2021-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,27 +25,36 @@ from copy import copy, deepcopy
 from re import sub
 
 from sage.arith.functions import lcm
-from sage.functions.other import floor, frac, sqrt
+from sage.functions.other import ceil, factorial, floor, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import Matrix
 from sage.matrix.special import block_diagonal_matrix
-from sage.misc.functional import denominator
+from sage.misc.functional import denominator, isqrt
+from sage.misc.misc_c import prod
+from sage.modular.modform.eis_series import eisenstein_series_qexp
+from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
+from sage.rings.big_oh import O
 from sage.rings.fraction_field import FractionField
+from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
+from sage.rings.polynomial.flatten import FlatteningMorphism
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
+from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
+from sage.rings.ring import Field
 
 from .lifts import OrthogonalModularForm, OrthogonalModularForms
-from .lorentz import OrthogonalModularFormLorentzian, OrthogonalModularFormsLorentzian, RescaledHyperbolicPlane
+from .lorentz import II, OrthogonalModularFormLorentzian, OrthogonalModularFormsLorentzian, RescaledHyperbolicPlane
 from .morphisms import WeilRepAutomorphism
-from .positive_definite import OrthogonalModularFormPositiveDefinite, OrthogonalModularFormsPositiveDefinite
+from .positive_definite import OrthogonalModularFormPositiveDefinite, OrthogonalModularFormsPositiveDefinite, WeilRepModularFormPositiveDefinite
 from .weilrep import WeilRep
-from .weilrep_modular_forms_class import WeilRepModularFormPrincipalPart, WeilRepModularFormsBasis
+from .weilrep_misc import relations
+from .weilrep_modular_forms_class import smf, smf_eta, smf_eisenstein_series, WeilRepModularFormPrincipalPart, WeilRepModularFormsBasis
 
 class HermitianWeilRep(WeilRep):
     r"""
@@ -65,7 +74,10 @@ class HermitianWeilRep(WeilRep):
             d0 = d0 // 4
         gen = kwargs.pop('gen', None)
         if gen is None:
-            gen = (d + K.gen() * (2 - (d % 4))) / 2
+            if d % 2:
+                gen = (-1 + K.gen()) / 2
+            else:
+                gen = K.gen()
         try:
             ell, m = gen.parts()
         except AttributeError:
@@ -373,6 +385,374 @@ class HermitianWeilRep(WeilRep):
         """
         return self.__winv
 
+    def _pos_def_gram_matrix(self):
+        S = self.gram_matrix()
+        return S
+
+
+
+class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
+
+    def __getattr__(self, x):
+        return getattr(self.weilrep(), x)
+
+    def borcherds_lift(self, max_prec = None, _flag = False):
+        d = self.denominator()
+        umf = UnitaryModularForms(self.weilrep())
+        K = umf.field()
+        if d > 1:
+            h, k = (d * self).borcherds_lift(max_prec = max_prec, _flag = True)
+            k = ZZ(k)
+            try:
+                u = h.trailing_monomial()
+            except AttributeError:
+                u = h.valuation()
+            if (K.discriminant() == -3 and (k / d) % 6 == 0) or (K.discriminant() == -4 and (k / d) % 4 == 2):
+                h /= K.gens()[0]
+            h = _root(h, d, k, umf)
+            return UnitaryModularForm(self.complex_gram_matrix(), h, k / d)
+        #CM values of e4 / eta**8 and e6 / eta**12
+        d = K.discriminant()
+        if d == -3:
+            isqrt3, = K.gens()
+            cm_val = (0, 24 * isqrt3)
+        elif d == -4:
+            cm_val = (12, 0)
+        else:
+            return NotImplemented
+        F = super().borcherds_lift()
+        k = F.weight()
+        scale = F.scale()
+        try:
+            Fdict = F.true_coefficients()
+            hol = True
+        except AttributeError:
+            Fdict = F.fourier_expansion().coefficients()
+            hol = False
+        prec0 = 2 * F.precision()
+        prec = 6 * prec0 - k
+        if max_prec:
+            prec = min(prec, max_prec)
+        rx, x = LaurentPolynomialRing(K, 'x').objgen()
+        rt, t = PowerSeriesRing(rx, 't').objgen()
+        r = umf._taylor_exp_ring_extended()
+        e4 = eisenstein_series_qexp(4, prec0, normalization = 'constant')
+        e6 = eisenstein_series_qexp(6, prec0, normalization = 'constant')
+        w1 = II(1)
+        v = vector([0, 0])
+        E4 = OrthogonalModularForm(4, w1, e4(t * ~x) * e4(t * x), 1, v)
+        E6 = OrthogonalModularForm(6, w1, e6(t * ~x) * e6(t * x), 1, v)
+        z = r.gens()
+        rank = len(z)
+        e = r(0).add_bigoh(prec)
+        w = self.weilrep()
+        zeta = w._w()
+        zeta_conj = zeta.conjugate()
+        rho = -zeta_conj
+        eta3 = sum( (2 * n + 1) * (-1) ** n * t ** (ZZ(n * (n + 1) / 2)) for n in range(isqrt(2 * prec0) + 2)).add_bigoh(prec0)
+        L = [[i] for i in range(prec)]
+        j = 1
+        while j < rank:
+            j += 1
+            L = [x + [i] for x in L for i in range(prec) if sum(x) + i < prec]
+        pb = {}
+        if not hol:
+            r1 = PowerSeriesRing(K, r.gens())
+            exp_z = [y.exp() for b in r1.gens() for y in [b, rho * b]]
+        for i, y in enumerate(L):
+            g = rt(0)
+            if hol:
+                for a, c in Fdict.items():
+                    g += c * prod((a[2*i] + rho * a[2*i+1])**y[i - 1] for i in range(1, len(a) // 2)) * x**(scale * a[1]) * t**ZZ(scale * a[0])
+            else:
+                for m, c in Fdict.items():
+                    a, b = m.exponents()[0]
+                    if a + b < prec0:
+                        rc = c.parent()
+                        rc, p = PolynomialRing(K, rc.gens()).objgens()
+                        c = rc.fraction_field()(c)
+                        for i, u in enumerate(y):
+                            for j in range(u):
+                                c = p[2*i] * c.derivative(p[2*i]) + rho * p[2*i+1] * c.derivative(p[2*i + 1])
+                        j = 5
+                        exp_z = [y.exp(j) for b in r1.gens() for y in [b, rho * b]]
+                        c_n = c.numerator()
+                        c_ns = c_n.subs({a:exp_z[i] for i, a in enumerate(c_n.parent().gens())})
+                        c_d = c.denominator()
+                        c_ds = c_d.subs({a:exp_z[i] for i, a in enumerate(c_d.parent().gens())})
+                        while not(c_ds):
+                            j += 5
+                            exp_z = [y.exp(j) for b in r1.gens() for y in [b, rho * b]]
+                            c_ns = c_n.subs({a:exp_z[i] for i, a in enumerate(c_n.parent().gens())})
+                            c_ds = c_d.subs({a:exp_z[i] for i, a in enumerate(c_d.parent().gens())})
+                            if j > 1000:
+                                raise RuntimeError #??
+                        try:
+                            u = c_ds.trailing_monomial()
+                            c_ns /= u
+                            c_ds /= u
+                            c = c_ns.constant_coefficient() / c_ds.constant_coefficient()
+                        except AttributeError:
+                            u = c_ds.valuation()
+                            c = c_ns[u] / c_ds[u]
+                        g += c * (x **(scale * (a - b))) * (t ** (scale * (a + b)))
+            pb[tuple(y)] = OrthogonalModularForm(k + sum(y), w1, g.add_bigoh(floor(F.precision())) / prod(factorial(a) for a in y), scale, v)
+        if d == -3:
+            eta = sum( (-1)**n * ( t ** (ZZ(n * (3 * n + 1) / 2)) - t ** (ZZ((n+1) * (3*n+2) / 2)) ) for n in range(isqrt(2 * prec0 / 3) + 1)).add_bigoh(prec0)
+            eta_p = (eta3 * eta) ** 2
+            eta_p = OrthogonalModularForm(4, w1, t**2 * eta_p((t * ~x)**3) * eta_p((t * x)**3), 3, v)
+            delta = t * eta3 ** 8
+            k0 = 4
+        elif d == -4:
+            eta6 = eta3 ** 2
+            eta_p = OrthogonalModularForm(3, w1, t**2 * eta6((t * ~x)**4) * eta6((t * x)**4), 4, v)
+            delta = t * eta6 ** 4
+            k0 = 3
+        else:
+            eta_p = eta3 ** 4
+            k0 = 6
+            delta = t * eta_p * eta_p
+            eta_p = OrthogonalModularForm(6, w1, t**2 * eta_p((t * ~x)**2) * eta_p((t * x)**2), 2, v)
+        E4_powers, E6_powers, Eta_powers = [1], [1], [1]
+        e43 = e4 ** 3
+        Delta = OrthogonalModularForm(12, w1, delta(t * x) * e43(t * ~x) - delta(t * ~x) * e43(t * x), 1, v)
+        prec1 = floor(k + prec)
+        for j in range(prec1 // min(k0, 4) + 1):
+            if j * k0 <= prec1:
+                Eta_powers.append(eta_p * Eta_powers[-1])
+            if j * 4 <= prec1:
+                E4_powers.append(E4 * E4_powers[-1])
+            if j * 6 <= prec1:
+                E6_powers.append(E6 * E6_powers[-1])
+        Z = defaultdict(list)
+        I = defaultdict(list)
+        for i1, x1 in enumerate(Eta_powers):
+            for i2, x2 in enumerate(E4_powers):
+                i_sum_0 = k0 * i1 + 4 * i2
+                if i_sum_0 < k + prec:
+                    x1x2 = x1 * x2
+                    for i3, x3 in enumerate(E6_powers):
+                        i_sum = i_sum_0 + 6 * i3
+                        if i_sum < k + prec:
+                            f = x1x2 * x3
+                            Z[i_sum].append(f)
+                            I[i_sum].append((i1, i2, i3, 0))
+                            if i_sum + 12 < k + prec:
+                                Z[i_sum + 12].append(f * Delta)
+                                I[i_sum + 12].append((i1, i2, i3, 1))
+        h = r(0)
+        e4, e6, eta_p, delta = umf._e4(), umf._e6(), umf._eta_p(), umf._delta()
+        for x in L:
+            g = pb[tuple(x)]
+            x_monomial = prod(z[i]**a for i, a in enumerate(x))
+            g_k = g.weight()
+            X = relations([g] + Z[g_k]).basis()
+            if len(X) == 1:
+                v = X[0]
+                s = sum(v[i + 1] * eta_p**a * (cm_val[0] * e4)**b * (cm_val[1] * e6)**c * (e4**3 - cm_val[0]**3 * delta)**d for i, (a,b,c,d) in enumerate(I[g_k]))
+                h += s * x_monomial
+            else:
+                h += O(x_monomial)
+                if _flag:
+                    return h, F.weight()
+                return UnitaryModularForm(self.complex_gram_matrix(), h, F.weight(), umf = umf)
+        h = h.add_bigoh(prec)
+        if _flag:
+            return h, F.weight()
+        return UnitaryModularForm(self.complex_gram_matrix(), h, F.weight(), umf = umf)
+
+
+    def theta_lift(self):
+        cusp_form = self.is_cusp_form()
+        rank = self.complex_gram_matrix().nrows()
+        umf = UnitaryModularForms(self.weilrep())
+        k = self.weight() + rank
+        prec = max(self.precision(), 2)
+        K = umf.field()
+        d = K.discriminant()
+        ## values of E4(\tau) / \eta(\tau)**8 and E6(\tau) / \eta(\tau)**12 at a CM point \tau of discriminant 'd'
+        if d == -3:
+            isqrt3, = K.gens()
+            cm_val = [0, 24*isqrt3]
+        elif d == -4:
+            cm_val = [12, 0]
+        elif d == -7:
+            isqrt7, = K.gens()
+            x = PolynomialRing(K, 'x').gen()
+            L, isqrt3 = K.extension(x * x + 3, 'isqrt3').objgen()
+            cm_val = [ZZ(15)/2 * (1 - isqrt3), -27 * isqrt7]
+        elif d == -8:
+            isqrt2, = K.gens()
+            x = PolynomialRing(K, 'x').gen()
+            L, sqrt2 = K.extension(x * x - 2, 'sqrt2').objgen()
+            cm_val = [20, 56 * sqrt2]
+        elif d == -11:
+            isqrt11, = K.gens()
+            x = PolynomialRing(K, 'x').gen()
+            L, isqrt3 = K.extension(x * x + 3, 'isqrt3').objgen()
+            cm_val = [16 * (1 + isqrt3), 56 * isqrt11]
+        else:
+            raise NotImplementedError('This is only supported for lattices over Q(sqrt(-d)), d=1,2,3,7,11.') from None
+        rx, x = LaurentPolynomialRing(QQ, 'x').objgen()
+        rt, t = PowerSeriesRing(rx, 't').objgen()
+        r = umf._taylor_exp_ring()
+        E4 = eisenstein_series_qexp(4, prec, normalization = 'constant')
+        E6 = eisenstein_series_qexp(6, prec, normalization = 'constant')
+        Delta = delta_qexp(prec)
+        w1 = II(1)
+        v = vector([0, 0])
+        E4 = OrthogonalModularForm(4, w1, E4(t * ~x) * E4(t * x), 1, v)
+        E6 = OrthogonalModularForm(6, w1, E6(t * ~x) * E6(t * x), 1, v)
+        Delta = OrthogonalModularForm(12, w1, Delta(t * ~x) * Delta(t * x), 1, v)
+        w = self.weilrep()
+        z = r.gens()
+        zeta = w._w()
+        zeta_conj = zeta.conjugate()
+        rho = -zeta_conj
+        r0 = PolynomialRing(r, ['x%s'%i for i in range(2 * rank)])
+        prec1 = 6 * isqrt(prec)
+        def a(u):
+            S = w.gram_matrix()
+            v = S * vector(u)
+            y = [v[i+i+1] + rho * v[i+i] for i in range(len(v) // 2)]
+            return prod(z[i]*y for i, y in enumerate(y)).exp(prec = prec1)
+        theta = w.dual().theta_series(prec, P = r0(1), funct = a, symm = False)
+        f = self & theta
+        # reorganize f...
+        rq1, q = PowerSeriesRing(K, 'q').objgen()
+        rz1 = PowerSeriesRing(rq1, r.gens())
+        f = sum(q**b * rz1(h) for b, h in f.dict().items())
+        def b(h, wt):
+            cf = cusp_form or (wt > k)
+            if cf:
+                X = w1.cusp_forms_basis(wt, prec)
+            else:
+                X = w1.modular_forms_basis(wt, prec)
+            if X:
+                return (X * [K(x) for x in h.padded_list()[cf : len(X)+cf]]).theta_lift()
+            else:
+                return 0
+        if len(z) > 1:
+            df = {a: b(h, sum(a) + k) for a, h in f.dict().items()}
+        else:
+            df = {tuple([a]): b(h, a + k) for a, h in f.dict().items()}
+        k_max = k + prec1
+        Z = defaultdict(list)
+        I = defaultdict(list)
+        e4_powers, e6_powers, d_powers = [1], [1], [1]
+        k12 = ZZ(k_max - 12) // 12 + 3 - cusp_form
+        if d == -3:
+            ## Eisenstein lattice
+            e6, eta8 = r.base_ring().gens()
+            delta = eta8 ** 3
+            E4_cubed = E4 ** 3
+            k6 = ZZ(k_max - 12) // 6 + 3 - cusp_form
+            e4_powers, e6_powers, d_powers = [1], [1], [1]
+            for j in range(1, k6 + 1):
+                e6_powers.append(e6_powers[-1] * E6)
+                if j <= k12:
+                    e4_powers.append(e4_powers[-1] * E4_cubed)
+                    d_powers.append(d_powers[-1] * Delta)
+            L = []
+            mult = []
+            exponents = []
+            for i_1 in range(k12):
+                for i_2 in range(k6):
+                    for i_3 in range(k12):
+                        i_sum = 6 * i_2 + 12 * (i_1 + i_3)
+                        if k <= i_sum < k_max:
+                            Z[i_sum].append(e4_powers[i_1] * e6_powers[i_2] * d_powers[i_3])
+                            I[i_sum].append((i_1, i_2, i_3))
+            h = r(0)
+            maxprec = Infinity
+            for a, g in df.items():
+                if g:
+                    k1 = k + sum(a)
+                    if k1 < maxprec:
+                        X = relations([g] + Z[k1]).basis()
+                        if len(X) > 1:
+                            h = h.add_bigoh(k1 - k)
+                            maxprec = k1
+                        v = X[0]
+                        p = sum(v[i+1] * (24*isqrt3 * e6)**i2 * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]) if i1 == 0)
+                        h += p * prod(z[i]** a for i, a in enumerate(a))
+            h = h.add_bigoh(prec1)
+            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf = umf)
+        elif d == -4:
+            ## Gaussian lattice
+            e4, eta6 = r.base_ring().gens()
+            delta = eta6 ** 4
+            E6_squared = E6 * E6
+            k4 = ZZ(k_max - 12) // 4 + 2 - cusp_form
+            for j in range(1, k4 + 1):
+                e4_powers.append(e4_powers[-1] * E4)
+                if j <= k12:
+                    e6_powers.append(e6_powers[-1] * E6_squared)
+                    d_powers.append(d_powers[-1] * Delta)
+            L = []
+            mult = []
+            exponents = []
+            for i_1 in range(k4):
+                for i_2 in range(k12):
+                    for i_3 in range(k12):
+                        i_sum = 4 * i_1 + 12 * (i_2 + i_3)
+                        if k <= i_sum < k_max:
+                            Z[i_sum].append(e4_powers[i_1] * e6_powers[i_2] * d_powers[i_3])
+                            I[i_sum].append((i_1, i_2, i_3))
+            h = r(0)
+            maxprec = Infinity
+            for a, g in df.items():
+                k1 = k + sum(a)
+                if k1 < maxprec:
+                    X = relations([g] + Z[k1]).basis()
+                    if len(X) > 1:
+                        h = h.add_bigoh(k1)
+                        maxprec = k1
+                    v = X[0]
+                    p = sum(v[i+1] * (12 * e4)**i1 * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]) if i2 == 0)
+                    h += p * prod(z[i]** a for i, a in enumerate(a))
+            h = h.add_bigoh(prec1)
+            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf = umf)
+        else:
+            e4, e6 = r.base_ring().gens()
+            delta = (e4 ** 3 - e6 ** 2) / 1728
+            k4 = ZZ(k_max - 12) // 4 + 3 - cusp_form
+            k6 = ZZ(k_max - 12) // 6 + 3 - cusp_form
+            k12 = ZZ(k_max - 12) // 6 + 3 - cusp_form
+            for j in range(1, k4 + 1):
+                e4_powers.append(e4_powers[-1] * E4)
+                if j <= k6:
+                    e6_powers.append(e6_powers[-1] * E6)
+                    if j <= k12:
+                        d_powers.append(d_powers[-1] * Delta)
+            L = []
+            mult = []
+            exponents = []
+            for i_1 in range(k4):
+                for i_2 in range(k6):
+                    for i_3 in range(k12):
+                        i_sum = 4 * i_1 + 6 * i_2 + 12 * i_3
+                        if k <= i_sum < k_max:
+                            Z[i_sum].append(e4_powers[i_1] * e6_powers[i_2] * d_powers[i_3])
+                            I[i_sum].append((i_1, i_2, i_3))
+            h = r(0)
+            maxprec = Infinity
+            for a, g in df.items():
+                k1 = k + sum(a)
+                if k1 < maxprec:
+                    try:
+                        X = relations([g] + Z[k1]).basis()
+                        if len(X) > 1:
+                            h = h.add_bigoh(k1)
+                            maxprec = k1
+                        v = X[0]
+                        p = sum(v[i+1] * (cm_val[0] * e4)**i1 * (cm_val[1] * e6)**i2  * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]))
+                        h += p * prod(z[i]** a for i, a in enumerate(a))
+                    except AttributeError: #g=0
+                        pass
+            h = h.add_bigoh(prec1)
+            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf = umf)
+
 class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
     r"""
     This class represents modular forms for the unitary group U(n, 1) associated to our lattice.
@@ -397,6 +777,17 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
             s = ' + H'
         return 'Unitary modular forms associated to the gram matrix\n%s%s\nwith coefficients in %s'%(S, s, S.base_ring())
 
+    def _discriminant(self):
+        try:
+            return self.__discriminant
+        except AttributeError:
+            d = self.field().discriminant()
+            self.__discriminant = d
+            return d
+
+    def field(self):
+        return self.complex_gram_matrix().base_ring()
+
     def nvars(self):
         n = self.complex_gram_matrix().nrows()
         s = self._plusH
@@ -404,6 +795,137 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
 
     def complex_gram_matrix(self):
         return self.weilrep().complex_gram_matrix()
+
+    def _taylor_exp_coeff_ring(self):
+        try:
+            return self.__taylor_exp_coeff_ring
+        except AttributeError:
+            K = self.field()
+            dK = K.discriminant()
+            if dK == -7 or dK == -11:
+                x = PolynomialRing(K, 'x').gen()
+                K = K.extension(x * x + 3, 'isqrt3')
+            elif dK == -8:
+                x = PolynomialRing(K, 'x').gen()
+                K = K.extension(x * x - 2, 'sqrt2')
+            if dK == -3:
+                R = PolynomialRing(K, ['e6', 'eta8'])
+            elif dK == -4:
+                R = PolynomialRing(K, ['e4', 'eta6'])
+            else:
+                R = PolynomialRing(K, ['e4', 'e6'])
+            self.__taylor_exp_coeff_ring = R
+            return R
+
+    def _taylor_exp_ring(self):
+        try:
+            return self.__taylor_exp_ring
+        except AttributeError:
+            rank = self.complex_gram_matrix().nrows()
+            r = self._taylor_exp_coeff_ring()
+            if rank == 1:
+                rz = PowerSeriesRing(r, 'z')
+            else:
+                rz = PowerSeriesRing(r, ['z%s'%(n + 1) for n in range(rank)])
+            self.__taylor_exp_ring = rz
+            return rz
+
+    def _taylor_exp_ring_extended(self):
+        try:
+            return self.__taylor_exp_ring_extended
+        except AttributeError:
+            r = self._taylor_exp_coeff_ring()
+            dK = self._discriminant()
+            if dK == -3:
+                e6, eta8 = r.gens()
+                r1, e4 = PolynomialRing(r, 'e4').objgen()
+                I = r1.ideal(e4**3 - e6**2 - (12 * eta8) ** 3)
+                r1 = r1.quotient_ring(I, names = 'e4')
+                self._extra_var = r1(e4)
+            elif dK == -4:
+                e4, eta6 = r.gens()
+                r1, e6 = PolynomialRing(r, 'e6').objgen()
+                I = r1.ideal(e6**2 - e4**3 - 1728 * (eta6 ** 4))
+                r1 = r1.quotient_ring(I, names = 'e6')
+                self._extra_var = r1(e6)
+            else:
+                e4, e6 = r.gens()
+                r1, eta12 = PolynomialRing(r, 'eta12').objgen()
+                I = r1.ideal(eta12**2 - (e4**3 - e6**2) / 1728)
+                r1 = r1.quotient_ring(I, names='eta12')
+                self._extra_var = r1(eta12)
+            rank = self.complex_gram_matrix().nrows()
+            if rank == 1:
+                rz = PowerSeriesRing(r1, 'z')
+            else:
+                rz = PowerSeriesRing(r1, ['z%s'%(n + 1) for n in range(rank)])
+            self.__taylor_exp_ring_extended = rz
+            return rz
+
+    #### e4, e6
+
+    def _e4(self):
+        d = self._discriminant()
+        r = self._taylor_exp_ring_extended()
+        if d == -3:
+            return r.base_ring().gens()[0]
+        else:
+            return r.base_ring().base_ring().gens()[0]
+
+    def _e6(self):
+        d = self._discriminant()
+        r = self._taylor_exp_ring_extended()
+        if d == -4:
+            return r.base_ring().gens()[0]
+        else:
+            return r.base_ring().base_ring().gens()[bool(d + 3)]
+
+    def _eta_p(self):
+        d = self._discriminant()
+        r = self._taylor_exp_ring_extended()
+        if d < -4:
+            return r.base_ring().gens()[0]
+        else:
+            return r.base_ring().base_ring().gens()[1]
+
+    def _delta(self):
+        d = self._discriminant()
+        eta_p = self._eta_p()
+        if d == -3:
+            return eta_p ** 3
+        elif d == -4:
+            return eta_p ** 4
+        return eta_p ** 2
+
+    #### Eisenstein series
+
+    def eisenstein_series(self, k, prec):
+        w = self.weilrep()
+        d = self._discriminant()
+        if k == 2 or k % 2 or (d == -3 and k % 6) or (d == -4 and k % 4):
+            raise ValueError('Invalid weight %s in Eisenstein series for U(n, 1)'%k)
+        prec0 = ceil(prec / 6) ** 2
+        rank = self.complex_gram_matrix().nrows()
+        f = w.eisenstein_series(k - rank, prec0)
+        c = eisenstein_series_qexp(k, 1)[0]
+        return f.theta_lift().reduce_precision(prec) / c
+
+    #### theta lifts
+
+    def lifts_basis(self, k, prec, cusp_forms = True):
+        w = self.weilrep()
+        d = self._discriminant()
+        if (d == -3 and k % 3) or (d == -4 and k % 2):
+            raise ValueError('Invalid weight %s in theta lift to U(n, 1)'%k)
+        prec0 = ceil(prec / 6) ** 2
+        rank = self.complex_gram_matrix().nrows()
+        if cusp_forms:
+            X = w.cusp_forms_basis(k - rank, prec0)
+        else:
+            X = w.modular_forms_basis(k - rank, prec0)
+        return [x.theta_lift().reduce_precision(prec) for x in X]
+
+    #### products
 
     def _borcherds_product_polyhedron(self, pole_order, prec, verbose = False):
         r"""
@@ -655,84 +1177,394 @@ class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
         return w
     __radd__ = __add__
 
-class UnitaryModularForm(OrthogonalModularFormPositiveDefinite):
+
+
+
+
+class UnitaryModularForm:
     r"""
-    WARNING: this is unfinished! Use at your own risk.
-
-    Modular forms on unitary groups U(n, 1).
-
-    We try to represent modular forms which are obtained from the orthogonal group O(2n, 2) by restriction as a Fourier series:
-
-    F(\tau, z_1,..., z_{n - 1}) = \sum c(m_0, ..., m_{n-1}, m_n) q^(m_0) \zeta_1^(m_1) ... \zeta_{n-1}^(m_{n-1}) s^(m_n)
-    The variable 's' should actually be set to a CM point on the upper half-plane.
-
-    See Theorem 8.1 of [Hofmann] for Fourier expansions of this kind that represent Borcherds products.
-
-    General modular forms on U(n, 1) do not seem to have an expansion of this type in a meaningful sense.
+    This class represents modular forms on U(n, 1).
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__class__ = UnitaryModularForm
-        self.__base_ring = self.weilrep().complex_gram_matrix().base_ring()
-        self.__omega = self.weilrep()._w()
+    def __init__(self, complex_gram_matrix, taylor_series, weight, umf = None):
+        self.__taylor = taylor_series
+        self.__complex_gram_matrix = complex_gram_matrix
+        self.__rank = complex_gram_matrix.rank()
+        self.__weight = weight
+        if umf is None:
+            self.__umf = UnitaryModularForms(complex_gram_matrix)
+        else:
+            self.__umf = umf
 
     def __repr__(self):
-        try:
-            return self.__string
-        except AttributeError:
-            def a(v, x):
-                if x:
-                    if x != 1:
-                        if x in ZZ:
-                            return v + '^%s'%x
-                        return v + '^(%s)'%x
-                    return v
-                return ''
-            def f(x):
-                x, y = x
-                b = ''
-                if y:
-                    if y != 1:
-                        b = str(y) + '*'
-                    qp, sp, rp = x[0], x[-1], x[1:-1]
-                    if len(rp) > 1:
-                        u = '*'.join(filter(bool, [a('q', qp), '*'.join([a('r_%d'%i, z) for i, z in enumerate(rp)]), a('s', sp)]))
-                    elif rp:
-                        u = '*'.join(filter(bool, [a('q', qp), a('r', rp[0]), a('s', sp)]))
-                    else:
-                        u = '*'.join(filter(bool, [a('q', qp), a('s', sp)]))
-                    if u:
-                        return b + u
-                    return str(y)
-                return ''
-            d = self.coefficients()
-            s = ' + '.join(filter(bool, map(f, d.items())))
-            t = a('O(q, s)', self.precision())
-            if s:
-                t = s + ' + ' + t
-            t = t.replace('+ -', '- ')
-            self.__string = t
-            return t
+        return str(self.taylor_series())
 
-    def coefficients(self):
-        def f():
-            return 0
-        d = defaultdict(f, {})
-        scale = self.scale()
-        f = self.fourier_expansion()
-        omega = self.weilrep()._w()
-        a, b = 2, omega + omega
-        N = (self.nvars() - 2) // 2
-        S_inv = self.weilrep().gram_matrix().inverse()
-        for (qp, sp), p in f.dict().items():
-            qp, sp = Integer(qp), Integer(sp)
-            for v, x in p.dict().items():
-                v = vector(v) * S_inv
-                v = vector([a*v[i + i] + b*v[i + i + 1] for i in range(N)])
-                w = tuple([qp / scale] + list(v / scale) + [sp / scale])
-                d[w] += x
-        return d
+    def taylor_series(self):
+        return self.__taylor
+    power_series = taylor_series
 
     def complex_gram_matrix(self):
-        return self.weilrep().complex_gram_matrix()
+        return self.__complex_gram_matrix
+
+    def umf(self):
+        return self.__umf
+
+    def precision(self):
+        try:
+            return self.__precision
+        except AttributeError:
+            prec = self.__taylor.prec()
+            self.__precision = prec
+            return prec
+    prec = precision
+
+    def weight(self):
+        return self.__weight
+
+    def _character(self):
+        try:
+            return self.__character
+        except AttributeError:
+            f = self.taylor_series()
+            try:
+                p = f.dict()[f.trailing_monomial().exponents()[0]]
+            except AttributeError:
+                p = f[f.valuation()]
+            j = 0
+            r = p.base_ring()
+            if isinstance(r, Field):
+                self.__character = 0
+                self._mod_taylor = f
+                return self.__character
+            j = 0
+            found_char = False
+            umf = self.umf()
+            _ = umf._taylor_exp_ring_extended()
+            x = umf._extra_var
+            while p not in r:
+                p = p * x
+                j += 1
+                if j > 3:
+                    raise RuntimeError
+            self.__character = j
+            self._mod_taylor = f.map_coefficients(lambda y: r(y * (x**j)))
+            return self.__character
+
+    ## coefficients
+
+    def __getitem__(self, n):
+        return self.taylor_series().__getitem__(n)
+
+    def coefficient_vector(self):
+        pass
+
+    ## modify
+
+    def reduce_precision(self, new_prec):
+        r"""
+        Reduce the precision of self's Taylor expansion.
+        """
+        f = self.taylor_series()
+        f = f.add_bigoh(min(f.prec(), new_prec))
+        return UnitaryModularForm(self.complex_gram_matrix(), f, self.weight(), umf = self.umf())
+
+    ## arithmetic
+
+    def __add__(self, other):
+        if not other:
+            return self
+        if self.weight() != other.weight():
+            raise ValueError('Incompatible weights')
+        elif self.complex_gram_matrix() != other.complex_gram_matrix():
+            raise ValueError('Incompatible Gram matrices')
+        return UnitaryModularForm(self.complex_gram_matrix(), self.taylor_series() + other.taylor_series(), self.weight())
+    __radd__ = __add__
+
+    def __div__(self, other):
+        f = self.taylor_series()
+        S = self.complex_gram_matrix()
+        if isinstance(other, UnitaryModularForm):
+            if S != other.complex_gram_matrix():
+                raise ValueError('Incompatible modular forms')
+            n = S.nrows()
+            g = other.taylor_series()
+            if n > 1:
+                u = g.trailing_monomial()
+                p = g.coefficients()[u]
+                return UnitaryModularForm(S, (f / (p*u)) / (g / (p*u)), self.weight() - other.weight())
+            u = g.valuation()
+            try:
+                p = g[u]
+            except IndexError:
+                raise ValueError('Insufficient precision') from None
+            return UnitaryModularForm(S, (f/p) / (g/p), self.weight() - other.weight())
+        return UnitaryModularForm(S, f / other, self.weight())
+    __truediv__ = __div__
+
+    def __mul__(self, other):
+        try:
+            if self.complex_gram_matrix() != other.complex_gram_matrix():
+                raise ValueError('Incompatible Gram matrices')
+            return UnitaryModularForm(self.complex_gram_matrix(), self.taylor_series() * other.taylor_series(), self.weight() + other.weight())
+        except AttributeError:
+            return UnitaryModularForm(self.complex_gram_matrix(), self.taylor_series() * other, self.weight())
+    __rmul__ = __mul__
+
+    def __neg__(self):
+        return UnitaryModularForm(self.complex_gram_matrix(), -self.taylor_series(), self.weight())
+
+    def __pow__(self, n):
+        if n in ZZ:
+            f = self.taylor_series()
+            if n == 0:
+                r = f.parent()
+                return UnitaryModularForm(self.complex_gram_matrix(), r(1).add_bigoh(f.prec()), 0, umf = self.umf())
+            elif n == 1:
+                return self
+            elif n > 1:
+                n_half = ZZ(n) // 2
+                return self.__pow__(n_half) * self.__pow__(n - n_half)
+        elif n in QQ:
+            a, b = n.as_integer_ratio()
+            f = self.taylor_series()
+            h = _root(f, b, self.weight(), self.umf())
+            return UnitaryModularForm(self.complex_gram_matrix(), h, self.weight() / ZZ(b), umf = self.umf()) ** a
+        return NotImplemented
+
+    def __sub__(self, other):
+        if self.weight() != other.weight():
+            raise ValueError('Incompatible weights')
+        elif self.complex_gram_matrix() != other.complex_gram_matrix():
+            raise ValueError('Incompatible Gram matrices')
+        return UnitaryModularForm(self.complex_gram_matrix(), self.taylor_series() - other.taylor_series(), self.weight())
+
+    ## other
+
+    def hessian(self):
+        r"""
+        Compute the modular Hessian determinant of this modular form.
+
+        Given a modular form "f" of weight k for a subgroup of U(n, 1), its modular Hessian Hf is a modular form
+        for the same group (with a character) of weight (n+1)*(k+2).
+        """
+        umf = self.umf()
+        k = self.weight()
+        e4, e6, eta_p = umf._e4(), umf._e6(), umf._eta_p()
+        r0 = e4.parent()
+        d = umf._discriminant()
+        if d == -3:
+            e4 = e4.lift()
+            r = e4.parent()
+        elif d == -4:
+            e6 = e6.lift()
+            r = e6.parent()
+        else:
+            eta_p = eta_p.lift()
+            r = eta_p.parent()
+        rz = umf._taylor_exp_ring_extended()
+        z = rz.gens()
+        r1, z = PowerSeriesRing(r, z).objgen()
+        serre_deriv = -ZZ(1)/3 * r(e6) * r.derivation(e4) - ZZ(1)/2 * r(e4) * r(e4) * r.derivation(e6)
+        h = r1(self.taylor_series())
+        try:
+            h = h.map_coefficients(lambda x: x.lift())
+        except (AttributeError, TypeError):
+            pass
+        h_tau = h.map_coefficients(serre_deriv)
+        N = self.complex_gram_matrix().rank() + 1
+        if N > 2:
+            h_grad = [h.derivative(a) for a in z]
+            h_double_tau = h_tau.map_coefficients(serre_deriv) - (ZZ(1)/144) * r(e4) * (k * h  + sum(a * h_grad[a] for a in z))
+        else:
+            h_grad = [h.derivative()]
+            h_double_tau = h_tau.map_coefficients(serre_deriv) - (ZZ(1)/144) * r(e4) * (k * h + z * h_grad[0])
+        h_grad_tau = [f.map_coefficients(serre_deriv) for f in h_grad]
+        if N > 2:
+            h_hess = [[f.derivative(a) for a in z[i:]] for i, f in enumerate(h_grad)]
+        else:
+            h_hess = [[h_grad[0].derivative()]]
+        M = Matrix(rz, N + 1)
+        M[0, 0] = k * (k+1) * rz(h)
+        M[0, 1] = (k+1) * rz(h_tau)
+        M[1, 0] = M[0, 1]
+        M[1, 1] = rz(h_double_tau)
+        for i in range(2, N+1):
+            M[0, i] = (k+1) * rz(h_grad[i - 2])
+            M[i, 0] = M[0, i]
+            M[1, i] = rz(h_grad_tau[i - 2])
+            M[i, 1] = M[1, i]
+            for j in range(i, N+1):
+                M[i, j] = rz(h_hess[i-2][j-i])
+                M[j, i] = M[i, j]
+        d = M.determinant()
+        return UnitaryModularForm(self.complex_gram_matrix(), d, (k+2)*(N+1), umf=umf)
+
+def _root(h, n, k, umf):
+    r = h.parent()
+    r1 = r.base_ring()
+    z = r.gens()
+    d = h.dict()
+    if r.ngens() == 1:
+        d = {tuple([a]):b for a, b in d.items()}
+    L = sorted(d.keys(), key = sum)
+    a = L[0]
+    try:
+        b_pow = d[a].lift()
+    except (AttributeError, TypeError):
+        b_pow = d[a]
+    a = vector(a)
+    if len(L) > 1 and sum(L[1]) == sum(a):
+        raise RuntimeError
+    prefactor = prod(z[i]**ZZ(y / n) for i, y in enumerate(a))
+    try:
+        b = b_pow.nth_root(ZZ(n))
+    except ValueError:
+        discr = umf._discriminant()
+        b = _hard_root(b_pow, discr, n, k + h.valuation())
+    try:
+        h1 = sum( r1(x.lift() / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for (c, x) in d.items() ).add_bigoh(h.prec() - sum(a))
+    except (AttributeError, TypeError):
+        try:
+            h1 = sum( r1(x / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for (c, x) in d.items() ).add_bigoh(h.prec() - sum(a))
+        except TypeError:
+            raise ValueError('Not an nth power') from None
+    return prefactor * r1(b) * h1**(1/n)
+
+def _hard_root(p, discr, n, k):
+    r"""
+    Compute the nth root more carefully.
+    """
+    prec = ZZ(k) // 12 + 1
+    E4 = smf_eisenstein_series(4, prec)
+    E6 = smf_eisenstein_series(6, prec)
+    Eta = smf_eta(prec)
+    r = p.parent()
+    phi = FlatteningMorphism(r)
+    p = phi(p)
+    r1 = p.parent()
+    if discr == -3:
+        Eta8 = Eta ** 8
+        try:
+            f = p(E6, Eta8, E4)
+            e6, eta_N, e4 = r1.gens()
+        except TypeError:
+            f = p(E6, Eta8)
+            e6, eta_N = r1.gens()
+        N = 8
+    elif discr == -4:
+        Eta6 = Eta**6
+        try:
+            f = p(E4, Eta6, E6)
+            e4, eta_N, e6 = r1.gens()
+        except TypeError:
+            f = p(E4, Eta6)
+            e4, eta_N = r1.gens()
+        N = 6
+    else:
+        try:
+            f = p(E4, E6, Eta**12)
+            e4, e6, eta_N = r1.gens()
+        except TypeError:
+            f = p(E4, E6)
+            e4, e6 = r1.gens()
+        N = 12
+    assert f.weight() == k
+    val = f.valuation(exact = True)
+    h = f / Eta**ZZ(24 * val)
+    k1 = ZZ(h.weight())
+    k1n = ZZ(k1 / n)
+    h_root = smf(k1n, h.qexp()**(ZZ(1)/n))
+    X = []
+    Y = []
+    for a in range(k1n // 6 + 1):
+        b = (k1n - 6 * a)
+        if b % 4 == 0:
+            X.append(E4**ZZ(b / 4) * E6**a)
+            Y.append(e4**ZZ(b/4) * e6**a)
+    V = relations([h_root] + X).basis()
+    if len(V) > 1:
+        raise RuntimeError
+    elif not V:
+        raise ValueError('Not an nth power')
+    v = V[0]
+    return phi.section()(eta_N**ZZ(24 * val / (n*N)) * sum(v[i + 1] * y for i, y in enumerate(Y)))
+
+def unitary_jacobian(X):
+    r"""
+    Compute the Jacobian of unitary modular forms.
+
+    This computes the Jacobian of a family of (n+1) modular forms on U(n,1).
+    If the forms have weights k0, k1, ..., kn then their Jacobian has weight k0+k1+...+kn+(n+1).
+
+    NOTE: should be called using the method "jacobian()" from lifts.py
+    """
+    Xref = X[0]
+    S = Xref.complex_gram_matrix()
+    n = S.nrows()
+    if any(x.complex_gram_matrix() != S for x in X[1:]):
+        raise ValueError('Incompatible modular forms')
+    umf = Xref.umf()
+    e4, e6, eta_p = umf._e4(), umf._e6(), umf._eta_p()
+    r0 = e4.parent()
+    d = umf._discriminant()
+    if d == -3:
+        e4 = e4.lift()
+        r = e4.parent()
+    elif d == -4:
+        e6 = e6.lift()
+        r = e6.parent()
+    else:
+        eta_p = eta_p.lift()
+        r = eta_p.parent()
+    rz = umf._taylor_exp_ring_extended()
+    z = rz.gens()
+    r1, z = PowerSeriesRing(r, z).objgen()
+    serre_deriv = -ZZ(1)/3 * r(e6) * r.derivation(e4) - ZZ(1)/2 * r(e4) * r(e4) * r.derivation(e6)
+    F = [r1(x.taylor_series()) for x in X]
+    K = [x.weight() for x in X]
+    Ftau = [f.map_coefficients(serre_deriv) for f in F]
+    if n > 1:
+        Fz = [[f.derivative(a) for f in F] for a in z]
+    else:
+        Fz = [[f.derivative() for f in F]]
+    M = Matrix([[k*F[i] for i, k in enumerate(K)], Ftau] + Fz)
+    h = M.determinant()
+    return UnitaryModularForm(S, h, sum(K) + n + 2, umf = umf)
+
+def _umf_relations(X):
+    prec = min(x.precision() for x in X)
+    X = [x.reduce_precision(prec) for x in X]
+    characters = [x._character() for x in X]
+    weights = [x.weight() for x in X]
+    if len(set(characters)) != 1:
+        raise ValueError('Incompatible characters')
+    if len(set(weights)) != 1:
+        raise ValueError('Incompatible weights')
+    power_series = [x._mod_taylor for x in X]
+    power_series_dicts = [x.dict() for x in power_series]
+    keys = set().union(*power_series_dicts)
+    key_keys = {}
+    for key in keys:
+        h = []
+        for y in power_series_dicts:
+            try:
+                h.append(y[key].dict())
+            except KeyError:
+                pass
+        key_keys[key] = set().union(*h)
+    M = []
+    for d in power_series_dicts:
+        v = []
+        for key in keys:
+            try:
+                d_key = d[key]
+                for key in key_keys[key]:
+                    try:
+                        v.append(d_key[key])
+                    except KeyError:
+                        v.append(0)
+            except KeyError:
+                for key in key_keys[key]:
+                    v.append(0)
+        M.append(v)
+    return Matrix(M).kernel()

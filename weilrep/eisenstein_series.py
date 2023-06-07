@@ -8,7 +8,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ from sage.functions.other import frac
 from sage.functions.transcendental import zeta
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
-from sage.misc.functional import denominator, isqrt
+from sage.misc.functional import denominator, isqrt, log
 from sage.misc.misc_c import prod
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm, DiagonalQuadraticForm
@@ -1093,6 +1093,19 @@ def L_values(L, c, S, p, k, t = None): #the Euler factors in the Eisenstein seri
             t0, = PolynomialRing(QQ, 't0').gens()
             fv = (one_v - t0*igusa_zetas(Q,L,c,p,t0)) / (1 - t0)
             return vector(f(t) for f in fv)
+
+def L_value_deriv(L, c, S, p, k, t = None):
+    r"""
+    ...
+    """
+    r, y = PolynomialRing(QQ, 't').objgen()
+    x = L_values(L, c, S, p, k, t = y)
+    N = ZZ(S.nrows())
+    x = [-y * x.derivative() for x in x]
+    if t is None:
+        t = p ** (1 + N/2 - k)
+        x = [x(t) for x in x]
+    return x
 
 @cached_function
 def quadratic_L_function__cached(k,D):

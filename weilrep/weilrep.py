@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2022 Brandon Williams
+#       Copyright (C) 2020-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1298,9 +1298,11 @@ class WeilRep(object):
                     else:
                         self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
                 return self.__eisenstein[k][1]
-            elif k <= 1 and not _flag:
+            elif k == 1 and not _flag:
                 f = self.eisenstein_series(1, prec, _flag = 1)
                 return f + self._eisenstein_series_weight_one_constant_term()
+            elif k <= 1/2:
+                return NotImplemented
         elif not k:
             return []
         dets = self.discriminant()
@@ -1400,7 +1402,10 @@ class WeilRep(object):
             else:
                 k_shift = Integer(k - sage_one_half)
                 two_k_shift = k_shift + k_shift
-                front_multiplier = -eps * two_k_shift / bernoulli(two_k_shift)
+                if _flag == 'maass':
+                    front_multiplier = 1
+                else:
+                    front_multiplier = -eps * two_k_shift / bernoulli(two_k_shift)
             for i_g, g in enumerate(ds):
                 norm = norm_list[i_g]
                 if indices[i_g] is None: #have we computed the negative component yet?
@@ -1448,22 +1453,34 @@ class WeilRep(object):
                                 correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
                                 D_list.append(D)
                                 main_term_list.append(correct_L_function * ((4 * n / little_D) ** k_shift) / sqrt_factor)
-                        else:
+                        else:  # Maass Eisenstein series in half-integral weight
                             removable_primes = []
                             main_term_list = [0]
                             D_list = [0]
                             for i_n, n in enumerate(little_n_list):
-                                D = ((-1) ** k_shift) * old_modulus
+                                D = -((-1) ** k_shift) * old_modulus
                                 for p, e in factor(n):
                                     if p==2 or (dets % p == 0):
                                         D *= (p ** e)
                                     else:
                                         D *= (p ** (e % 2))
                                 little_D = abs(fundamental_discriminant(D))
-                                sqrt_factor = sqrt(2 * dets / little_D)
-                                correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
+                                sqrt_factor = sqrt(2**(4 - 2*k) / dets)
+                                correct_L_function = QuadraticLFunction()(2 - k_shift, D)
+                                L_res = QuadraticLFunction().residue(D)
+                                if L_res and k_shift == 1: #Attempt to correct for a removable singularity. This only occurs in weight 1/2.
+                                    j = n_lists[0][0].index(n)
+                                    correct_L_function = L_res * log(2)
+                                    if not Lvalue_list[0][j]:
+                                        Lvalue_list[0][j] = L_value_deriv(L, [gSg + 2*n], S, 2, k)
+                                    else:
+                                        raise ValueError('Not holomorphic')
                                 D_list.append(D)
-                                main_term_list.append(correct_L_function * ((4 / little_D) ** k_shift) / sqrt_factor)
+                                main_term_list.append(correct_L_function * pi * sqrt_factor / zeta(2*k_shift))
+                                if n == 1:
+                                    print('hello!')
+                                    print('main term:', correct_L_function * pi * sqrt_factor / zeta(2*k_shift))
+                                    print('Lvalue:', Lvalue_list[0][n_lists[0][0].index(n)])
                     local_factor_list = [1] * (modified_prec)
                     if k_is_list:
                         local_factor_list = [copy(local_factor_list) for _ in range(len_k)]
@@ -1895,7 +1912,14 @@ class WeilRep(object):
                     gSg = g * Sg
                     f = r(X[i][2].list())
                     f -= f[0]
-                    X[i] = g, 0, f.add_bigoh(prec) + constant_term_factor * prod((1 - p ** (-dk)) / (1 - p ** (-dk - 1)) * L_values(2 * Sg, [gSg], S, p, 2 - k)[0] for p in prime_divisors(2 * d))
+                    try:
+                        N = constant_term_factor * prod((1 - p ** (-dk)) / (1 - p ** (-dk - 1)) * L_values(2 * Sg, [gSg], S, p, 2 - k)[0] for p in prime_divisors(2 * d))
+                    except RuntimeError:
+                        constant_term_factor =  k0 * 2**(k-1) * pi / (sqrt(d) * zeta(dk + 1))
+                        print('const_term:', k0 * 2**(k-1) * pi / (sqrt(d) * zeta(dk + 1)))
+                        N = constant_term_factor * log(2) * QQ((1 - 2 ** (-dk)) / (1 - 2 ** (-dk - 1)) * L_value_deriv(2 * Sg, [gSg], S, 2, 2-k)[0] * prod((1 - p ** (-dk)) / (1 - p ** (-dk - 1)) * L_values(2 * Sg, [gSg], S, p, 2 - k)[0] for p in prime_divisors(2 * d)[1:]))
+                        print('L_val_deriv:', QQ((1 - 2 ** (-dk)) / (1 - 2 ** (-dk - 1)) * L_value_deriv(2 * Sg, [gSg], S, 2, 2-k)[0]))
+                    X[i] = g, 0, f.add_bigoh(prec) + N
         else:
             k = ZZ(k)
             if k % 2:
@@ -1954,7 +1978,7 @@ class WeilRep(object):
                     X[i][2] -= e[cm]
         return WeilRepMockModularForm(k, self.gram_matrix(), X, w.poincare_series(2 - k, b, -m, prec, nterms = nterms) * ((4 * math.pi * abs(m))**(1-k) / math.gamma(1 - k)), weilrep = self)
 
-    def poincare_series(self, k, b, m, prec, nterms = 50, _flag = None, component = None):
+    def poincare_series(self, k, b, m, prec, nterms = 50, _flag = None, component = None, eta_twist = 0):
         r"""
         Compute Poincare series.
 
@@ -1967,15 +1991,17 @@ class WeilRep(object):
         - ``m`` -- the index: a rational number such that q^m e_b is an exponent in self's Fourier expansion
         - ``prec`` -- the precision
         - ``nterms`` -- integer (default 10). We compute the coefficient formula (a series for c=1 to infinity over Bessel functions and Kloosterman sums) for c=1 to nterms.
+        - ``component`` -- (default None). If given, this should be an index i; the output will be the i-th component of the poincare series.
         """
-        s = self.is_symmetric_weight(k)
+        chi = EtaCharacterPower(eta_twist)
+        s = self.is_symmetric_weight(k - eta_twist / 2)
         s1 = False
         eps = -1
         exponent = k - 1
         sgn = 1
         h = lambda x: x.real()
         if _flag == 'maass':
-            s1 = self.is_symmetric_weight(2 - k)
+            s1 = self.is_symmetric_weight(2 + eta_twist / 2 - k)
             exponent *= -1
             if s1:
                 eps = 1
@@ -1993,7 +2019,7 @@ class WeilRep(object):
         j = dsdict[tuple(map(frac, b))]
         j1 = dsdict[tuple(map(frac, -b))]
         nl = self.norm_list()
-        if nl[j] - m not in ZZ:
+        if nl[j] - m + eta_twist / 24 not in ZZ:
             raise ValueError('Invalid index.')
         if component is not None:
             if rds[component] is not None:
@@ -2021,10 +2047,15 @@ class WeilRep(object):
                 g, a, b = XGCD(c, d)
                 if g == 1:
                     M = self._evaluate_metaplectic(b, -a, c, d)[0]
+                    if eta_twist:
+                        v = e(two_pi_i * chi(matrix([[b, -a], [c, d]])) / 24)
+                        M *= v
                     zeta1, zeta2 = e(two_pi_i_c * m * b) , e(two_pi_i_c * d)
                     for i, g in enumerate(ds):
                         if rds[i] is None:
                             u = nl[i] + 1
+                            if eta_twist:
+                                u -= (1 - eta_twist / 24)
                             zeta = s1 * zeta1 * e(two_pi_i_c * u * d)
                             for n in range(1, len(Y[i])):
                                 Y[i][n] += h(M[j, i].conjugate() * zeta)
@@ -2032,15 +2063,21 @@ class WeilRep(object):
             for i, y in enumerate(Y):
                 if rds[i] is None and (_flag or eps == 1 or 2 % denominator(ds[i])):
                     u = nl[i]
+                    if eta_twist:
+                        u -= (1 - eta_twist / 24)
                     for n in range(1, len(Y[i])):
-                        if m:
-                            X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs_m)**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs_m * (n + u))) / c
-                        else:
-                            X[i][n] += (four_pi_c * (n + u) / 2.0)**k  * Y[i][n] / (gamma_k * (n + u))
+                        if n + u > 0:
+                            if m:
+                                X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs_m)**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs_m * (n + u))) / c
+                            else:
+                                X[i][n] += (four_pi_c * (n + u) / 2.0)**k  * Y[i][n] / (gamma_k * (n + u))
         for i, x in enumerate(X):
             if rds[i]:
                 X[i] = [eps*x for x in X[rds[i]]]
         X = [[ds[i], nl[i],  sgn * r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
+        if eta_twist:
+            for x in X:
+                x[1] -= (1 - eta_twist/24)
         if component is not None:
             if component == j:
                 X[0][2] += 0.5 * q**ceil(m)
@@ -2049,6 +2086,8 @@ class WeilRep(object):
             return X[0]
         X[j][2] += 0.5 * q**ceil(m)
         X[j1][2] += eps * 0.5 * q**ceil(m)
+        if eta_twist:
+            return WeilRepModularFormWithCharacter(k, self.gram_matrix(), X, weilrep = self, character = chi)
         return WeilRepModularForm(k, self.gram_matrix(), X, weilrep = self)
 
 
@@ -2307,7 +2346,7 @@ class WeilRep(object):
             return WeilRepModularFormWithCharacter(k, self.gram_matrix(), X, weilrep = self, character = EtaCharacterPower(eta_twist))
         return WeilRepModularForm(k, self.gram_matrix(), X, weilrep = self)
 
-    def theta_series(self, prec, P = None, _list = False, _flag = True, funct = None):
+    def theta_series(self, prec, P = None, _list = False, _flag = True, funct = None, symm = True):
         r"""
         Construct vector-valued theta series.
 
@@ -2320,7 +2359,7 @@ class WeilRep(object):
         INPUT:
         - ``prec`` -- the precision
         - ``P`` -- a polynomial which is homogeneous and is harmonic with respect to the underlying quadratic form
-        - ``test_P`` -- a boolean (default True). If False then we do not test whether P is homogeneous and harmonic. (If P is not harmonic then the theta series is only a quasi-modular form!)
+        - ``_flag`` -- a boolean (default True). If False then we do not test whether P is homogeneous and harmonic. (If P is not harmonic then the theta series is only a quasi-modular form!)
 
         OUTPUT: WeilRepModularForm
 
@@ -2413,13 +2452,16 @@ class WeilRep(object):
                 P_val = P(list(g))
                 v_norm_with_offset = ceil(v*g/2)
                 list_g = map(frac, g)
-                g = tuple(list_g)
-                j1 = _ds_dict[g]
+                frac_g = tuple(list_g)
+                j1 = _ds_dict[frac_g]
                 X[j1][2] += P_val * q ** (v_norm_with_offset)
                 if v:
                     minus_g = tuple(frac(-x) for x in g)
                     j2 = _ds_dict[minus_g]
-                    X[j2][2] += (-1)**deg_P * P_val * q ** (v_norm_with_offset)
+                    if symm:
+                        X[j2][2] += (-1)**deg_P * P_val * q ** (v_norm_with_offset)
+                    else:
+                        X[j2][2] += P(list(-g)) * q ** (v_norm_with_offset)
             X[0][2] += P([0]*S_inv.nrows())
         except PariError: #when we are not allowed to use pari's qfminim with flag=2 for some reason. Then multiply S inverse to get something integral. The code below is a little slower
             level = Q.level()

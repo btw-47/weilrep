@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2022 Brandon Williams
+#       Copyright (C) 2020-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -104,7 +104,10 @@ class WeilRepModularForm(object):
         self.__fourier_expansions = fourier_expansions
         self.__symmetry_data = symmetry_data
         self.flag = ''
-        if weilrep.is_positive_definite() or weilrep._is_positive_definite_plus_II() or weilrep._is_positive_definite_plus_2II():
+        if weilrep._is_hermitian_weilrep():
+            from .unitary import HermitianWeilRepModularForm
+            self.__class__ = HermitianWeilRepModularForm
+        elif weilrep.is_positive_definite() or weilrep._is_positive_definite_plus_II() or weilrep._is_positive_definite_plus_2II():
             from .positive_definite import WeilRepModularFormPositiveDefinite
             self.__class__ = WeilRepModularFormPositiveDefinite
         elif weilrep.is_lorentzian() or weilrep.is_lorentzian_plus_II():
@@ -2602,7 +2605,7 @@ class WeilRepModularFormsBasis:
     def weilrep(self):
         return self.__weilrep
 
-def rankin_cohen(N, X, Y):
+def _vvmf_rankin_cohen(N, X, Y):
     r"""
     Compute the Nth Rankin--Cohen bracket [X, Y]_N.
 
@@ -2683,6 +2686,15 @@ def rankin_cohen(N, X, Y):
     if m:
         return sum( (-1)**r * binom2[r] * binom1[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w = w) for r in range(N + 1))
     return sum( (-1)**r * binom2[r] * binom1[-1-r] * deriv1[r].__mul__(deriv2[-1 - r], w=w) for r in range(N + 1))
+
+def rankin_cohen(*x):
+    xref = x[1]
+    if type(xref) is list:
+        xref = xref[0]
+    if isinstance(xref, WeilRepModularForm):
+        return _vvmf_rankin_cohen(*x)
+    from .lifts import _omf_rankin_cohen
+    return _omf_rankin_cohen(*x)
 
 def theta_product(f, g, _check = True):
     r"""
@@ -2827,7 +2839,7 @@ class EtaCharacterPower:
         elif c < 0:
             return (self.__call__(-M) - 6 * k) % 24
         s = (a + d) / (12 * c) + dedekind_sum(-d, c) - 1/4
-        return ZZ(12 * s * k) % 24
+        return ZZ(round(12 * s * k)) % 24
 
     ## arithmetic ##
 
@@ -2906,8 +2918,8 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         except AttributeError:
             x = self.character()
         try:
-            x = other.is_modular()
-            if not x:
+            y = other.is_modular()
+            if not y:
                 return NotImplemented
         except AttributeError:
             pass

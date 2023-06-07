@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2021 Brandon Williams
+#       Copyright (C) 2020-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,6 +40,7 @@ from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
+from sage.misc.misc_c import prod
 from sage.modular.arithgroup.congroup_gamma1 import Gamma1_constructor
 from sage.modular.modform.constructor import ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
@@ -1215,9 +1216,12 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         prec0val *= N
         bool_1 = weilrep._is_positive_definite_plus_II()
         bool_2 = weilrep._is_positive_definite_plus_2II()
+        rb_1 = rb.fraction_field()
         rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
         rb_x.inject_variables(verbose = False)
+        rb_x_1 = LaurentPolynomialRing(rb_1, rb_x.gens())
         r, t = PowerSeriesRing(rb_x, 't', prec).objgen()
+        r1 = PowerSeriesRing(rb_x_1, r.gens(), prec)
         rpoly, t0 = PolynomialRing(K, 't0').objgen()
         ds_dict = weilrep.ds_dict()
         if nrows > 1:
@@ -1270,15 +1274,18 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                                 exponent_k = coeffs[tuple([frac(y) for y in k * vector(_g[:-1])] + [n * k * k])]
                                 if exponent_k:
                                     p *= (1 - t0**k)**exponent_k
-                                    if verbose:
-                                        print('Multiplying by the factor (%s)^%s'%((1 - t0 ** k), exponent_k))
                                 excluded_vectors.add(tuple(k * y for y in big_v))
                             excluded_vectors_2.add(big_v)
                         if c >= 0:
                             corrector *= p.subs({t0 : m})
                         elif p != 1:
                             deg_p = p.degree()
-                            corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * ((c - a) * j - c * deg_p)) * m ** (d*j) for j, p in enumerate(list(p))))
+                            try:
+                                corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * ((c - a) * j - c * deg_p)) * m ** (d*j) for j, p in enumerate(list(p))))
+                            except TypeError:
+                                _x, = rb_x_1.gens()
+                                _t, = r1.gens()
+                                corrector *= (h + sum(p * _t ** (d * (a_plus_c * j - c * deg_p)) * _x ** (d * ((c - a) * j - c * deg_p)) * m ** (d*j) for j, p in enumerate(list(p))))
                             weyl_v[0] += c * d * deg_p
             return log_f
         if bool_1:
@@ -1330,14 +1337,16 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                                 v = -v
                                 big_v = tmp
         if nrows > 1:
-            weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb.monomial(*weyl_v[1:-1])
-            weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1])) * rb.monomial(*(-weyl_v[1:-1]))
+            weyl_monomial = rb.monomial(*weyl_v[1:-1])
+            weyl_monomial_inverse = rb.monomial(*(-weyl_v[1:-1]))
         elif nrows == 1:
-            weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb_zero ** weyl_v[1]
-            weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1])) * rb_zero ** -weyl_v[1]
+            weyl_monomial = rb_zero ** weyl_v[1]
+            weyl_monomial_inverse = rb_zero ** -weyl_v[1]
         else:
-            weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1]))
-            weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1]))
+            weyl_monomial = 1
+            weyl_monomial_inverse = 1
+        weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * weyl_monomial
+        weyl_vector_term_inverse = (t ** -(weyl_v[0] + weyl_v[-1])) * (x ** -(weyl_v[0] - weyl_v[-1])) * weyl_monomial_inverse
         try:
             h = self.weilrep().lift_qexp_representation
         except(AttributeError, IndexError, TypeError):
@@ -1352,8 +1361,15 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 c = Integer(coeffs[tuple([Integer(1) / 2] + [0] * (nrows + 4))])
                 C *= Integer(2)**Integer(c // 2)
                 f *= C
-            X = OrthogonalModularForm(weight, self.weilrep(), f * r(corrector) * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h, ppcoeffs = self.principal_part_coefficients())
+            try:
+                corrector = r(corrector)
+            except TypeError:
+                corrector = r1(corrector)
+                f = r1({a:rb_x_1({c:rb_1(d) for c, d in b.dict().items()}) for a, b in f.dict().items()})
+                weyl_vector_term = r1(weyl_vector_term)
+            X = OrthogonalModularForm(weight, self.weilrep(), f * corrector * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h, ppcoeffs = self.principal_part_coefficients())
             if verbose:
+                print('Multiplying by the factor %s'%(corrector))
                 print('Multiplying by the factor (Weyl vector) %s'%(weyl_vector_term))
             try:
                 X._OrthogonalModularForm__inverse = f**(-1) * weyl_vector_term_inverse / FractionField(rb)(rb(corrector))
@@ -1461,3 +1477,42 @@ class WeilRepPositiveDefinitePlus2II(WeilRepPositiveDefinite):
 
     def _pos_def_gram_matrix(self):
         return self.__positive_definite_gram_matrix
+
+
+def _pos_def_laplacian(f):
+    r"""
+    Apply the Laplace operator.
+
+    WARNING: the Laplace operator does not act on modular forms! It is only used to define Rankin--Cohen brackets.
+    """
+    from weilrep.lifts import OrthogonalModularForm
+    w = f.weilrep()
+    nrows = f.nvars()
+    if w.is_positive_definite():
+        S = f.gram_matrix()
+        N = 1
+    elif w._is_positive_definite_plus_II():
+        S = w._pos_def_gram_matrix()
+        N = w.gram_matrix()[-1, 0]
+    d = f.true_coefficients()
+    h = f.true_fourier_expansion()
+    rt, t = h.parent().objgen()
+    rx, x = h.base_ring().objgen()
+    r = rx.base_ring()
+    rgens = r.gens()
+    s = rt(0)
+    S_inv = S.inverse()
+    scale = f.scale()
+    scale_sqr = scale * scale
+    for v, c in d.items():
+        v = scale * vector(v)
+        v0 = v[0]
+        monom = t**v0
+        if len(v) > 1:
+            v1 = v[1]
+            monom *= x**v1
+            if len(v) > 2:
+                u = vector(v[2:])
+                monom *= prod(rgens[i]**v for i, v in enumerate(u))
+        s += c * ((u*S_inv*u/2 - (v0**2 - v1**2)/ (4 * N)) / scale_sqr) * monom
+    return OrthogonalModularForm(f.weight() + 2, w, s.add_bigoh(scale * f.precision()), scale, f.weyl_vector(), qexp_representation=f.qexp_representation())
