@@ -2064,20 +2064,19 @@ class WeilRep(object):
                 if rds[i] is None and (_flag or eps == 1 or 2 % denominator(ds[i])):
                     u = nl[i]
                     if eta_twist:
-                        u -= (1 - eta_twist / 24)
+                        u = -frac(-u - eta_twist / 24)
                     for n in range(1, len(Y[i])):
                         if n + u > 0:
                             if m:
                                 X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs_m)**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs_m * (n + u))) / c
                             else:
                                 X[i][n] += (four_pi_c * (n + u) / 2.0)**k  * Y[i][n] / (gamma_k * (n + u))
+                    Y[i] = u
         for i, x in enumerate(X):
             if rds[i]:
                 X[i] = [eps*x for x in X[rds[i]]]
-        X = [[ds[i], nl[i],  sgn * r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
-        if eta_twist:
-            for x in X:
-                x[1] -= (1 - eta_twist/24)
+                Y[i] = u[rds[i]]
+        X = [[ds[i], Y[i],  sgn * r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
         if component is not None:
             if component == j:
                 X[0][2] += 0.5 * q**ceil(m)
@@ -2231,6 +2230,7 @@ class WeilRep(object):
                 Z[i] = Y[i][0], Y[i][1], Y[i][2] - epsilon * sum((n + offset) * theta_f[n] * (q ** n) for n in range(1, len(theta_f)) if theta_f[n])
             return WeilRepModularForm(weight, self.gram_matrix(), Z, weilrep = self)
         elif weight == 3:
+            return X
             from .weilrep_misc import weight_three_pssd_fix
             return X + weight_three_pssd_fix(self, b, m, prec, w)
 
