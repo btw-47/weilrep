@@ -541,6 +541,9 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         return OrthogonalModularFormLorentzian(self.weight() / 2, WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
 
     def pullback(self, *v):
+        r"""
+        Compute the pullback of self to the lattice spanned by 'v'.
+        """
         if not v:
             return self
         v_ref = v[0]
@@ -565,6 +568,26 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         u = self.weyl_vector()
         u = vector([u[0]] + list(A * u[1:-1]) + [u[-1]])
         return OrthogonalModularForm(self.weight(), WeilRep(S), s(f.map_coefficients(lambda y: y.map_coefficients(lambda z: z.subs(d)))), scale = self.scale(), weylvec = u)
+
+    def pullback_perp(self, *v, **kwargs):
+        r"""
+        Compute the pullback of self to the orthogonal complement of a dual lattice vector (or set of dual lattice vectors) 'v'.
+
+        NOTE: 'v' must have positive norm! (or if 'v' is a list of vectors, then it must span a positive-definite subspace with respect to the underlying quadratic form)
+        """
+        S = self.gram_matrix()
+        try:
+            z = matrix(QQ, v)
+        except TypeError:
+            v = v[0]
+            z = matrix(QQ, v)
+        z *= S
+        k = z.transpose().integer_kernel()
+        if 'print_basis' in kwargs.keys():
+            s = kwargs.pop('print_basis')
+            if s:
+                print('pullback to basis:', list(k.basis()))
+        return self.pullback(list(k.basis()), **kwargs)
 
     def witt(self):
         r"""

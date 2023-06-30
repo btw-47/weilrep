@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2022 Brandon Williams
+#       Copyright (C) 2020-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@ AUTHORS:
 import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
+
+import math
 
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
@@ -41,6 +43,7 @@ from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
+from sage.misc.misc_c import prod
 from sage.modular.arithgroup.congroup_gamma0 import Gamma0_constructor
 from sage.modular.modform.constructor import ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
@@ -187,6 +190,116 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             else:
                 return Integer(N - 2)
 
+    def pullback(self, *v, new_prec = None):
+        from .positive_definite import WeilRepPositiveDefinitePlusII
+        try:
+            P = matrix(ZZ, v)
+        except TypeError:
+            v = v[0]
+            P = matrix(ZZ, v)
+        prec = self.precision()
+        scale = self.scale()
+        S = self.gram_matrix()
+        w = self.weilrep()
+        if isinstance(w, WeilRepPositiveDefinitePlusII):
+            A = identity_matrix(S.nrows())
+            A[0, -1] = -1
+            S = A * S * A.transpose()
+            P = P * A.inverse()
+            w = WeilRep(S)
+        w_new = WeilRep(P * S * P.transpose())
+        d = self.true_coefficients()
+        A = w.change_of_basis_matrix()
+        A_inv = A.inverse()
+        B = w_new.change_of_basis_matrix()
+        C = w.orthogonalized_gram_matrix()
+        c = -C[0, 0]
+        S1 = C[1:, 1:]
+        H = B * P * A_inv
+        a = H[0, 0]
+        if a < 0:
+            H = -H
+            a = -a
+        if new_prec is None:
+            v = vector(H[0, 1:])
+            try:
+                new_prec = floor( prec * (a - (v*v) * math.sqrt(c / (v * S1 * v))) )
+            except ZeroDivisionError:
+                new_prec = floor( prec * a)
+        nrows = w_new.gram_matrix().nrows()
+        N = w._N()
+        if N <= 2:
+            K = QQ
+            if N == 1:
+                zeta = Integer(1)
+            else:
+                zeta = -Integer(1)
+        else:
+            K = CyclotomicField(N, var('mu%d'%N))
+            zeta, = K.gens()
+        if nrows > 1:
+            if nrows > 2:
+                rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows - 2)))
+            else:
+                rb = K
+            rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
+        else:
+            rb_x = K
+            x = 1
+        r, t = PowerSeriesRing(rb_x, 't').objgen()
+        f = r(0).add_bigoh(new_prec)
+        for _v, n in d.items():
+            v = H * vector(_v) * scale
+            a = v[0]
+            if a < new_prec:
+                m = 1
+                if nrows > 1:
+                    b = -v[1]
+                    if nrows > 2:
+                        c = -vector(v[2:])
+                        try:
+                            m = rb.monomial(*c)
+                        except AttributeError:  #univariate Laurent polynomial ring does not have "monomial"?
+                            m = rb.gens()[0] ** c[0]
+                    m *= (x ** b)
+                m *= (t ** a)
+                f += m * n
+        return OrthogonalModularForm(self.weight(), w_new, f, scale, vector([0]*nrows))
+
+    def pullback_perp(self, *v, **kwargs):
+        r"""
+        Compute the pullback of self to the orthogonal complement of a dual lattice vector (or set of dual lattice vectors) 'v'.
+
+        NOTE: 'v' must have positive norm! (or if 'v' is a list of vectors, then it must span a positive-definite subspace with respect to the underlying quadratic form)
+        """
+        S = self.gram_matrix()
+        try:
+            z = matrix(QQ, v)
+        except TypeError:
+            v = v[0]
+            z = matrix(QQ, v)
+        z *= S
+        k = z.transpose().integer_kernel()
+        y = matrix(k.basis())
+        Q = QuadraticForm(matrix(QQ, y * S * y.transpose()))
+        b = True
+        N = 0
+        while b:
+            N -= 1
+            try:
+                v = Q.solve(N)
+                b = any(x not in ZZ for x in v)
+            except ArithmeticError:
+                pass
+            if N < -100000: #?!
+                raise RuntimeError from None
+        x = matrix(ZZ, matrix(ZZ, [v]).transpose().echelon_form(transformation = True)[1].inverse()).transpose() * y
+        if 'print_basis' in kwargs.keys():
+            s = kwargs.pop('print_basis')
+            if s:
+                print('pullback to basis:', x.rows())
+        return self.pullback(x.rows(), **kwargs)
+
     def _q_s_expansion(self):
         r"""
         Return our Fourier expansion as a q-s expansion if possible.
@@ -269,9 +382,6 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             S = matrix([[N]])
             return OrthogonalModularFormLorentzian(self.weight() / 2, WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
         return NotImplemented
-
-    def pullback(self, *v):
-        pass
 
     def witt(self):
         r"""
@@ -1067,7 +1177,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         #b = extend_vector([z, z_prime])
         return b, big_S
 
-    def borcherds_lift(self, prec = None, omit_weyl_vector = False, verbose = False):
+    def borcherds_lift(self, prec = None, omit_weyl_vector = False, weyl_vector= None, verbose = False):
         r"""
         Compute the Borcherds lift.
 
@@ -1155,6 +1265,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         r, t = PowerSeriesRing(rb_x, 't').objgen()
         if omit_weyl_vector:
             weyl_vector = vector([0] * nrows)
+        elif weyl_vector is not None:
+            weyl_vector = weyl_vector
         elif extra_plane:
             weyl_vector = X.reduce_lattice(z = vector([1] + [0] * (nrows + 1))).weyl_vector()
         else:
@@ -1729,4 +1841,36 @@ def _theta_lifts(X, prec = None, constant_term_weight_one = True):
         if eps == -1 and extra_plane and N >= 3:
             lift /= sum(zeta**i - zeta**(-i) for i in range(1, (N + 1)//2))
         return OrthogonalModularForm(k, w, lift + C + O(t ** prec), scale = 1, weylvec = vector([0]*nrows), qexp_representation = w.lift_qexp_representation)
-    
+
+def _lorentz_laplacian(f):
+    r"""
+    Apply the Laplace operator.
+
+    WARNING: the Laplace operator does not act on modular forms! It is only used to define Rankin--Cohen brackets.
+    """
+    from weilrep.lifts import OrthogonalModularForm
+    w = f.weilrep()
+    S = w.orthogonalized_gram_matrix()
+    nrows = f.nvars()
+    d = f.true_coefficients()
+    h = f.true_fourier_expansion()
+    rt, t = h.parent().objgen()
+    rx, x = h.base_ring().objgen()
+    if x != 1:
+        r = rx.base_ring()
+        rgens = r.gens()
+    s = rt(0)
+    S_inv = S.inverse()
+    scale = f.scale()
+    two_scale_sqr = 2 * scale * scale
+    for v, c in d.items():
+        v = vector(scale * v)
+        v0 = v[0]
+        monom = t**v0
+        if len(v) > 1:
+            v1 = v[1]
+            monom *= x**v1
+            if len(v) > 2:
+                monom *= prod(rgens[i]**v for i, v in enumerate(u))
+        s += c * (v*S_inv*v/two_scale_sqr) * monom
+    return OrthogonalModularForm(f.weight() + 2, w, s.add_bigoh(scale * f.precision()), scale, f.weyl_vector(), qexp_representation=f.qexp_representation())
