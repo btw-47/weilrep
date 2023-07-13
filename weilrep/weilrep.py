@@ -3134,8 +3134,7 @@ class WeilRep(object):
         r"""
         Compute a basis of the space of cusp forms.
 
-        ALGORITHM: If k is a symmetric weight, k >= 5/2, then we compute a basis from linear combinations of self's eisenstein_series() and pss(). If k is an antisymmetric weight, k >= 7/2, then we compute a basis from self's pssd(). Otherwise, we compute S_k as the intersection
-        S_k(\rho^*) = E_4^(-1) * S_{k+4}(\rho^*) intersect E_6^(-1) * S_{k+6}(\rho^*). (This is slow!!)
+        ALGORITHM: If k is a symmetric weight, k >= 5/2, then we compute a basis from linear combinations of self's eisenstein_series() and pss(). If k is an antisymmetric weight, k >= 7/2, then we compute a basis from self's pssd(). Otherwise, we compute S_k by embedding into S_{k+4}.
         The basis is converted to echelon form (i.e. a ``Victor Miller basis``)
 
         INPUT:
@@ -3479,23 +3478,23 @@ class WeilRep(object):
                     self.__cusp_forms_basis[k] = prec, X
                 return return_pivots()
             if verbose:
-                print('I am going to compute the spaces of cusp forms of weights %s and %s.' %(k+4, k+6))
+                print('I am going to compute the space of cusp forms of weight %s.' %(k+4))
             prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
-            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
-            X1 = self.cusp_forms_basis(k + 4, prec, verbose = verbose)
-            X2 = self.cusp_forms_basis(k + 6, prec, verbose = verbose)
-            if verbose:
-                print('I will intersect the spaces E_4^(-1) * S_%s and E_6^(-1) * S_%s.' %(k +4, k +6))
+            X1 = self.cusp_forms_basis(k+4, prec, verbose = verbose)
             try:
-                V1 = span((x * e4).coefficient_vector() for x in X1)
-                V2 = span((x * e6).coefficient_vector() for x in X2)
-                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self)
+                B = matrix([x.coefficient_vector() for x in X1])
+                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector() for x in X1])
+                V1 = span(B)
+                V2 = span(A)
+                V = (V1.intersection(V2)).basis_matrix()
+                X = [self.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], self)
                 if echelonize:
                     pivots = X.echelonize(save_pivots = save_pivots)
                     self.__cusp_forms_basis[k] = prec, X
                 return return_pivots()
-            except AttributeError: #we SHOULD only get ``AttributeError: 'Objects_with_category' object has no attribute 'base_ring'`` when X1 or X2 is empty...
+            except AttributeError:
                 X = WeilRepModularFormsBasis(k, [], self)
                 self.__cusp_forms_basis[k] = prec, X
                 return return_pivots()
@@ -3697,25 +3696,24 @@ class WeilRep(object):
             return X
         else:
             if verbose:
-                print('I am going to compute the spaces of invariant cusp forms of weights %s and %s.' %(k+4, k+6))
+                print('I am going to compute the space of invariant cusp forms of weight %s.' %(k+4))
             prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
-            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
             X1 = self.invariant_cusp_forms_basis(k + 4, prec, G=G, chi=chi, verbose = verbose)
-            X2 = self.invariant_cusp_forms_basis(k + 6, prec, G=G, chi=chi, verbose = verbose)
-            if verbose:
-                print('I will intersect the spaces E_4^(-1) * S_%s and E_6^(-1) * S_%s.' %(k +4, k +6))
+            X1 = self.modular_forms_basis(k+4, prec, verbose = verbose)
             try:
-                V1 = span((x * e4).coefficient_vector() for x in X1)
-                V2 = span((x * e6).coefficient_vector() for x in X2)
-                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V1.intersection(V2).basis()], self, symmetry_data = (G, chi))
-                if echelonize:
-                    if verbose:
-                        print('I am computing an echelon form.')
-                    X.echelonize()
+                B = matrix([x.coefficient_vector() for x in X1])
+                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector() for x in X1])
+                V1 = span(B)
+                V2 = span(A)
+                V = (V1.intersection(V2)).basis_matrix()
+                X = [self.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], self, symmetry_data = [G, chi])
+                X.echelonize()
                 return X
             except AttributeError:
-                return WeilRepModularFormsBasis(k, [], self, symmetry_data = (G, chi))
+                X = WeilRepModularFormsBasis(k, [], self, symmetry_data = [G, chi])
+                return X
 
     def invariant_forms_basis(self, k, prec = 0, G = None, chi = None, verbose = False):
         r"""
@@ -3817,20 +3815,19 @@ class WeilRep(object):
         else:
             prec = max(prec, 2)
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
-            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
             X1 = self.invariant_forms_basis(k+4, prec, G = G, chi = chi, verbose = verbose)
-            X2 = self.invariant_forms_basis(k+6, prec, G = G, chi = chi, verbose = verbose)
-            if verbose:
-                print('I am now going to compute M_%s by intersecting the spaces E_4^(-1) * M_%s and E_6^(-1) * M_%s.' %(k, k +4, k +6))
             try:
-                V1 = span([(x * e4).coefficient_vector() for x in X1])
-                V2 = span([(x * e6).coefficient_vector() for x in X2])
-                V = (V1.intersection(V2)).basis()
-                X = WeilRepModularFormsBasis(k, [self.recover_modular_form_from_coefficient_vector(k, v, prec) for v in V], self, symmetry_data = symmetry_data)
+                B = matrix([x.coefficient_vector() for x in X1])
+                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector() for x in X1])
+                V1 = span(B)
+                V2 = span(A)
+                V = (V1.intersection(V2)).basis_matrix()
+                X = [self.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], self, symmetry_data = [G, chi])
                 X.echelonize()
                 return X
             except AttributeError:
-                X = WeilRepModularFormsBasis(k, [], self, symmetry_data = symmetry_data)
+                X = WeilRepModularFormsBasis(k, [], self, symmetry_data = [G, chi])
                 return X
 
     def modular_forms_basis(self, weight, prec = 0, eisenstein = False, verbose = False, symmetry_data = None, eta_twist = 0):
@@ -3962,16 +3959,15 @@ class WeilRep(object):
                 print('I am going to compute the spaces of modular forms of weights %s and %s.' %(weight+4, weight+6))
             prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
-            e6 = smf(-6, ~eisenstein_series_qexp(6, prec))
             X1 = self.modular_forms_basis(weight+4, prec, verbose = verbose)
-            X2 = self.modular_forms_basis(weight+6, prec, verbose = verbose)
-            if verbose:
-                print('I am now going to compute M_%s by intersecting the spaces E_4^(-1) * M_%s and E_6^(-1) * M_%s.' %(weight, weight +4, weight +6))
             try:
-                V1 = span([(x * e4).coefficient_vector() for x in X1])
-                V2 = span([(x * e6).coefficient_vector() for x in X2])
-                V = (V1.intersection(V2)).basis()
-                X = WeilRepModularFormsBasis(weight, [self.recover_modular_form_from_coefficient_vector(weight, v, prec) for v in V], self)
+                B = matrix([x.coefficient_vector() for x in X1])
+                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector() for x in X1])
+                V1 = span(B)
+                V2 = span(A)
+                V = (V1.intersection(V2)).basis_matrix()
+                X = [self.recover_modular_form_from_coefficient_vector(weight + 4, v * B, prec) for v in A.solve_left(V).rows()]
+                X = WeilRepModularFormsBasis(weight, [x * e4 for x in X], self)
                 X.echelonize()
                 self.__modular_forms_basis[weight] = prec, X
                 return X

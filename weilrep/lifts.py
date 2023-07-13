@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2022 Brandon Williams
+#       Copyright (C) 2020-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ from sage.arith.misc import bernoulli, divisors, GCD
 from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.functions.log import exp, log
-from sage.functions.other import ceil, floor, frac, sqrt
+from sage.functions.other import ceil, factorial, floor, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
 from sage.geometry.polyhedron.ppl_lattice_polytope import LatticePolytope_PPL
@@ -55,9 +55,10 @@ from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 from sage.rings.real_mpfr import RealField_class, RR
 
+from .jacobi_forms_class import JacobiForm, JacobiForms
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
-from .jacobi_forms_class import JacobiForm, JacobiForms
+
 
 try:
     from sage.rings.complex_mpfr import ComplexField_class
@@ -187,6 +188,8 @@ class OrthogonalModularForms(object):
             return X[0].theta_lift(prec, _L = X)
         except TypeError:
             return [x.theta_lift(prec) for x in X]
+        except IndexError:
+            return []
 
     def spezialschar(self, *args, **kwargs):
         if args:
@@ -420,7 +423,7 @@ class OrthogonalModularForm(object):
     r"""
     This class represents modular forms on type IV domains.
 
-    INPUT: Orthogonal modular forms are constructed by calling ``OrthogonalModularForm(k, S, f, scale, weylvec)``, where:
+    INPUT: Orthogonal modular forms are constructed by calling ``OrthogonalModularForm(k, w, f, scale, weylvec)``, where:
     - ``k`` -- the weight
     - ``w`` -- WeilRep of the underlying lattice.
     - ``f`` -- the Fourier expansion. This is a power series in the variable t over a Laurent polynomial ring in the variable x over a base ring of Laurent polynomials in the variables r_0,...,r_d
@@ -461,8 +464,9 @@ class OrthogonalModularForm(object):
                 from .special import ParamodularForm
                 self.__class__ = ParamodularForm
             elif s == 'unitary':
-                from .unitary import UnitaryModularForm
-                self.__class__ = UnitaryModularForm
+                pass
+                #from .unitary import UnitaryModularForm
+                #self.__class__ = UnitaryModularForm
 
 
     ## basic attributes
@@ -924,11 +928,14 @@ def jacobian(*X):
         sage: jacobian([ParamodularForms(1).eisenstein_series(k, 7) for k in [4, 6, 10, 12]]) / (-589927441461779261030400000/2354734631251) #funny multiple
         (r^-1 - r)*q^3*s^2 + (-r^-1 + r)*q^2*s^3 + (-r^-3 - 69*r^-1 + 69*r + r^3)*q^4*s^2 + (r^-3 + 69*r^-1 - 69*r - r^3)*q^2*s^4 + O(q, s)^7
     """
+    from .unitary import unitary_jacobian, UnitaryModularForm
     N = len(X)
     if N == 1:
         X = X[0]
         N = len(X)
     Xref = X[0]
+    if isinstance(Xref, UnitaryModularForm):
+        return unitary_jacobian(X)
     nvars = Xref.nvars()
     f = Xref.true_fourier_expansion()
     t, = f.parent().gens()
@@ -1028,3 +1035,68 @@ def _omf_relations(*X):
     WARNING: we only check the relations up to the *minimal precision of all elements of X*. For best results let X be a list of forms with the same (sufficiently high) precision!
     """
     return omf_matrix(*X).kernel()
+
+def _laplacian(f):
+    r"""
+    Apply the Laplace operator.
+
+    WARNING: the Laplace operator does not act on modular forms! It is only used to define Rankin--Cohen brackets.
+    """
+    from .positive_definite import _pos_def_laplacian
+    from .lorentz import _lorentz_laplacian
+    s = f.qexp_representation()
+    if s == 'PD+II' or s == 'siegel' or s == 'hermite':
+        return _pos_def_laplacian(f)
+    return _lorentz_laplacian(f)
+
+def _omf_rankin_cohen(n, *x):
+    r"""
+    Compute Rankin--Cohen brackets.
+
+    The n-th Rankin--Cohen bracket is a differential operator that takes a set of modular forms f_1,...,f_r of weights k_1,...,k_r for the orthogonal group
+    of a common lattice and produces a modular form of weight k_1+...+k_r + 2*n.
+
+    INPUT:
+    - ``n`` -- a nonnegative integer
+    - ``*x`` -- modular forms for the orthogonal group of a common lattice; or, a list of modular forms
+
+    OUTPUT: OrthogonalModularForm
+
+    REFERENCE: Choie, Kim - J. Number Theory 82(1), 140--163 (2000)
+    """
+    if len(x) == 1:
+        x = x[0]
+    try:
+        xref = x[0]
+    except TypeError:
+        raise ValueError('The Rankin--Cohen bracket requires at least 2 modular forms') from None
+    xlen = len(x)
+    def list_sums_to(N, list_len):
+        #lists of nonnegative integers of length list_len whose sum is N
+        if list_len == 1:
+            return [[N]]
+        a = [[[i] + y for y in list_sums_to(N - i, list_len - 1)] for i in range(N+1)]
+        return [a for b in a for a in b]
+    l = xref.nvars()
+    k = [f.weight() for f in x]
+    beta = sum(k) + 1 - l/2
+    def local_factorial(n):
+        if n in ZZ:
+            return factorial(n)
+        return ZZ(2 * n).multifactorial(2)
+    def A(u):
+        p = u[-1]
+        c = (-1)**p * local_factorial(beta + 2*n - p - 2) / (factorial(p) * local_factorial(beta + 2*n - 2))
+        return QQ(c / prod(local_factorial(h) * local_factorial(h + k[i] - l/2) for i, h in enumerate(u[:-1])))
+    lap = [[f] for f in x]
+    for i in range(n):
+        for y in lap:
+            y.append(_laplacian(y[-1]))
+    U = list_sums_to(n, xlen + 1)
+    L = []
+    for c in U:
+        h = prod(lap[i][j] for i, j in enumerate(c[:-1]))
+        for j in range(c[-1]):
+            h = _laplacian(h)
+        L.append(A(c) * h)
+    return sum(L)

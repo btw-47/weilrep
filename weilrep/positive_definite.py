@@ -1396,7 +1396,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 print('Multiplying by the factor (Weyl vector) %s'%(weyl_vector_term))
             try:
                 X._OrthogonalModularForm__inverse = f**(-1) * weyl_vector_term_inverse / FractionField(rb)(rb(corrector))
-            except (TypeError, ValueError):
+            except (RecursionError, TypeError, ValueError):
                 pass
             return X
         except TypeError:

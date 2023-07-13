@@ -1685,7 +1685,8 @@ class WeilRepModularForm(object):
         except TypeError:
             v = v[0]
             z = matrix(ZZ, v)
-        A = matrix(ZZ, z.transpose().echelon_form(transformation = True)[1].inverse())
+        B = matrix(ZZ, z.transpose().echelon_form(transformation = True)[1].inverse())
+        A = matrix(z.rows() + B.columns()[len(v):]).transpose()
         n = A.nrows() - len(v)
         try:
             f = self.conjugate(A)
