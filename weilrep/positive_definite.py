@@ -1266,7 +1266,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         def update_aux(a, c, n, _g, mu, log_f, i=0):
             if True:
                 exponent = coeffs[_g]
-                if exponent:
+                if exponent or not (a or c) or c < 0:
                     if nrows > 1:
                         m = rb.monomial(*d*v)
                     elif nrows == 1:
