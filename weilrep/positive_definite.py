@@ -185,7 +185,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
         e = w.dual().eisenstein_series(l, ceil(pole_order))
         e_coeffs = e.coefficients()
         N = len([g for g in rds if not norm_dict[tuple(g)]]) - 1
-        pole_order = max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0])
+        pole_order = min(pole_order, max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0]))
         if verbose:
             print('I need to consider modular forms with a pole order at most %s.'%pole_order)
         X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec, verbose = verbose)
@@ -270,7 +270,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
         w_dual = w.dual()
         e = w_dual.eisenstein_series(l, ceil(pole_order))
         e_coeffs = e.coefficients()
-        pole_order = max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0])
+        pole_order = min(pole_order, max([g_n[0][-1] for g_n in e_coeffs.items() if g_n[1] + k + k >= 0]))
         if verbose:
             print('I need to compute the obstruction space to precision %s.'%pole_order)
         v_list = w_dual.coefficient_vector_exponents(floor(pole_order) + 1, 1, include_vectors = True)
