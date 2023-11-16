@@ -5,7 +5,7 @@ Sage code for automorphisms of Weil representations
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2022 Brandon Williams
+#       Copyright (C) 2020-2023 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -153,23 +153,28 @@ class WeilRepMorphism:
         return WeilRepMorphism(w2, w1, lambda x: d1[Z[d2[tuple(x)]]])
 
     def matrix(self):
-        L = []
-        w = self.input_weilrep()
-        ds = w.ds()
-        i = 0
-        S = w.gram_matrix()
-        n = S.nrows()
-        A = matrix(L)
-        r = A.rank()
-        while r < n:
-            v = ds[i]
-            B = matrix(L + [v])
-            if B.rank() > r:
-                A = B
-                r = A.rank()
-                L = L + [v]
-            i += 1
-        return matrix([self(a) for a in A]) * A.inverse()
+        raise NotImplementedError
+        #try:
+        #    return self.__matrix
+        #except AttributeError:
+        #    raise NotImplementedError('This morphism was not constructed as a matrix') from None
+        #L = []
+        #w = self.input_weilrep()
+        #ds = w.ds()
+        #i = 0
+        #S = w.gram_matrix()
+        #n = S.nrows()
+        #A = matrix(L)
+        #r = A.rank()
+        #while r < n:
+        #    v = ds[i]
+        #    B = matrix(L + [v])
+        #    if B.rank() > r:
+        #        A = B
+        #        r = A.rank()
+        #        L = L + [v]
+        #    i += 1
+        #return (A.inverse() * matrix([self(a) for a in A])).transpose()
 
     def __mul__(self, other):
         r"""

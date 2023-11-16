@@ -240,7 +240,11 @@ class WeilRepModularForm(object):
         symm = self.is_symmetric()
         prec = self.precision()
         X = self.fourier_expansion()
-        if sorted_indices is None:
+        if self._use_all_coeffs_in_coeffvector:
+            rds = self.weilrep().ds()
+            sorted_indices = list(range(len(rds)))
+            symm = True
+        elif sorted_indices is None:
             sorted_indices = sorted(range(len(X)), key = lambda i: X[i][1])
             rds = self.weilrep().rds(indices = True)
             sorted_indices = [i for i in sorted_indices if rds[i] is None]
@@ -258,7 +262,14 @@ class WeilRepModularForm(object):
             starting_from = self.valuation()
         for n in range(floor(starting_from),ceil(ending_with)+1):
             for i in sorted_indices:
-                x = X[i]
+                try:
+                    x = X[i]
+                except IndexError:
+                    print('???')
+                    print(i, X)
+                    print(self.weilrep())
+                    print('indices:', sorted_indices)
+                    assert False
                 if b(n + x[1]) and (symm or x[0].denominator() > 2):
                     try:
                         Y.append(x[2][n])
@@ -270,6 +281,7 @@ class WeilRepModularForm(object):
         elif (not starting_from) and (ending_with == self.weight() / 12) and not sorted_indices:
             self.__coefficient_vector_sturm_bound = v
         return v
+    _use_all_coeffs_in_coeffvector = False
 
     def coefficients(self):#returns a dictionary of self's Fourier coefficients
         r"""
@@ -2135,9 +2147,21 @@ class WeilRepModularFormsBasis:
     def __init__(self, weight, basis, weilrep, flag = None, symmetry_data = None):
         self.__weight = weight
         self.__basis = basis
-        self.__weilrep = weilrep
+        try:
+            x = weilrep._flag()
+        except AttributeError:
+            x = None
+        if x is not None:
+            w, N = x
+            self.__weilrep = w
+            self.__flag2 = 1
+            self.__weilrep_hidden = weilrep
+        else:
+            self.__weilrep = weilrep
+            N = 1
+            self.__flag2 = 0
         self.__flag = flag
-        self.__bound = self.__weight / 12
+        self.__bound = N * self.__weight / 12
         self.__symmetry_data = symmetry_data
 
     def __repr__(self):
@@ -2153,7 +2177,10 @@ class WeilRepModularFormsBasis:
     def __add__(self, other):
         try:
             if self.weilrep() == other.weilrep() and self.weight() == other.weight():
-                X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
+                if self.__flag2:
+                    X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.__weilrep_hidden)
+                else:
+                    X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
                 if self._flag() == 'quasimodular' or other._flag() == 'quasimodular':
                     X._WeilRepModularFormsBasis__flag = 'quasimodular'
                 if self._WeilRepModularFormsBasis__symmetry_data and other._WeilRepModularFormsBasis__symmetry_data:
@@ -2234,8 +2261,6 @@ class WeilRepModularFormsBasis:
             a_rows = a.rows()
             self.__basis = [self * v for i, v in enumerate(b.rows()) if a_rows[i]]
         else:
-            import time
-            t = time.time()
             L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
             d = max(map(len, L))
             m = matrix([list(x) + [0]*(d - len(x)) for x in L]).extended_echelon_form(subdivide = True, proof = False)
@@ -2903,7 +2928,11 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
 
 
     def character(self):
-        return self.__character
+        try:
+            return self.__character
+        except AttributeError: #guessing the reason for the AttributeError...
+            self.__character = EtaCharacterPower(0)
+            return self.__character
 
     def __add__(self, other):
         if self.character() != other.character():

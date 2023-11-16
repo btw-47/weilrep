@@ -162,6 +162,69 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         except NotImplementedError:
             return self.true_fourier_expansion()
 
+    def fourier_jacobi(self):
+        r"""
+        Return self's Fourier--Jacobi coefficients as a list.
+        """
+        from .jacobi_lvl import JacobiFormWithLevel
+        if not self.has_fourier_jacobi_representation():
+            raise ValueError("This is not a Fourier--Jacobi series.")
+        try:
+            return self.__fourier_jacobi
+        except AttributeError:
+            pass
+        S = self.gram_matrix()
+        nrows = S.nrows() - 2
+        w = self.weilrep()
+        try:
+            N2 = w._N2()
+            nrows -= 2
+        except AttributeError:
+            N2 = 1
+        rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(nrows)))
+        z = rb.gens()[0]
+        r, q = PowerSeriesRing(rb, 'q').objgen()
+        k = self.weight()
+        N = w._N()
+        scale = self.scale()
+        N = lcm([N, N2, scale])
+        d = N2 / lcm(N2, scale)
+        S = w._pos_def_gram_matrix()
+        if scale != 1:
+            prec = self.precision()
+            floor_prec = floor(prec)
+            if prec in ZZ:
+                floor_prec -= 1
+            L = [O(q ** (floor_prec - n)) for n in range(floor_prec)]
+            coeffs = self.qs_coefficients()
+            for x, y in coeffs.items():
+                a = x[0]
+                c = x[2]
+                b = [x for x in x[1:-1]]
+                wscale = 1
+                if any(u not in ZZ for u in b):
+                    b = [b + b for b in b]
+                    wscale = 2
+                if nrows > 1:
+                    u = rb.monomial(*b)
+                else:
+                    u = z**(b[0])
+                L[floor(c)] += (q ** floor(a)) * u * y
+            qshift = frac(c)
+            self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, j, w_scale=scale, q_scale = d) for n, j in enumerate(L)]
+            return self.__fourier_jacobi
+        f = self.fourier_expansion()
+        rb_old = f.base_ring()
+        r_old = f.parent()
+        s = r_old.gens()[1]
+        r_new = r_old.remove_var(s)
+        change_name = {rb_old('r_%d'%j):rb('w_%d'%j) for j in range(nrows)}
+        prec = self.precision()
+        f = f.polynomial()
+        _change_ring = lambda f: r([x.subs(change_name) for x in f.list()])
+        self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, _change_ring(r_new(f.coefficient({s : n}))) + O(q ** (prec - n)), w_scale = scale, q_scale = d) for n in range(prec)]
+        return self.__fourier_jacobi
+
     def has_fourier_jacobi_representation(self):
         s = self.qexp_representation()
         if s == 'PD+II':
@@ -191,6 +254,9 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 return Integer(N - 2)
 
     def pullback(self, *v, new_prec = None):
+        r"""
+        Compute the restriction of self to a sublattice.
+        """
         from .positive_definite import WeilRepPositiveDefinitePlusII
         try:
             P = matrix(ZZ, v)

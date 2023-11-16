@@ -711,7 +711,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
 
     ## special methods
 
-    def jacobi_form(self):
+    def jacobi_form(self, eps = None, _flag = 0):
         r"""
         Return the Jacobi form associated to self.
 
@@ -752,8 +752,13 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             try:
                 _, _, vs_matrix = pari(S_inv).qfminim(precval + precval + 1, flag = 2)
                 vs_list = vs_matrix.sage().columns()
-                symm = self.is_symmetric()
-                symm = 1 if symm else -1
+                if _flag:
+                    vs_list = vs_list + [-v for v in vs_list]
+                if eps is None:
+                    symm = self.is_symmetric()
+                    symm = 1 if symm else -1
+                else:
+                    symm = eps
                 for v in vs_list:
                     wv = Rb.monomial(*v)
                     r = S_inv * v
@@ -773,6 +778,8 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 lvl = Q.level()
                 S_adj = lvl*S_inv
                 vs = QuadraticForm(S_adj).short_vector_list_up_to_length(lvl*(prec - val))
+                if _flag:
+                    vs = vs + [-v for v in vs]
                 for n in range(len(vs)):
                     r_norm = n/lvl
                     i_start = ceil(r_norm)
@@ -790,8 +797,13 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         elif e == 1:
             w, = Rb.gens()
             m = S[0,0] #twice the index
-            eps = 2*self.is_symmetric()-1
-            jf = [X[0][2][i] + sum(X[r%m][2][ceil(i - r*r / (2*m))]*(w**r + eps * w**QQ(-r)) for r in range(1,isqrt(2*(i-val)*m)+1)) for i in range(val, prec)]
+            if eps is None:
+                eps = 2*self.is_symmetric()-1
+            if _flag:
+                h = isqrt(2*(prec-val)*m)+1
+                jf = [sum(X[r%m][2][ceil(i - r*r / (2*m))]*(w**QQ(r)) for r in range(-h, h)) for i in range(val, prec)]
+            else:
+                jf = [X[0][2][i] + sum(X[r%m][2][ceil(i - r*r / (2*m))]*(w**r + eps * w**QQ(-r)) for r in range(1,isqrt(2*(i-val)*m)+1)) for i in range(val, prec)]
         else:
             return JacobiForm(self.weight(), S, self.fourier_expansion()[0][2], weilrep = self.weilrep(), modform = self)
         return JacobiForm(self.weight() + e/2, S, q ** val * R(jf) + O(q**prec), weilrep = self.weilrep(), modform = self)

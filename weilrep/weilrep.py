@@ -83,6 +83,9 @@ sage_five_half = Integer(5) / Integer(2)
 sage_seven_half = Integer(7) / Integer(2)
 sage_nine_half = Integer(9) / Integer(2)
 _automorphism_group_dict = {}
+_sentinel = object()
+
+
 
 
 class WeilRep(object):
@@ -103,6 +106,7 @@ class WeilRep(object):
     """
 
     def __init__(self, S, **kwargs):
+        self.__flag = None
         if not S:
             S = matrix([])
         try:
@@ -131,6 +135,7 @@ class WeilRep(object):
         self.__modular_forms_basis = {}
         self.__vals = {}
         self.__valsm = {}
+        self.__applied_funct = None
         if self.is_positive_definite():
             from .positive_definite import WeilRepPositiveDefinite
             self.__class__ = WeilRepPositiveDefinite
@@ -213,6 +218,9 @@ class WeilRep(object):
             w = WeilRep(-self.gram_matrix())
             self.__dual = w
             return w
+
+    def _flag(self):
+        return self.__flag
 
     def __hash__(self):
         r"""
@@ -1114,7 +1122,7 @@ class WeilRep(object):
                 X.append([g, norm_list[indices[i]], eps * X[indices[i]][2]])
         return WeilRepModularForm(k, S, X, weilrep = self)
 
-    def eisenstein_oldform(self, k, b, prec, **kwargs):
+    def eisenstein_oldform(self, k, b, prec, funct = _sentinel, **kwargs):
         r"""
         Compute certain Eisenstein oldforms.
 
@@ -1140,8 +1148,17 @@ class WeilRep(object):
             [(3/4), 56*q^(3/4) + 576*q^(7/4) + 1512*q^(11/4) + 4032*q^(15/4) + 5544*q^(19/4) + O(q^(23/4))]
             [(7/8), O(q^(95/16))]
         """
+        if funct is not None and funct is _sentinel:
+            try:
+                funct = self.__applied_funct
+                f = self.eisenstein_oldform(k, b, prec, funct=funct, **kwargs)
+                if funct:
+                    return funct(f)
+                return f
+            except AttributeError:
+                funct = None
         eps = 1 if self.is_symmetric_weight(k) else -1
-        E = self.eisenstein_series(k, prec, **kwargs)
+        E = self.eisenstein_series(k, prec, funct = funct, **kwargs)
         d_b = denominator(b)
         if d_b == 1:
             return E
@@ -1181,7 +1198,7 @@ class WeilRep(object):
                 return WeilRepMockModularForm(k, self.gram_matrix(), Y, WeilRepModularForm(1/2, -S, a(s), s.weilrep()) / 16, shadow_multiplier = multiplier, weilrep = self)
             return WeilRepModularForm(k, S, Y, weilrep = self)
 
-    def eisenstein_series(self, k, prec, allow_small_weight = False, components = None, _flag = None):
+    def eisenstein_series(self, k, prec, allow_small_weight = False, components = None, _flag = None, funct = _sentinel):
         r"""
         Constuct Eisenstein series attached to the vector e_0.
 
@@ -1266,8 +1283,19 @@ class WeilRep(object):
             [(1/6), 9/4*q^(1/12) + 9/4*q^(25/12) + 9/4*q^(49/12) + O(q^(61/12))]
         """
         #check input
-        prec = ceil(prec)
         k_is_list = type(k) is list
+        if funct is not None and funct is _sentinel:
+            try:
+                funct = self.__applied_funct
+                f = self.eisenstein_series(k, prec, funct = None)
+                if funct is not None:
+                    if k_is_list:
+                        return [funct(f) for f in f]
+                    return funct(f)
+                return f
+            except AttributeError:
+                return self.eisenstein_series(k, prec, funct = None)
+        prec = ceil(prec)
         if not k_is_list and components is None and _flag is None:
             if prec <= 0:
                 raise ValueError('Precision must be at least 0')
@@ -1287,19 +1315,19 @@ class WeilRep(object):
                 if k == 2:
                     s = self._eisenstein_series_shadow(prec)
                     if s:
-                        self.__eisenstein[k] = prec, WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * s / sqrt(self.discriminant()), self.eisenstein_series(k, prec, allow_small_weight = True)], weilrep = self)
+                        self.__eisenstein[k] = prec, WeilRepQuasiModularForm(k, self.gram_matrix(), [-12 * s / sqrt(self.discriminant()), self.eisenstein_series(k, prec, allow_small_weight = True, funct = None)], weilrep = self)
                     else:
-                        self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
+                        self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True, funct = None)
                 else:
                     s = self._eisenstein_series_shadow_wt_three_half(prec)
                     if s:
                         multiplier = 1 / (pi * sqrt(self.discriminant() // 2))
-                        self.__eisenstein[k] = prec, WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True).fourier_expansion(), s / 16, shadow_multiplier = multiplier, weilrep = self)
+                        self.__eisenstein[k] = prec, WeilRepMockModularForm(k, self.gram_matrix(), self.eisenstein_series(k, prec, allow_small_weight = True, funct = None).fourier_expansion(), s / 16, shadow_multiplier = multiplier, weilrep = self)
                     else:
-                        self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True)
+                        self.__eisenstein[k] = prec, self.eisenstein_series(k, prec, allow_small_weight = True, funct = None)
                 return self.__eisenstein[k][1]
             elif k == 1 and not _flag:
-                f = self.eisenstein_series(1, prec, _flag = 1)
+                f = self.eisenstein_series(1, prec, _flag = 1, funct = None)
                 return f + self._eisenstein_series_weight_one_constant_term()
             elif k <= 1/2:
                 return NotImplemented
@@ -1477,10 +1505,6 @@ class WeilRep(object):
                                         raise ValueError('Not holomorphic')
                                 D_list.append(D)
                                 main_term_list.append(correct_L_function * pi * sqrt_factor / zeta(2*k_shift))
-                                if n == 1:
-                                    print('hello!')
-                                    print('main term:', correct_L_function * pi * sqrt_factor / zeta(2*k_shift))
-                                    print('Lvalue:', Lvalue_list[0][n_lists[0][0].index(n)])
                     local_factor_list = [1] * (modified_prec)
                     if k_is_list:
                         local_factor_list = [copy(local_factor_list) for _ in range(len_k)]
@@ -2090,7 +2114,7 @@ class WeilRep(object):
         return WeilRepModularForm(k, self.gram_matrix(), X, weilrep = self)
 
 
-    def pss(self, weight, b, m, prec, weilrep = None, fix = True):
+    def pss(self, weight, b, m, prec, weilrep = None, fix = True, funct = _sentinel):
         r"""
         Compute Poincare square series.
 
@@ -2118,6 +2142,15 @@ class WeilRep(object):
         """
         if weight < 2:
             raise NotImplementedError
+        if funct is not None and funct is _sentinel:
+            try:
+                funct = self.__applied_funct
+                f = self.pss(weight, b, m, prec, funct = None)
+                if funct is not None:
+                    return funct(f)
+                return f
+            except AttributeError:
+                return self.pss(weight, b, m, prec, funct = None)
         S = self.gram_matrix()
         if not weilrep:
             if S:
@@ -2155,7 +2188,7 @@ class WeilRep(object):
             return X + weight_two_pss_fix(self, b, m, prec, w)
 
 
-    def pssd(self, weight, b, m, prec, weilrep = None, fix = True):
+    def pssd(self, weight, b, m, prec, weilrep = None, fix = True, funct = _sentinel):
         r"""
         Compute antisymmetric modular forms.
 
@@ -2199,6 +2232,15 @@ class WeilRep(object):
         """
         if weight < 3:
             raise NotImplementedError
+        if funct is not None and funct is _sentinel:
+            try:
+                funct = self.__applied_funct
+            except AttributeError:
+                funct = None
+            f = self.pssd(weight, b, m, prec, funct = None)
+            if funct is not None:
+                return funct(f)
+            return f
         if not weilrep:
             S = self.gram_matrix()
             if S:
@@ -2522,19 +2564,18 @@ class WeilRep(object):
 
     def zwegers_theta(self, c1, c2, prec):
         r"""
-        --- NOT SUFFICIENTLY TESTED ---
-
         Compute Zwegers' theta function associated to an indefinite lattice of signature (1, n).
 
         This is the series
         \Theta_{c_1, c_2}(q) = \sum_{x \in L'} ( sgn( <x, c1> ) - sgn( <x, c2> )) * q^{Q(x)} e_x.
 
         This is implemented only when c1, c2 are isotropic vectors, (in which case the above series is a modular form of weight n/2 + 1/2).
-        The constant term diverges and is regularized by unterstanding this series as the radial limit,
+        Some components of this series diverge and are regularized by unterstanding this series as the radial limit,
         \lim_{h \rightarrow 0} \Theta_{c_1 + h v_1, c_2 + h v_2},
         where v_1, v_2 are (any) strictly positive elements and the Theta series above is the Theta function attached to the Schwartz function
         ( E( <x, c_1 + h v_1> / ||c_1 + h v_1|| ) - E( <x, c_2 + h v_2> / ||c_2 + h v_2|| ) ) * e^{-2\pi Q(x)}
-        Unlike all other Fourier coefficients the constant term is usually nonintegral.
+        The regularized coefficients involve special values of Hurwitz zeta functions and are not generally integers.
+        (Thanks to Markus Schwagenscheidt for figuring this out!)
 
         INPUT:
         - ``c1``, ``c2`` -- isotropic vectors lying on the boundary of a common positive cone (i.e. <c1, c2> is positive)
@@ -2612,8 +2653,6 @@ class WeilRep(object):
                     jc2 = j*c2/d
                     h = v + ic1 - jc2
                     U = [h, -h]
-                    if v == vector([1, -2, -7/9, 4/9]):
-                        print('Hello!', i/d, j/d, h)
                     for h in U:
                         try:
                             k = ds_dict[tuple(map(frac, h))]
@@ -2629,13 +2668,15 @@ class WeilRep(object):
         c2 /= GCD(sc2)
         d1 = denominator(c1)
         d2 = denominator(c2)
+        def periodic_bernoulli(x):
+            return x - (ceil(x) + floor(x)) / 2
         for a in range(1, d1):
             for i, v in enumerate(vs_list):
                 g = tuple(map(frac, a * c1 + v))
                 v_norm = ceil(v_norm_list[i])
                 try:
                     k = ds_dict[g]
-                    X[k][2] -= (1 - 2 * a / d1) * q**v_norm
+                    X[k][2] += 2 * periodic_bernoulli(a / d1) * (q ** v_norm)
                 except KeyError:
                     pass
         for a in range(1, d2):
@@ -2644,7 +2685,7 @@ class WeilRep(object):
                 v_norm = ceil(v_norm_list[i])
                 try:
                     k = ds_dict[g]
-                    X[k][2] += (1 - 2 * a / d2) * q**v_norm
+                    X[k][2] -= 2 * periodic_bernoulli(a / d2) * (q ** v_norm)
                 except KeyError:
                     pass
         return WeilRepModularForm(ZZ(s.nrows()) / 2, s, X, weilrep = self)
@@ -2884,7 +2925,7 @@ class WeilRep(object):
                 raise ValueError('This character does not satisfy chi(-1) = (-1)^k.')
         except IndexError:
             raise ValueError('The automorphism group you provided does not contain x --> -x.') from None
-        if weight >= sage_five_half or force_Riemann_Roch:
+        if weight >= sage_five_half or (weight == 2 and cusp_forms == False) or force_Riemann_Roch:
             eps = 1 if symm else -1
             modforms_rank = self.rank(symm)
             two_pi_i = complex(0.0, 2 * math.pi)
@@ -3081,6 +3122,11 @@ class WeilRep(object):
         if symm is None:
             return WeilRepModularFormsBasis(k, [], self)
         sturm_bound = k/12
+        try:
+            w, h = self._flag()
+            sturm_bound *= h
+        except (AttributeError, TypeError):
+            w = self
         prec = max(prec,sturm_bound)
         if N > sturm_bound:
             return []
@@ -3114,7 +3160,7 @@ class WeilRep(object):
             if inclusive:
                 return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) > N], self)
             return WeilRepModularFormsBasis(k, [x for x in U if x.valuation(exact = True) >= N], self)
-        Y = self.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
+        Y = w.coefficient_vector_exponents(prec, symm, include_vectors = inclusive_except_zero_component)
         try:
             if inclusive:
                 j = next(i for i in range(ell) if Y[pivots[i]] > N)
@@ -3324,6 +3370,10 @@ class WeilRep(object):
             ds = self.ds()
             norm_list = self.norm_list()
             b_list = [i for i in range(len(ds)) if not (indices[i] or norm_list[i])]
+            try:
+                funct = self.__applied_funct
+            except AttributeError:
+                funct = None
             def t_packet_1(X, k, m, b, max_dim, prec, verbose = False): #symmetric
                 w_new = self._embiggen(b, m)
                 if max_dim > 3 and k in ZZ:
@@ -3332,10 +3382,15 @@ class WeilRep(object):
                         print('-'*80)
                         print('I am returning to the Gram matrix\n%s'%self.gram_matrix())
                         print('I computed a packet of %d cusp forms using the index %s.'%(len(z), (b, m)))
+                    if funct:
+                        z = WeilRepModularFormsBasis(z.weight(), [funct(x) for x in z], self)
                     X.extend(z)
                 if k > sage_nine_half:
                     _, x = w_new._eisenstein_packet(k - sage_one_half, prec, dim = dim_rank)
-                    X.extend(x.theta(weilrep = self))
+                    z = x.theta(weilrep = self)
+                    if funct:
+                        z = WeilRepModularFormsBasis(z.weight(), [funct(x) for x in z], self)
+                    X.extend(z)
                     if x and verbose:
                         print('I computed a packet of %d cusp forms using the index %s.'%(len(x), (b, m)))
                 X.append(E - self.pss(k, b, m, prec, weilrep = w_new))
@@ -3365,6 +3420,8 @@ class WeilRep(object):
                 w_new = self._embiggen(b, m)
                 if max_dim > 3 and k >= 4:
                     z = w_new.cusp_forms_basis(k - sage_three_half, prec, echelonize = False, verbose = verbose, dim = max_dim).theta(weilrep = self, odd = True)
+                    if funct:
+                        z = WeilRepModularFormsBasis(z.weight(), [funct(x) for x in z], self)
                     if z:
                         X.extend(z)
                         if verbose:
@@ -3387,10 +3444,10 @@ class WeilRep(object):
                         j += 1
                         k_j -= 12
                 rank = len(X)
-                if rank >= dim:
-                    X.remove_nonpivots()
-                    rank = len(X)
-                del w_new
+                #if rank >= dim:
+                #    X.remove_nonpivots()
+                #    rank = len(X)
+                #del w_new
                 return X, rank
             failure_count = 0
             excluded = set([])
@@ -3438,16 +3495,17 @@ class WeilRep(object):
                                 return return_pivots()
                             elif rank == old_rank:
                                 failure_count += 1
-                            if failure_count >= 4: #failed to find a new vector 4 times in a row?
-                                if symm:
-                                    X.append(E - self.pss(k, b, m + 1, prec))
-                                else:
-                                    X.append(self.pssd(k, b, m + 1, prec))
-                                excluded.add((b_tuple, m+1))
-                                if verbose:
-                                    print('I computed a Poincare square series of index %s.'%([b, m + 1]))
-                                rank += 1
-                                failure_count = 0
+                            #if failure_count >= 4: #failed to find a new vector 4 times in a row?
+                            ###### commenting this out because it doesn't appear to help
+                            #    if symm:
+                            #        X.append(E - self.pss(k, b, m + 1, prec))
+                            #    else:
+                            #        X.append(self.pssd(k, b, m + 1, prec))
+                            #    excluded.add((b_tuple, m+1))
+                            #    if verbose:
+                            #        print('I computed a Poincare square series of index %s.'%([b, m + 1]))
+                            #    rank += 1
+                            #    failure_count = 0
                 m0 += 1
                 if m0 > prec and rank < dim:#this will probably never happen but lets be safe
                     raise RuntimeError('Something went horribly wrong!')
@@ -3482,14 +3540,19 @@ class WeilRep(object):
             prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
             X1 = self.cusp_forms_basis(k+4, prec, verbose = verbose)
+            w = X1.weilrep()
             try:
-                B = matrix([x.coefficient_vector() for x in X1])
-                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector() for x in X1])
+                w._WeilRep__flag = self.__flag
+            except AttributeError:
+                pass
+            try:
+                B = matrix([x.coefficient_vector(starting_from = 0) for x in X1])
+                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector(starting_from = 0) for x in X1])
                 V1 = span(B)
                 V2 = span(A)
                 V = (V1.intersection(V2)).basis_matrix()
-                X = [self.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
-                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], self)
+                X = [w.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], w)
                 if echelonize:
                     pivots = X.echelonize(save_pivots = save_pivots)
                     self.__cusp_forms_basis[k] = prec, X
@@ -3717,7 +3780,7 @@ class WeilRep(object):
 
     def invariant_forms_basis(self, k, prec = 0, G = None, chi = None, verbose = False):
         r"""
-        Compute a basis of cusp forms with specified symmetries.
+        Compute a basis of modular forms with specified symmetries.
 
         Let G be a WeilRepAutomorphismGroup (typically the output of self.automorphism_group()) and chi a 'character' -- a list of +/-1 of length equal to len(G) such that chi[i] * chi[j] = chi[k] whenever G[i] * G[j] = G[k]. This method computes a basis of the space of cusp forms f of weight 'k' for which G[i](f) = chi[i] * f for i = 1,...,|G|.
 
@@ -3904,6 +3967,10 @@ class WeilRep(object):
             return self._invariants(prec)
         elif weight == sage_one_half:
             return self._weight_one_half_basis(prec)
+        try:
+            funct = self.__applied_funct
+        except AttributeError:
+            funct = None
         b_list = [i for i in range(len(_ds)) if not (_indices[i] or _norm_list[i]) and (self.__ds_denominators_list[i] < 5 or self.__ds_denominators_list[i] == 6)]
         if weight > 3 or (symm and weight > 2):
             dim1 = self.modular_forms_dimension(weight)
@@ -3911,18 +3978,25 @@ class WeilRep(object):
             if verbose:
                 print('I need to find %d modular forms of weight %s to precision %d.' %(dim1, weight, prec))
             if (symm and dim1 <= dim2 + len(b_list)):
+                L = WeilRepModularFormsBasis(weight, [self.eisenstein_oldform(weight, _ds[i], prec) for i in b_list], self)
                 if verbose:
                     print('I found %d Eisenstein series.' %len(b_list))
                     if dim2 > 0:
                         print('I am now going to look for %d cusp forms of weight %s.' %(dim2, weight))
-                L = WeilRepModularFormsBasis(weight, [self.eisenstein_oldform(weight, _ds[i], prec) for i in b_list], self)
                 if eisenstein:
                     L.extend(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0]))
                     return L
                 else:
-                    X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])], self)
+                    if funct is None:
+                        X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])], self)
+                    else:
+                        X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose)], self)
                     X.extend(L)
-                    X.echelonize()
+                    try:
+                        X.echelonize()
+                    except ValueError:
+                        print(X)
+                        assert False
                     self.__modular_forms_basis[weight] = prec, X
                     return X
             elif dim1 == dim2:
@@ -3961,8 +4035,8 @@ class WeilRep(object):
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
             X1 = self.modular_forms_basis(weight+4, prec, verbose = verbose)
             try:
-                B = matrix([x.coefficient_vector() for x in X1])
-                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector() for x in X1])
+                B = matrix([x.coefficient_vector(starting_from = 0, ending_with = prec) for x in X1])
+                A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector(starting_from = 0, ending_with = prec) for x in X1])
                 V1 = span(B)
                 V2 = span(A)
                 V = (V1.intersection(V2)).basis_matrix()
@@ -3976,6 +4050,12 @@ class WeilRep(object):
                 self.__modular_forms_basis[weight] = prec, X
                 return X
         else:
+            try:
+                x = self._flag()
+                if x is not None:
+                    raise NotImplementedError from None
+            except AttributeError:
+                pass
             if verbose:
                 print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.' %weight)
             return self.nearly_holomorphic_modular_forms_basis(weight, 0, prec, inclusive = True, reverse = False, force_N_positive = True, verbose = verbose)
@@ -4085,6 +4165,13 @@ class WeilRep(object):
             f = smf_eta(prec + 1) ** eta_twist
             return WeilRepModularFormsBasis(k, [x * f for x in X], self)
         sturm_bound = k/12
+        try:
+            _, N = self._flag()
+            sturm_bound *= N
+            if sturm_bound < 0:
+                sturm_bound = 0
+        except (AttributeError, TypeError):
+            pass
         prec = max(prec, sturm_bound)
         dual_sturm_bound = Integer(1)/Integer(6) - sturm_bound
         symm = self.is_symmetric_weight(k)
@@ -4245,7 +4332,8 @@ class WeilRep(object):
             return lambda x: vector(map(frac, g * x))
         if gens:
             gens = [Z * x.matrix() * Z_inv if isinstance(x, WeilRepMorphism) else Z * x * Z_inv for x in gens]
-            G = self.discriminant_form().orthogonal_group(gens = gens)
+            gens = [g[i:, i:] for g in gens]
+            G = self.discriminant_form().orthogonal_group(gens = gens, check = False)
             name = 'Subgroup of automorphism group'
         else:
             G = self.discriminant_form().orthogonal_group()

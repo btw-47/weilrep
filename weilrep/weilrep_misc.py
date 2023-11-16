@@ -10,7 +10,7 @@ import cmath
 import math
 from bisect import bisect
 
-from sage.arith.misc import divisors, fundamental_discriminant, is_square, kronecker, prime_divisors
+from sage.arith.misc import dedekind_sum, divisors, fundamental_discriminant, is_square, kronecker, prime_divisors
 from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.combinat.subset import Subsets
@@ -143,7 +143,9 @@ def relations(*x):
     """
     from .fourier_jacobi import FourierJacobiSeries, _fj_relations
     from .jacobi_forms_class import JacobiForm, _jf_relations
+    from .jacobi_lvl import JacobiFormWithLevel, _jf_relations_lvl
     from .lifts import OrthogonalModularForm, _omf_relations
+    from .unitary import UnitaryModularForm, _umf_relations
     from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
     x_ref = x[0]
     if isinstance(x_ref, list):
@@ -163,8 +165,12 @@ def relations(*x):
         return x_ref.relations()
     elif isinstance(x_ref, JacobiForm):
         return _jf_relations(x)
+    elif isinstance(x_ref, JacobiFormWithLevel):
+        return _jf_relations_lvl(x)
     elif isinstance(x_ref, OrthogonalModularForm):
         return _omf_relations(x)
+    elif isinstance(x_ref, UnitaryModularForm):
+        return _umf_relations(x)
     elif isinstance(x_ref, FourierJacobiSeries):
         return _fj_relations(x)
     return NotImplemented
@@ -315,6 +321,8 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
         print('I did not find enough theta blocks. Time to try something else.')
     return jacobiforms.basis(2, prec, try_theta_blocks = False, verbose = verbose)
 
+
+
 class QuadraticLFunction(BuiltinFunction):
     r"""
     Symbolic quadratic L-functions.
@@ -346,11 +354,21 @@ class QuadraticLFunction(BuiltinFunction):
         D = Integer(D)
         if D % 4 > 1:
             raise ValueError('Not a discriminant')
-        s = kronecker_character(D).lfunction(algorithm='lcalc').value(x).real()
         f = D.squarefree_part()
         if f % 4 > 1 and not D % 4:
             f *= 4
         m = D // f
+        if f != 1:
+            s = kronecker_character(f).lfunction(algorithm='lcalc').value(x).real()
+        else:
+            s = zeta(x).n()
         if m != 1:
             return prod(1 - p**(-x) * kronecker(f, p) for p in prime_divisors(m)) * s
         return s
+
+    def residue(self, D): #residue at s=1 if there is a pole
+        D = Integer(D)
+        f = D.squarefree_part()
+        if f != 1:
+            return 0
+        return prod((p - 1) / p for p in prime_divisors(D))
