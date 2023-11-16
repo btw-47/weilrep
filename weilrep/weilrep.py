@@ -3349,14 +3349,19 @@ class WeilRep(object):
                 else:
                     rank = 0
             if symm and k >= sage_nine_half:
-                E, Y = self._eisenstein_packet(k, prec, dim = dim+1)
+                discr = self.discriminant()
+                if dim >= discr / 2:    #don't do this otherwise because it's slow
+                    E, Y = self._eisenstein_packet(k, prec, dim = dim+1)
+                else:
+                    E = None
+                    Y = None
                 if verbose and Y:
                     print('I computed a packet of %d cusp forms using Eisenstein series. (They may be linearly dependent.)'%len(Y))
                     X.extend(Y)
-            elif symm and not E:
-                E = self.eisenstein_series(k, prec)
-                if verbose:
-                    print('I computed the Eisenstein series of weight %s up to precision %s.' %(k, prec))
+            #elif symm and not E:
+            #    E = self.eisenstein_series(k, prec)
+            #    if verbose:
+            #        print('I computed the Eisenstein series of weight %s up to precision %s.' %(k, prec))
             if X:
                 rank = X.rank()
                 if rank >= dim:
@@ -3364,9 +3369,16 @@ class WeilRep(object):
                     self.__cusp_forms_basis[k] = prec, X
                     return return_pivots()
                 pass
-            m0 = 1
             G = self.sorted_rds()
+            if symm and not E:
+                b0 = G[0]
+                m0 = 1 + _norm_dict[b0]
+                if m0 < 1/2:
+                    E = self.pss(k, vector(b0), m0, prec)
+                else:
+                    E = self.eisenstein_series(k, prec)
             indices = self.rds(indices = True)
+            m0 = 1
             ds = self.ds()
             norm_list = self.norm_list()
             b_list = [i for i in range(len(ds)) if not (indices[i] or norm_list[i])]
