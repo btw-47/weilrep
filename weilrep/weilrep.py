@@ -1287,14 +1287,14 @@ class WeilRep(object):
         if funct is not None and funct is _sentinel:
             try:
                 funct = self.__applied_funct
-                f = self.eisenstein_series(k, prec, funct = None)
+                f = self.eisenstein_series(k, prec, allow_small_weight = allow_small_weight, funct = None)
                 if funct is not None:
                     if k_is_list:
                         return [funct(f) for f in f]
                     return funct(f)
                 return f
             except AttributeError:
-                return self.eisenstein_series(k, prec, funct = None)
+                return self.eisenstein_series(k, prec, allow_small_weight = allow_small_weight, funct = None)
         prec = ceil(prec)
         if not k_is_list and components is None and _flag is None:
             if prec <= 0:
@@ -2139,18 +2139,23 @@ class WeilRep(object):
             [(0, 1/2), -11/62*q^(1/4) - 24105/31*q^(5/4) - 919487/62*q^(9/4) - 2878469/31*q^(13/4) - 11002563/31*q^(17/4) + O(q^(21/4))]
             [(1/2, 1/2), -7616/31*q - 8448*q^2 - 1876736/31*q^3 - 270336*q^4 + O(q^5)]
 
+            sage: from weilrep import WeilRep
+            sage: WeilRep(matrix([[-2]])).pss(5/2, vector([0]), 1, 5)
+            [(0), 1 - 70*q - 120*q^2 - 240*q^3 - 550*q^4 + O(q^5)]
+            [(1/2), -10*q^(1/4) - 48*q^(5/4) - 250*q^(9/4) - 240*q^(13/4) - 480*q^(17/4) + O(q^(21/4))]
+
         """
         if weight < 2:
             raise NotImplementedError
         if funct is not None and funct is _sentinel:
             try:
                 funct = self.__applied_funct
-                f = self.pss(weight, b, m, prec, funct = None)
+                f = self.pss(weight, b, m, prec, weilrep = weilrep, fix = fix, funct = None)
                 if funct is not None:
                     return funct(f)
                 return f
             except AttributeError:
-                return self.pss(weight, b, m, prec, funct = None)
+                return self.pss(weight, b, m, prec,  weilrep = weilrep, fix = fix, funct = None)
         S = self.gram_matrix()
         if not weilrep:
             if S:
