@@ -990,8 +990,8 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             ds.append(x[0])
                             L.append(i)
                     indices = [None] * len(ds)
-                    e = w.dual().eisenstein_series(sage_three_half, max(1, 1 - ceil(val)), allow_small_weight = True, components = (ds, indices))
-                    s = sum([(f[j][2] * e[i][2] * q ** (floor(f[j][1])))[0] for i, j in enumerate(L)])
+                    e = w.dual().eisenstein_series(sage_three_half, max(1, 1 - floor(val)), allow_small_weight = True, components = (ds, indices)).fourier_expansion()
+                    s = sum([(f[j][2] * e[j][2] * q ** (floor(f[j][1] + e[i][1])))[0] for i, j in enumerate(L)])
                 else:
                     s = f[0][2][0]
                 return vector([s * (1 + N) / 24])
