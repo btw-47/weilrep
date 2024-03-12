@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2023 Brandon Williams
+#       Copyright (C) 2020-2024 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1388,7 +1388,7 @@ class WeilRepModularForm(object):
         prec = self.precision() // N_sqr
         q, = T[0][2].parent().gens()
         F = [[t[0], t[1], O(q ** (prec - floor(t[1])))] for t in T]
-        val = self.valuation() * N_sqr
+        val = min(0, self.valuation() * N_sqr)
         ds_dict = w.ds_dict()
         ds = w.ds()
         D = len(ds)
