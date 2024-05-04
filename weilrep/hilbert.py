@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020 Brandon Williams
+#       Copyright (C) 2020-2024 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -127,6 +127,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
             self.__omega = (1 + sqrtd) / 2
         else:
             self.__omega = sqrtd / 2
+        self.__sqrtd = sqrtd
 
     def __repr__(self):
         return 'Hilbert modular forms over %s'%str(self.__base_field)
@@ -192,6 +193,23 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         Return the generator (1 + sqrt(d_K)) / 2 or sqrt(d_K)/2 of the ring of integers of the underlying number field.
         """
         return self.__omega
+
+    def _sqrtd(self):
+        return self.__sqrtd
+
+    def fundamental_unit(self):
+        r"""
+        Return the fundamental unit in self's base field.
+        """
+        try:
+            return self.__unit
+        except AttributeError:
+            K = self.base_field()
+            self.__unit = K(K.unit_group().gens()[1])
+            return self.__unit
+
+    def hecke_operator(self, p):
+        return HilbertHeckeOperator(self, p)
 
 HMF = HilbertModularForms
 
@@ -288,6 +306,13 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
     def nvars(self):
         return 2
 
+    def hmf(self):
+        try:
+            return self.__hmf
+        except AttributeError:
+            self.__hmf = HilbertModularForms(self.base_field())
+            return self.__hmf
+
     #get Fourier coefficients
 
     def coefficients(self, prec=+Infinity):
@@ -335,10 +360,28 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                 sqrtD = K(D).sqrt() / 2
             n = ZZ(scale * (2 * a - tt) * sqrtD)
             return self.fourier_expansion()[i][n]
-        except TypeError:
-            return 0
+        #except TypeError:
+        #    return 0
+        except IndexError:
+            u = self.hmf().fundamental_unit()
+            au = a * u
+            k = self.weight()
+            if au.trace() < K(a).trace():
+                return (-1)**k * self.__getitem__(au)
+            au = a / u
+            if au.trace() < K(a).trace():
+                return (-1)**k * self.__getitem__(au)
+            raise IndexError('coefficient not known') from None
 
     #other methods
+
+    def hecke_operator(self, p):
+        r"""
+        Apply the Hecke operator T_p.
+
+        p should be a prime element of K.
+        """
+
 
     def hz_pullback(self, mu):
         r"""
@@ -350,8 +393,6 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         - ``mu`` -- a totally-positive integer in the base-field K.
 
         OUTPUT: an OrthogonalModularForm for a signature (2, 1) lattice
-
-        WARNING: the output's weyl vector is not implemented
 
         EXAMPLES::
 
@@ -378,3 +419,35 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         else:
             f = sum([p[n] * t ** ((i*tt + 2 * n * a)/2) for i, p in enumerate(h.list()) for n in p.exponents()]) + O(t**prec)
         return OrthogonalModularFormLorentzian(self.weight(), WeilRep(matrix([[-2 * nn]])), f, scale = self.scale(), weylvec = vector([0]), qexp_representation = 'shimura')
+
+
+class HilbertHeckeOperator:
+    def __init__(self, hmf, p):
+        self.__hmf = hmf
+        self.__index = p
+
+    def __repr__(self):
+        return 'Hecke operator of index %s acting on Hilbert modular forms over %s'%(self.__index, self.__hmf.base_field())
+
+    def hmf(self):
+        return self.__hmf
+
+    def index(self):
+        return self.__index
+
+    def _get_coeff(self, f, N):
+        r"""
+        Get the coefficient of q^N = exp(2*pi*I * (N * tau1 + N' * tau2)) in the image of the Hilbert modular form f under self.
+        """
+        p = self.__index
+        h = self.hmf()
+        O = h.base_field().maximal_order()
+        if p in ZZ:
+            norm = p**2
+        else:
+            norm = p.norm()
+        k = f.weight()
+        s = f.__getitem__(p * N)
+        if N * h._sqrtd() / p in O:
+            s += f.__getitem__(N / p) * norm**(k - 1)
+        return s

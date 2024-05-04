@@ -1,6 +1,6 @@
 r"""
 
-Basic methods for additive and multiplicative theta lifts
+Additive and multiplicative theta lifts
 
 AUTHORS:
 
@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2023 Brandon Williams
+#       Copyright (C) 2020-2024 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -453,7 +453,7 @@ class OrthogonalModularForm(object):
         if s:
             if len(s) == 3:
                 if s[0] == 'hermite':
-                    from .special import HermitianModularForm
+                    from .hermitian import HermitianModularForm
                     self.__class__ = HermitianModularForm
                     HermitianModularForm.__init__(self, s[1], s[2])
                 elif s[0] == 'hilbert':
@@ -461,7 +461,7 @@ class OrthogonalModularForm(object):
                     self.__class__ = HilbertModularForm
                     HilbertModularForm.__init__(self, s[1], s[2])
             elif s == 'siegel':
-                from .special import ParamodularForm
+                from .paramodular import ParamodularForm
                 self.__class__ = ParamodularForm
             elif s == 'unitary':
                 pass
@@ -548,6 +548,7 @@ class OrthogonalModularForm(object):
         Return our precision.
         """
         return Integer(self.true_fourier_expansion().prec()) / self.scale()
+    prec = precision
 
     def _principal_part_coefficients(self):
         return self.__ppcoeffs

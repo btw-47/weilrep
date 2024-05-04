@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2023 Brandon Williams
+#       Copyright (C) 2020-2024 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -2440,17 +2440,17 @@ class WeilRep(object):
             if self.is_positive_definite():
                 raise ValueError('Theta series define modular forms for the *dual* Weil representation only for negative-definite lattices. Please replace your WeilRep w by w.dual() and try again.')
             raise ValueError('Not a negative-definite lattice.')
+        Q_dim = Integer(Q.dim())
+        if P == 0:
+            if _list:
+                return [self.zero(weight = Q_dim / 2, prec = prec)]
+            return self.zero(weight = Q_dim / 2, prec = prec)
         q, = PowerSeriesRing(QQ, 'q').gens()
         _ds = self.ds()
         _ds_dict = self.ds_dict()
         n_dict = self.norm_dict()
-        if P == 0:
-            if _list:
-                return [self.zero(prec = prec)]
-            return self.zero(prec = prec)
         S_inv = -self.gram_matrix().inverse()
         deg_P = 0
-        Q_dim = Q.dim()
         if P:
             q, = PowerSeriesRing(P.base_ring(), 'q').gens()
             deg_P = P.degree()
@@ -2467,7 +2467,7 @@ class WeilRep(object):
                 elif Q_dim >= 3 and not _list:
                     bound = ceil((Q_dim + deg_P + deg_P)/ 24)
                     if prec > bound:
-                        X = self.cusp_forms_basis(Integer(Q_dim) / 2 + deg_P, prec)
+                        X = self.cusp_forms_basis(Q_dim / 2 + deg_P, prec)
                         if not deg_P:
                             X = WeilRepModularFormsBasis(X.weight(), X._WeilRepModularFormsBasis__basis + [self.eisenstein_series(X.weight(), prec)], self)
                         t = self.theta_series(bound, P = P, _flag = False, funct = funct)
@@ -2850,6 +2850,48 @@ class WeilRep(object):
             if eta_twist:
                 raise ValueError('Not yet implemented')
             return len(self.cusp_forms_basis(weight))
+
+    def eigenforms(self, k, prec, cusp_forms = False, eta_twist = 0, _p = 2):
+        r"""
+        Compute modular forms that are eigenforms of the Hecke operators.
+        """
+        if cusp_forms:
+            X = self.cusp_forms_basis(k, prec, eta_twist = eta_twist)
+        else:
+            X = self.modular_forms_basis(k, prec, eta_twist = eta_twist)
+        while self.level() % _p == 0:
+            _p = next_prime(_p)
+        M = matrix([X.coordinates(x.hecke_T(_p)) for x in X]).transpose()
+        chi = M.characteristic_polynomial()
+        F = chi.factor()
+        L = []
+        i = 0
+        K_list = []
+        for x, n in F:
+            if x.degree() > 1:
+                name = 'a_%s%s'%(_name, i)
+                K = x.splitting_field(name)
+                i += 1
+            else:
+                K = QQ
+            M_K = matrix(K, M)
+            V = x(M_K).transpose().kernel().basis_matrix()
+            V_rows = V.rows()
+            if n == 1:
+                if len(V_rows) > 1:
+                    P = matrix(K, [V.solve_left(M_K * v) for v in V_rows])
+                    for p in P.eigenvectors_right(extend = False):
+                        L.append(vector(p[1][0]) * V)
+                        K_list.append(K)
+                else:
+                    L.append(V_rows[0])
+                    K_list.append(K)
+            else:
+                _name = _name + '%s_'%i
+                K_list_2, eigenvectors = self.eigenforms(V_rows, _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
+                K_list.extend(K_list_2)
+                L.extend(eigenvectors)
+        return [sum(X[i] * y for i, y in enumerate(x)) for x in L]
 
 
     def hilbert_series(self, polynomial = False, eta_twist = 0):

@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2023 Brandon Williams
+#       Copyright (C) 2020-2024 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1301,6 +1301,25 @@ class WeilRepModularForm(object):
         f = WeilRepQuasiModularForm(k + 2, S, [-k * self, d(self)], weilrep = self.weilrep())
         return f
 
+    def eigenvalue(self, N):
+        r"""
+        Compute self's Hecke eigenvalue with respect to the operator T_N.
+
+        This will return a ValueError if self is not an eigenvector of T_N.
+
+        NOTE: In some conventions T_N is known as T_{N^2}.
+        """
+        from .weilrep_misc import relations
+        V = relations(self.hecke_T(N), self).basis_matrix()
+        if V.nrows():
+            if V.nrows() > 1:
+                raise ValueError
+            a, b = V.rows()[0]
+            if b:
+                return -b/a
+            raise ValueError('Insufficient precision')
+        raise ValueError('This is not an eigenform')
+
     def hecke_P(self, N):
         r"""
         Apply the Nth Hecke projection map.
@@ -1388,7 +1407,7 @@ class WeilRepModularForm(object):
         prec = self.precision() // N_sqr
         q, = T[0][2].parent().gens()
         F = [[t[0], t[1], O(q ** (prec - floor(t[1])))] for t in T]
-        val = self.valuation() * N_sqr
+        val = min(0, self.valuation() * N_sqr)
         ds_dict = w.ds_dict()
         ds = w.ds()
         D = len(ds)
@@ -2429,7 +2448,7 @@ class WeilRepModularFormsBasis:
         Linear combinations.
         """
         if not self:
-            return self.weilrep().zero()
+            return self.weilrep().zero(weight = self.weight())
         return sum(self.__basis[i] * w for i, w in enumerate(v))
 
     def precision(self):

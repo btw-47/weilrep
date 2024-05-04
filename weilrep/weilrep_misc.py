@@ -141,6 +141,7 @@ def relations(*x):
         Basis matrix:
         []
     """
+    from .amf import AlgebraicModularForm, _amf_relations
     from .fourier_jacobi import FourierJacobiSeries, _fj_relations
     from .jacobi_forms_class import JacobiForm, _jf_relations
     from .jacobi_lvl import JacobiFormWithLevel, _jf_relations_lvl
@@ -173,6 +174,8 @@ def relations(*x):
         return _umf_relations(x)
     elif isinstance(x_ref, FourierJacobiSeries):
         return _fj_relations(x)
+    elif isinstance(x_ref, AlgebraicModularForm):
+        return _amf_relations(x)
     return NotImplemented
 
 ## theta blocks

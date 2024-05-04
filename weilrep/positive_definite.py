@@ -111,6 +111,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
             raise ValueError('Too few coefficients')
         k = fj[0].weight()
         rb_w = fj[1].base_ring()
+        K = rb_w.base_ring()
         scale = fj[1].scale()
         qshift = fj[1]._qshift()
         if qshift:
@@ -121,7 +122,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
             a = scale
         S = self.gram_matrix()
         nrows = S.nrows()
-        rb_r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(nrows)))
+        rb_r = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows)))
         rb_x, x = LaurentPolynomialRing(rb_r, 'x').objgen()
         rb_q, q = PowerSeriesRing(rb_r, 'q').objgen()
         rb_t, t = PowerSeriesRing(rb_x, 't').objgen()
@@ -403,6 +404,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
             self.__qexp = O(q ** h.prec()) + sum([(q ** ((i - n) // 2)) * (s ** ((i + n) // 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ])
             return self.__qexp
+    qexp = fourier_expansion
 
     def fourier_jacobi(self):
         r"""
@@ -430,7 +432,10 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             pass
         S = self.gram_matrix()
         nrows = S.nrows()
-        rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(nrows)))
+        f = self.fourier_expansion()
+        rb_old = f.base_ring()
+        K = rb_old.base_ring()
+        rb = LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(nrows)))
         z = rb.gens()[0]
         r, q = PowerSeriesRing(rb, 'q').objgen()
         k = self.weight()
@@ -462,8 +467,6 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             else:
                 self.__fourier_jacobi = [JacobiForm(k, n * S, j) for n, j in enumerate(L)]
             return self.__fourier_jacobi
-        f = self.fourier_expansion()
-        rb_old = f.base_ring()
         r_old = f.parent()
         s = r_old.gens()[1]
         r_new = r_old.remove_var(s)
@@ -1415,7 +1418,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             raise RuntimeError('I caught a TypeError. This probably means you are trying to compute a Borcherds product that is not holomorphic.')
 
     def formal_lift(self, prec = Infinity):
-        return formal_lift(self, min(prec, isqrt(4 * self.precision() + 8)))
+        return formal_lift(self, min(prec, self.precision()))
 
 class WeilRepModularFormPositiveDefiniteWithCharacter(WeilRepModularFormWithCharacter, WeilRepModularFormPositiveDefinite):
     r"""
