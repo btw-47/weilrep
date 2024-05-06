@@ -489,6 +489,6 @@ class ParamodularHeckeOperator:
                                 R.append([f[A] for f in X])
                             if rank == target_rank:
                                 return matrix(R).solve_right(matrix(L))
-                        except ValueError:
+                        except (IndexError, ValueError):
                             pass
         raise ValueError('Insufficient precision') from None

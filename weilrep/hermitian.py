@@ -477,13 +477,18 @@ class HermitianHeckeOperator:
         f = Xref.true_fourier_expansion()
         K = self.hmf().base_field()
         S = self.hmf().gram_matrix()
+        S_inv = S.inverse()
         D = K.discriminant()
         sqrtD = K(D).sqrt()
         if D % 4:
+            omega = (1 + sqrtD) / 2
+            omega_c = (1 - sqrtD) / 2
             def convert_exponent(b, c):
                 return b / 2 + sqrtD * (b - 2*c) / (4 * S[1, 1] - 2), b / 2 - sqrtD * (b - 2*c) / (4 * S[1, 1] - 2)
         else:
             sqrtD /= 2
+            omega = sqrtD
+            omega_c = -omega
             def convert_exponent(b, c):
                 return b / 2 + sqrtD * c / S[1, 1], b / 2 - sqrtD * c / S[1, 1]
         for a in srange(prec):
@@ -493,7 +498,10 @@ class HermitianHeckeOperator:
                     for u, v in g.dict().keys():
                         u = ZZ(u)
                         v = ZZ(v)
-                        A = matrix(K, [[(a + b) / 2, u], [v, (a - b) / 2]])
+                        v = vector([u, v]) * S_inv
+                        r1exp = v[0] + v[1] * omega
+                        r2exp = v[0] + v[1] * omega_c
+                        A = matrix(K, [[(a + b) / 2, r1exp], [r2exp, (a - b) / 2]])
                         try:
                             L1 = [x for x in L]
                             L1.append([self._get_coefficient(f, A) for f in X])
@@ -505,7 +513,7 @@ class HermitianHeckeOperator:
                                 R.append([f[A] for f in X])
                             if rank == target_rank:
                                 return matrix(R).solve_right(matrix(L))
-                        except ValueError:
+                        except (IndexError, ValueError):
                             pass
         raise ValueError('Insufficient precision') from None
 
