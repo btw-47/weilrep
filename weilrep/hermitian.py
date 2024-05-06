@@ -418,10 +418,10 @@ class HermitianEigenform(HermitianModularForm):
             try:
                 pi_1, = pi_1.gens_reduced()
                 pi_2, = pi_2.gens_reduced()
-                e1 = pi_1**(-k) * p**(2 - k) * self.eigenvalue(pi_1)
-                e2 = pi_2**(-k) * p**(2 - k) * self.eigenvalue(pi_2)
+                e1 = p**(2 - k) * self.eigenvalue(pi_1)
+                e2 = p**(2 - k) * self.eigenvalue(pi_2)
                 e = p**(4 - 2*k) * self.eigenvalue(p)
-                f = 1 - e*X + (p * e1*e2 - p**(4 - (k + k))) * X**2 - (p**3 * ((e1*e1)*pi_2**(-2*k) + (e2*e2)*pi_1**(-2*k)) - 2 * e * p**(4 - (k + k))) * X**3 + p**(4 - (k + k)) * (p * e1 * e2 - p**(4 - (k + k))) * X**4 - p**(8 - 4*k) * e * X**5 + p**(12 - 6*k) * X**6
+                f = 1 - e*X + (p**(1 - k) * e1 * e2 - p**(4 - (k+k))) * X**2 - (p**(3 - 2*k) * (e1*e1 + e2*e2) - 2 * e * p**(4 - (k+k))) * X**3 + p**(4 - (k+k)) * (p**(1 - k) * e1 * e2 - p**(4 - (k+k))) * X**4 - p**(8 - 4*k) * e * X**5 + p**(12 - 6*k) * X**6
                 return f(p**(2 * k - 4) * X)
             except ValueError:
                 raise ValueError('%s splits into non-principal ideals in %s'%(p, K)) from None
