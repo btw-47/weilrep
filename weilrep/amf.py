@@ -668,6 +668,9 @@ class AlgebraicModularForm(object):
     def gram_matrix(self):
         return self.__amf.gram_matrix()
 
+    def det(self):
+        return self.__det
+
     def spin(self):
         return self.__spin
 
@@ -708,19 +711,19 @@ class AlgebraicModularForm(object):
     def __add__(self, other):
         if not other:
             return self
-        if self.amf() != other.amf() or self.weight() != other.weight() or self.spin() != other.spin():
+        if self.amf() != other.amf() or self.weight() != other.weight() or self.spin() != other.spin() or self.det() != other.det():
             raise TypeError
         f1 = self._f()
         f2 = other._f()
-        return AlgebraicModularForm(self.amf(), [f1[i] + f2[i] for i in range(len(f1))], self.weight(), spin=self.spin())
+        return AlgebraicModularForm(self.amf(), [f1[i] + f2[i] for i in range(len(f1))], self.weight(), spin=self.spin(), det=self.det())
     __radd__ = __add__
 
     def __sub__(self, other):
-        if self.amf() != other.amf() or self.weight() != other.weight() or self.spin() != other.spin():
+        if self.amf() != other.amf() or self.weight() != other.weight() or self.spin() != other.spin() or self.det() != other.det():
             raise TypeError
         f1 = self._f()
         f2 = other._f()
-        return AlgebraicModularForm(self.amf(), [f1[i] - f2[i] for i in range(len(f1))], self.weight(), spin=self.spin())
+        return AlgebraicModularForm(self.amf(), [f1[i] - f2[i] for i in range(len(f1))], self.weight(), spin=self.spin(), det=self.det())
 
     def __mul__(self, other):
         r"""
@@ -736,11 +739,11 @@ class AlgebraicModularForm(object):
             classes = amf.classes()
             spin = (self.spin() * other.spin()).squarefree_part()
             return AlgebraicModularForm(self.amf(), [harmonic_projection(f1[i] * f2[i], classes[i].gram_matrix()) for i in range(len(f1))], self.weight() + other.weight(), spin=spin)
-        return AlgebraicModularForm(self.amf(), [other * x for x in self._f()], self.weight(), spin=self.spin())
+        return AlgebraicModularForm(self.amf(), [other * x for x in self._f()], self.weight(), spin=self.spin(), det=self.det())
     __rmul__ = __mul__
 
     def __div__(self, N):
-        return AlgebraicModularForm(self.amf(), [x / N for x in self._f()], self.weight(), spin=self.spin())
+        return AlgebraicModularForm(self.amf(), [x / N for x in self._f()], self.weight(), spin=self.spin(), det=self.det())
     __truediv__ = __div__
 
 
@@ -815,9 +818,20 @@ class AlgebraicModularFormHeckeOperator(object):
         R = amf._base_ring()
         rgens = vector(R.gens())
         spin = f.spin()
+        det = f.det()
         classes = amf.classes()
         def spinor_character(A):
             return (-1)**len([p for p in spinor_norm(S, A).prime_factors() if spin % p == 0])
+        if det == 1:
+            if spin == 1:
+                character = lambda A: 1
+            else:
+                character = spinor_character
+        else:
+            if spin == 1:
+                character = lambda A: A.determinant()
+            else:
+                character = lambda A: A.determinant() * spinor_character(A)
         h = [R(0)] * len(classes)
         iso = amf._local_isometries()
         for i, x in enumerate(classes):
@@ -827,17 +841,14 @@ class AlgebraicModularFormHeckeOperator(object):
                 if b_list:
                     b0 = iso[j]
                     for b in b_list:
-                        if spin == 1:
-                            c = 1
-                        else:
-                            c = spinor_character(b0.inverse() * b * b1)
+                        c = character(b0.inverse() * b * b1)
                         if k:
                             h[i] += c * f._f()[j](*(b * rgens))
                         else:
                             h[i] += c * f._f()[j]
         #normalization factor p^k?
         p_k = p ** k
-        return AlgebraicModularForm(amf, [p_k * x for x in h], k)
+        return AlgebraicModularForm(amf, [p_k * x for x in h], k, spin=spin, det=det)
 
     def _evaluate_at_point(self, f, v):
         r"""
@@ -852,8 +863,19 @@ class AlgebraicModularFormHeckeOperator(object):
         d = self.__degree
         spin = f.spin()
         classes = amf.classes()
+        det = f.det()
         def spinor_character(A):
             return (-1)**len([p for p in spinor_norm(S, A).prime_factors() if spin % p == 0])
+        if det == 1:
+            if spin == 1:
+                character = lambda A: 1
+            else:
+                character = spinor_character
+        else:
+            if spin == 1:
+                character = lambda A: A.determinant()
+            else:
+                character = lambda A: A.determinant() * spinor_character(A)
         h = [0] * len(classes)
         nm0 = amf.neighbor_matrices(p, d)
         S = amf.gram_matrix()
@@ -865,10 +887,7 @@ class AlgebraicModularFormHeckeOperator(object):
                 if b_list:
                     b0 = iso[j]
                     for b in b_list:
-                        if spin == 1:
-                            c = 1
-                        else:
-                            c = spinor_character(b0.inverse() * b * b1)
+                        c = character(b0.inverse() * b * b1)
                         if k:
                             h[i] += c * f._f()[j](*(b * v))
                         else:
@@ -932,13 +951,10 @@ class AlgebraicModularFormEigenform(AlgebraicModularForm):
                 return K(x[1] / g(*v))
             except StopIteration:
                 pass
-        #V = relations([T(self), self])
-        #v1, v2 = V.basis_matrix().rows()[0]
-        #return -v2 / v1
 
     def euler_factor(self, p):
         r"""
-        Compute the Euler factor at a "good" prime p in self's spin L-function.
+        Compute the Euler factor at a "good" prime p in self's L-function.
 
         NOTE: this only works if the rank of the lattice is <= 8.
         We use Murphy's formulas for the explicit Satake transform.
@@ -954,7 +970,7 @@ class AlgebraicModularFormEigenform(AlgebraicModularForm):
             e1 = self.eigenvalue(p) / p_k
             if self.amf().is_split(p):
                 e2 = self.eigenvalue(p, d=2) / p_k
-                g = 1 - e1 * X + p * (e2 + 2) * X^2 - p * p * e1 * X**3 + X**4
+                g = 1 - e1 * X + p * (e2 + 2) * X**2 - p * p * e1 * X**3 + p**4 * X**4
                 return g(p_k * X)
             g = (1 - p**2 * X**2) * (1 - e1 * X + p**2 * X * X)
             return g(p_k * X)
@@ -1336,7 +1352,6 @@ def harmonic_projection(p, S):
     for i in range(k):
         u_powers.append(u_powers[-1] * u)
         laplacians.append(laplacian(laplacians[-1]))
-    @cached_function
     def double_factorial(n):
         if n == 0 or n == 1:
             return 1
@@ -1346,12 +1361,6 @@ def harmonic_projection(p, S):
         c = (-1)**j * double_factorial(n + 2 * (d - j - 2)) / (double_factorial(2 * j) * double_factorial(n + 2 * d - 4))
         f += c * u_powers[j] * laplacians[j]
     return f
-
-
-
-
-
-
 
 
 def harmonic_invariant_polynomial_generator(S, G, n, d, spin = 1, det = 1):
@@ -1493,21 +1502,26 @@ def spinor_norm(S, A):
     n = A.nrows()
     I = identity_matrix(n)
     s = Integer(1)
-    i = 1
+    i = 0
     bound = n + 2
-    while A != I:
-        i += 1
-        v = next(v for v in (A - I).columns() if v)
-        n = v * S * v / 2
-        v = matrix(v)
-        s *= n
-        R = I - v.transpose() * v * S / n
-        A *= R
-        if i > bound:
-            raise RuntimeError
-    return s.squarefree_part()
+    while 1:
+        try:
+            i += 1
+            v = next(v for v in (A - I).columns() if v)
+            n = v * S * v / 2
+            v = matrix(v)
+            s *= n
+            R = I - v.transpose() * v * S / n
+            A *= R
+            if i > bound:
+                raise RuntimeError
+        except StopIteration:
+            return s.squarefree_part()
 
 def _amf_relations(X):
+    r"""
+    Linear relations among a set of modular forms.
+    """
     if not X:
         return matrix([])
     N = len(X)
