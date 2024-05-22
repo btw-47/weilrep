@@ -28,9 +28,10 @@ PariError = cypari2.PariError
 
 from collections import defaultdict
 from copy import copy, deepcopy
+from itertools import product
 from re import sub
 
-from sage.arith.misc import dedekind_sum, divisors, GCD, kronecker, XGCD
+from sage.arith.misc import dedekind_sum, divisors, GCD, is_prime, kronecker, XGCD
 from sage.arith.srange import srange
 from sage.calculus.var import var
 from sage.functions.other import ceil, floor, frac
@@ -49,12 +50,15 @@ from sage.plot.complex_plot import complex_plot
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.all import CC
 from sage.rings.big_oh import O
+from sage.rings.fast_arith import prime_range
 from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity, SignError
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
+from sage.rings.number_field.number_field import CyclotomicField
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
+from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.puiseux_series_ring import PuiseuxSeriesRing
 from sage.rings.puiseux_series_ring_element import PuiseuxSeries
@@ -103,6 +107,7 @@ class WeilRepModularForm(object):
         self.__gram_matrix = gram_matrix
         self.__fourier_expansions = fourier_expansions
         self.__symmetry_data = symmetry_data
+        self.__is_eigenform = False
         self.flag = ''
         if weilrep._is_hermitian_weilrep():
             from .unitary import HermitianWeilRepModularForm
@@ -1362,6 +1367,78 @@ class WeilRepModularForm(object):
                 pass
         return WeilRepModularForm(self.weight(), S_new, X, w_new) * multiplier
 
+
+    def _hecke_at_bad_prime(self, p):
+        r"""
+        Compute the Hecke operator T_p for a prime p dividing the level of L.
+        """
+        psqr = p * p
+        w = self.weilrep()
+        ds_dict = w.ds_dict()
+        ds = w.ds()
+        s, _ = w._smith_form
+        k = self.weight()
+        r = len([x for x in s.diagonal() if x % p])
+        gauss_sum = [Integer(0) for _  in ds]
+        if p == 2:
+            zeta_p = -Integer(1)
+        else:
+            K = CyclotomicField(p)
+            zeta_p = K.gen()
+        S = w.gram_matrix()
+        N = S.nrows()
+        L = product(*[range(p) for _ in range(N)])
+        A_p = [x for x in ds if all(p * y in ZZ for y in x)]
+        for j, y in enumerate(ds):
+            py = tuple(frac(p * x) for x in y)
+            i = ds_dict[py]
+            ds[i] = p * vector(y)
+        norm = [vector(g) * S * vector(g) / 2 for g in ds]
+        for u in L:
+            u = vector(u)
+            for i, g in enumerate(ds):
+                gauss_sum[i] += zeta_p ** Integer( u * S * (u / 2 + vector(g)))
+        if r % 2 and p % 2:
+            x, = PolynomialRing(K, 'x').gens()
+            if p % 4 == 1:
+                eps_sqrtp = -(x * x - K(p)).factor()[0][0][0]
+            else:
+                eps_sqrtp = (x * x + K(p)).factor()[0][0][0]
+            def _delta_p(N):
+                return kronecker(-N, p) * eps_sqrtp
+        else:
+        #elif p % 2:
+            def _delta_p(N):
+                if N % p:
+                    return -1
+                return p - 1
+        if False:
+            def _delta_p(N):
+                return 1
+        F = self.fourier_expansion()
+        X = [[g, n, 0] for g, n, _ in F]
+        prec = (self.precision() // psqr)
+        for j0, (g, n, f) in enumerate(F):
+            pg = tuple(frac(p * x) for x in g)
+            j = ds_dict[pg]
+            _, nj, fj = F[j]
+            r, q = f.parent().objgen()
+            h = r(0).add_bigoh(prec)
+            h2 = r(0).add_bigoh(prec)
+            for i in srange(prec):
+                i_n = i + n
+                c1 = fj[psqr * i_n - nj]
+                delta = _delta_p(i_n + norm[j0])
+                c2 = QQ(delta * gauss_sum[j0]) * p**Integer(k - N / 2 - 2) * f[i]
+                h += (c1 + c2) * q**i
+                i1 = (i + nj) / psqr - n
+                if i1 in ZZ:
+                    c3 = f[i1]
+                    h2 += c3 * q**i
+            X[j0][2] += h
+            X[j][2] += psqr**(k - 1) * h2
+        return WeilRepModularForm(k, S, X, w)
+
     def hecke_T(self, N):
         r"""
         Apply the Nth Hecke operator where N is coprime to the level.
@@ -1391,6 +1468,8 @@ class WeilRepModularForm(object):
         l = w.level()
         S = self.gram_matrix()
         if GCD(l, N) != 1:
+            if is_prime(N):
+                return self._hecke_at_bad_prime(N)
             raise ValueError('hecke_T() only takes indices coprime to the level of the discriminant form.')
         nrows = S.nrows()
         N_sqr = N * N
@@ -1404,7 +1483,7 @@ class WeilRepModularForm(object):
         k = self.weight()
         k1 = floor(k - 1)
         T = self.fourier_expansion()
-        prec = self.precision() // N_sqr
+        prec = (self.precision() // N_sqr) + 1
         q, = T[0][2].parent().gens()
         F = [[t[0], t[1], O(q ** (prec - floor(t[1])))] for t in T]
         val = min(0, self.valuation() * N_sqr)
@@ -1454,7 +1533,7 @@ class WeilRepModularForm(object):
                                         F[i][2] += a_pow * rho(-n, a) * T[j][2][Integer(b * n - u)] * q ** (n0)
                                     except IndexError:
                                         if n0 > 0:
-                                            F[i][2] += O(q^n0)
+                                            F[i][2] = F[i][2].add_bigoh(n0)
                                             break
                             else:
                                 nl = Integer(l * n)
@@ -1463,7 +1542,7 @@ class WeilRepModularForm(object):
                                         F[i][2] += a_pow * kronecker(D, a) * T[j][2][Integer(b * n - u)] * q ** (n0)
                                     except IndexError:
                                         if n0 > 0:
-                                            F[i][2] += O(q^n0)
+                                            F[i][2] = F[i][2].add_bigoh(n0)
                                             break
             else:
                 F[i][2] = symm * F[indices[i]][2]
@@ -1599,6 +1678,42 @@ class WeilRepModularForm(object):
                 i = indices[j]
                 Y[j] = [g, big_offset, eps * Y[i][2]]
         return WeilRepModularForm(self.weight(), N*S, Y )
+
+    def eigenvalue(self, p):
+        r"""
+        Compute self's eigenvalue at a prime p.
+        """
+        from .weilrep_misc import relations
+        V = relations(self.hecke_T(p), self).basis_matrix()
+        if not V.nrows():
+            raise ValueError('This form is not an eigenvalue of T_{%s}'%p)
+        elif V.nrows() != 1:
+            raise ValueError('Insufficient precision')
+        v, = V.rows()
+        return -(v[1] / v[0])
+
+    #def euler_factor(self, p):
+    #    u = self.eigenvalue(p)
+    #    x = PolynomialRing(u.parent(), 'X').gen()
+    #    k = self.weight()
+    #    return (1 - u * x + p**Integer(k + k - 1) * x * x) #* (1 - p**(k + k - 2) * x * x)
+
+    #def l_function(self, max_prec = 23):
+    #    r"""
+    #    Compute the L-function
+    #    L(s) = \sum a_n n^{-s}
+    #    where a_n are self's Hecke eigenvalues.
+    #
+    #    NOTE: for integral weight eigenforms, this is not the usual L-function.
+    #    """
+    #    from .lfunctions import dirichlet_series_from_euler_product as ds
+    #    L = []
+    #    for p in prime_range(max_prec):
+    #        try:
+    #            L.append(self.euler_factor(p))
+    #        except ValueError:
+    #            return ds(L)
+    #    return ds(L)
 
     def _jacobi_form_multiplication(self, other, theta = None):
         S1 = self.gram_matrix()
@@ -2512,8 +2627,8 @@ class WeilRepModularFormsBasis:
             m = matrix([])
         else:
             L = [v.coefficient_vector(starting_from = starting_from, ending_with = ending_with, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
-            d = max(map(len, L))
-            m = matrix([list(x) + [0]*(d - len(x)) for x in L])
+            d = min(map(len, L))
+            m = matrix([list(x[:d]) for x in L])
         return m.kernel()
 
     def remove_nonpivots(self, starting_from = 0, ending_with = None):

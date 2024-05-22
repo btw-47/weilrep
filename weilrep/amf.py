@@ -172,7 +172,7 @@ class AlgebraicModularForms(object):
         Compute \QQ-isometries between the class representatives of self's genus.
 
         If the class representatives (specifically those computed by .classes()) are Gram matrices labelled S_1,...,S_n,
-        then this computes isometries A_1,...,A_n over QQ, with denominators coprime to the discriminant, such that A_i.transpose() * S_i * A_i is self's Gram matrix.
+        then this computes isometries A_1,...,A_n  over QQ, with denominators coprime to the discriminant, such that A_i.transpose() * S_i * A_i is self's Gram matrix.
         These are used to 'canonically' identify the classes of self's genus as lattices in self x QQ so that the spinor norm is well-defined.
 
         EXAMPLES::
@@ -341,7 +341,7 @@ class AlgebraicModularForms(object):
 
     ## modular forms
 
-    def basis(self, k, spin = 1, det = 1):
+    def basis(self, k, spin = Integer(1), det = Integer(1)):
         r"""
         Compute a basis of algebraic modular forms of weight Har_k.
 
@@ -588,14 +588,16 @@ class AlgebraicModularForms(object):
                 _name = _name + '%s_'%i
                 K_list_2, eigenvectors = self.eigenforms([sum(v[i]*X[i] for i in range(len(v))) for v in V_rows], _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
                 K_list.extend(K_list_2)
-                L.extend(eigenvectors)
+                L.extend([x * V for x in eigenvectors])
         L = [sum(X[i] * y for i, y in enumerate(x)) for x in L]
         eigenforms = []
-        for i, x in enumerate(L):
-            x.__class__ = AlgebraicModularFormEigenform
-            x._AlgebraicModularFormEigenform__field = K_list[i]
-            eigenforms.append(x)
-        return eigenforms
+        if _final_recursion:
+            for i, x in enumerate(L):
+                x.__class__ = AlgebraicModularFormEigenform
+                x._AlgebraicModularFormEigenform__field = K_list[i]
+                eigenforms.append(x)
+            return eigenforms
+        return K_list, L
 
     def hecke_operator(self, p, d = 1, safe = True):
         r"""

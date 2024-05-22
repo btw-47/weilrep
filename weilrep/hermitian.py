@@ -453,7 +453,7 @@ class HermitianHeckeOperator:
         return self.__index
 
     def __call__(self, f):
-        return f.hecke_operator(self.__index, self.__degree)
+        return f.hecke_operator(self.__index)
 
     def _get_coefficient(self, f, A):
         p = self.index()
@@ -531,12 +531,12 @@ def hecke_coeff(f, p, A):
     b = A[0, 1]
     c = ZZ(A[1, 1])
     K = f.base_field()
+    d = K.discriminant()
+    isqrtd = K(d).sqrt()
     O = K.maximal_order()
-    if a % p == 0 and c % p == 0 and b * K.gens()[0] / p in O:
+    if a % p == 0 and c % p == 0 and b * isqrtd / p in O:
         s = s + p**(k + k - 4) * f[A / p]
     r1 = 1
-    d = K.discriminant()
-    isqrtd, = K.gens()
     if d % 4:
         r2 = (-1 + isqrtd)/2
     else:
@@ -595,7 +595,7 @@ def hecke_coeff_inert(f, p, A):
     K = f.base_field()
     d = K.discriminant()
     O = K.maximal_order()
-    isqrtd, = K.gens()
+    isqrtd = K(d).sqrt()
     if a % p:
         if c % p:
             s += -2
@@ -653,7 +653,7 @@ def hecke_coeff_split(f, pi, A):
     c = ZZ(A[1, 1])
     d = K.discriminant()
     O = K.maximal_order()
-    isqrtd, = K.gens()
+    isqrtd = K(d).sqrt()
     r1 = 1
     if d % 4:
         r2 = (-1 + isqrtd)/2

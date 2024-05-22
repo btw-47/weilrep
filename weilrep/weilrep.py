@@ -30,7 +30,7 @@ from copy import copy
 from itertools import product
 
 from sage.arith.functions import lcm
-from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, is_square, kronecker_symbol, moebius, prime_divisors, valuation, XGCD
+from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, is_square, kronecker_symbol, moebius, next_prime, prime_divisors, valuation, XGCD
 from sage.arith.srange import srange
 from sage.combinat.root_system.cartan_matrix import CartanMatrix
 from sage.combinat.root_system.weyl_group import WeylGroup
@@ -64,6 +64,7 @@ from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.monomials import monomials
+from sage.rings.number_field.number_field import NumberField
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
@@ -2851,26 +2852,29 @@ class WeilRep(object):
                 raise ValueError('Not yet implemented')
             return len(self.cusp_forms_basis(weight))
 
-    def eigenforms(self, k, prec, cusp_forms = False, eta_twist = 0, _p = 2):
+    def eigenforms(self, k, prec, cusp_forms = False, eta_twist = 0, _p = 2, _name = '', _final_recursion = True, _K_list = []):
         r"""
         Compute modular forms that are eigenforms of the Hecke operators.
         """
-        if cusp_forms:
-            X = self.cusp_forms_basis(k, prec, eta_twist = eta_twist)
+        if k in QQ:
+            if cusp_forms:
+                X = self.cusp_forms_basis(k, prec, eta_twist = eta_twist)
+            else:
+                X = self.modular_forms_basis(k, prec, eta_twist = eta_twist)
         else:
-            X = self.modular_forms_basis(k, prec, eta_twist = eta_twist)
-        while self.level() % _p == 0:
-            _p = next_prime(_p)
+            X = k
+            k = X[0].weight()
         M = matrix([X.coordinates(x.hecke_T(_p)) for x in X]).transpose()
         chi = M.characteristic_polynomial()
         F = chi.factor()
         L = []
         i = 0
         K_list = []
+        chi_list = []
         for x, n in F:
             if x.degree() > 1:
-                name = 'a_%s%s'%(_name, i)
-                K = x.splitting_field(name)
+                name = 'a_%s'%(i)
+                K = NumberField(x, name)
                 i += 1
             else:
                 K = QQ
@@ -2880,18 +2884,26 @@ class WeilRep(object):
             if n == 1:
                 if len(V_rows) > 1:
                     P = matrix(K, [V.solve_left(M_K * v) for v in V_rows])
-                    for p in P.eigenvectors_right(extend = False):
-                        L.append(vector(p[1][0]) * V)
-                        K_list.append(K)
+                    for p in P.eigenvectors_left(extend = False):
+                        c = p[0].charpoly()
+                        if c not in chi_list:
+                            L.append(vector(p[1][0]) * V)
+                            K_list.append(K)
+                            chi_list.append(c)
                 else:
                     L.append(V_rows[0])
                     K_list.append(K)
             else:
-                _name = _name + '%s_'%i
-                K_list_2, eigenvectors = self.eigenforms(V_rows, _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
+                _name = _name + '%s'%i
+                K_list_2, eigenvectors = self.eigenforms(WeilRepModularFormsBasis(k, [sum(v[i]*X[i] for i in range(len(v))) for v in V_rows], self), prec, _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
                 K_list.extend(K_list_2)
-                L.extend(eigenvectors)
-        return [sum(X[i] * y for i, y in enumerate(x)) for x in L]
+                L.extend([x * V for x in eigenvectors])
+        if _final_recursion:
+            X = WeilRepModularFormsBasis(k, [sum(X[i] * y for i, y in enumerate(x)) for x in L], self)
+            for x in X:
+                x._WeilRepModularForm__is_eigenform = True
+            return X
+        return K_list, L
 
 
     def hilbert_series(self, polynomial = False, eta_twist = 0):
@@ -3405,10 +3417,6 @@ class WeilRep(object):
                 if verbose and Y:
                     print('I computed a packet of %d cusp forms using Eisenstein series. (They may be linearly dependent.)'%len(Y))
                     X.extend(Y)
-            #elif symm and not E:
-            #    E = self.eisenstein_series(k, prec)
-            #    if verbose:
-            #        print('I computed the Eisenstein series of weight %s up to precision %s.' %(k, prec))
             if X:
                 rank = X.rank()
                 if rank >= dim:
@@ -3503,10 +3511,6 @@ class WeilRep(object):
                         j += 1
                         k_j -= 12
                 rank = len(X)
-                #if rank >= dim:
-                #    X.remove_nonpivots()
-                #    rank = len(X)
-                #del w_new
                 return X, rank
             failure_count = 0
             excluded = set([])
