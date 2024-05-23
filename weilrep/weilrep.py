@@ -2852,9 +2852,22 @@ class WeilRep(object):
                 raise ValueError('Not yet implemented')
             return len(self.cusp_forms_basis(weight))
 
-    def eigenforms(self, k, prec, cusp_forms = False, eta_twist = 0, _p = 2, _name = '', _final_recursion = True, _K_list = []):
+    def eigenforms(self, k, prec, cusp_forms = False, eta_twist = 0, _p = Integer(2), _name = '', _final_recursion = True, _K_list = []):
         r"""
         Compute modular forms that are eigenforms of the Hecke operators.
+
+        This computes one representative per Galois orbit of eigenforms.
+
+        INPUT:
+        - ``k`` -- the weight
+        - ``prec`` -- precision
+
+        EXAMPLES::
+
+            sage: from weilrep import *
+            sage: w = WeilRep([[-2]]) + II(3)
+            sage: len(w.eigenforms(5/2, 20))
+            2
         """
         if k in QQ:
             if cusp_forms:
