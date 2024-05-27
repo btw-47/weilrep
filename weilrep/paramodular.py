@@ -182,6 +182,8 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
         if not p.is_prime():
             raise ValueError('Hecke operators are only implemented for prime index')
         N = self.level()
+        if N % p == 0:
+            raise ValueError('Hecke operators are not implemented for primes dividing the level')
         k = self.weight()
         f = self.true_fourier_expansion()
         prec = Integer(self.precision())
@@ -264,7 +266,11 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
                 if a % 2 == b % 2:
                     rbound = isqrt(N * (a * a - b * b)) + 1
                     for c in srange(-rbound, rbound):
-                        h += hecke_operator_coefficient(a, b, c) * t**a * x**b * _r**c
+                        try:
+                            h += hecke_operator_coefficient(a, b, c) * t**a * x**b * _r**c
+                        except IndexError:
+                            bound = a
+                            break
         h = h.add_bigoh(bound)
         return OrthogonalModularForm(k, self.weilrep(), h, 1, vector([0] * 3), qexp_representation = 'siegel')
 
