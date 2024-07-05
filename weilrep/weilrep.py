@@ -20,7 +20,6 @@ AUTHORS:
 
 import cmath
 import math
-from numpy import array, matmul
 from scipy.special import iv, jv
 
 import cypari2
@@ -33,7 +32,6 @@ from sage.arith.functions import lcm
 from sage.arith.misc import bernoulli, divisors, euler_phi, factor, fundamental_discriminant, GCD, is_prime, is_square, kronecker_symbol, moebius, next_prime, prime_divisors, valuation, XGCD
 from sage.arith.srange import srange
 from sage.combinat.root_system.cartan_matrix import CartanMatrix
-from sage.combinat.root_system.weyl_group import WeylGroup
 from sage.functions.gamma import gamma
 from sage.functions.generalized import sgn
 from sage.functions.log import log
@@ -1034,19 +1032,19 @@ class WeilRep(object):
                 offset = norm_list[i]
                 prec_g = prec - floor(offset)
                 coeff_list = []
+                N_bSg = Integer(N_b * (b * S * g))
+                gcd_b_gb = GCD(N_b, N_bSg)
+                N_g = prod([p ** d for (p, d) in factor(N_b) if gcd_b_gb % p == 0])
+                N_g_prime = N_b // N_g
+                D_g = DirichletGroup(N_g)
+                D_g_prime = DirichletGroup(N_g_prime)
+                chi_g_list = [prod([D_g(psi) for psi in chi_decompositions[i] if N_g % psi.modulus() == 0]) for i in range(len(chi_list))]
+                L_s = [[D_g_prime(psi) for psi in chi_decompositions[i] if N_g % psi.modulus()] for i in range(len(chi_list))]
+                chi_g_prime_list = [prod(L) if L else lambda x:1 for L in L_s]
+                eps_factors = [chi_gauss_sums[i] * chi_g_prime(N_bSg)**(-1) / N_g for i, chi_g_prime in enumerate(chi_g_prime_list)]
                 for n_ceil in range(1, prec_g):
                     n = n_ceil + offset
-                    N_bSg = Integer(N_b * (b * S * g))
-                    gcd_b_gb = GCD(N_b, N_bSg)
-                    N_g = prod([p ** d for (p, d) in factor(N_b) if gcd_b_gb % p == 0])
-                    N_g_prime = N_b // N_g
-                    D_g = DirichletGroup(N_g)
-                    D_g_prime = DirichletGroup(N_g_prime)
-                    chi_g_list = [prod([D_g(psi) for psi in chi_decompositions[i] if N_g % psi.modulus() == 0]) for i in range(len(chi_list))]
-                    L_s = [[D_g_prime(psi) for psi in chi_decompositions[i] if N_g % psi.modulus()] for i in range(len(chi_list))]
-                    chi_g_prime_list = [prod(L) if L else lambda x:1 for L in L_s]
                     front_factor = first_factor * RR(n) ** (k-1)
-                    eps_factors = [chi_gauss_sums[i] * chi_g_prime(N_bSg)**(-1) / N_g for i, chi_g_prime in enumerate(chi_g_prime_list)]
                     D = Integer(2 * N_g * N_g * n * S.determinant())
                     bad_primes = (D).prime_divisors()
                     if e % 2 == 1:
@@ -1122,6 +1120,41 @@ class WeilRep(object):
                 eps = 1 if symm else -1
                 X.append([g, norm_list[indices[i]], eps * X[indices[i]][2]])
         return WeilRepModularForm(k, S, X, weilrep = self)
+
+
+    def eisenstein_newform_exact(self, k, b, prec):
+        if k <= 2 and not allow_small_weight and (k < 2 or self.discriminant().is_squarefree()):
+            raise ValueError('Weight must be at least 5/2')
+        symm = self.is_symmetric_weight(k)
+        if symm is None:
+            raise ValueError('Invalid weight in Eisenstein series')
+        #setup
+        S = self.gram_matrix()
+        e = S.nrows()
+        indices = self.rds(indices = True)
+        norm_list = self.norm_list()
+        X = []
+        if e % 2:
+            return NotImplemented
+        N_b = denominator(b)
+        D = S.determinant()
+        if e % 4:
+            D = -D
+        D0 = fundamental_discriminant(D)
+        q = lcm(D0, N_b)
+        dg = DirichletGroup(q)
+        chi = dg[1]
+        chi0 = kronecker_character(D0)
+        chi0 = next(phi for phi in dg if phi.primitive_character() == chi0)
+        J = chi.jacobi_sum(chi0)
+        lval = -(chi0 * chi.bar()).bernoulli(k) / k
+        for i, g in enumerate(self.ds()):
+            if indices[i] is None:
+                offset = norm_list[i]
+                N_bSg = Integer(N_b * (b * S * g))
+                gcd_b_gb = GCD(N_b, N_bSg)
+                N_g = prod([p ** d for (p, d) in factor(N_b) if gcd_b_gb % p == 0])
+                N_g_prime = N_b // N_g
 
     def eisenstein_oldform(self, k, b, prec, funct = _sentinel, **kwargs):
         r"""
@@ -1995,8 +2028,10 @@ class WeilRep(object):
             if not x[1]:
                 if x[0]:
                     e = w.poincare_series(2 - k, x[0], 0, prec, nterms = nterms, component = i)
-                else:
+                elif self.is_symmetric_weight(2 - k):
                     e = w.eisenstein_series(2 - k, prec, components = ([vector([0] * self.gram_matrix().nrows())], [None]))[0]
+                else:
+                    e = [0, 0, X[0][2].parent()(0)]
                 if self:
                     X[i][2] -= e[2][cm]
                 else:
@@ -2032,8 +2067,8 @@ class WeilRep(object):
                 eps = 1
                 if not s:
                     h = lambda x: x.imag()
-                else:
-                    sgn = -1
+            else:
+                sgn = -1
         elif s:
             eps = 1
         if s is None or k < 2 or (k == 2 and not m):
@@ -2086,21 +2121,21 @@ class WeilRep(object):
                                 Y[i][n] += h(M[j, i].conjugate() * zeta)
                                 zeta *= zeta2
             for i, y in enumerate(Y):
+                u = nl[i]
+                if eta_twist:
+                    u = -frac(-u - eta_twist / 24)
                 if rds[i] is None and (_flag or eps == 1 or 2 % denominator(ds[i])):
-                    u = nl[i]
-                    if eta_twist:
-                        u = -frac(-u - eta_twist / 24)
                     for n in range(1, len(Y[i])):
                         if n + u > 0:
                             if m:
                                 X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs_m)**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs_m * (n + u))) / c
                             else:
                                 X[i][n] += (four_pi_c * (n + u) / 2.0)**k  * Y[i][n] / (gamma_k * (n + u))
-                    Y[i] = u
+                Y[i] = u
         for i, x in enumerate(X):
             if rds[i]:
                 X[i] = [eps*x for x in X[rds[i]]]
-                Y[i] = u[rds[i]]
+                Y[i] = Y[rds[i]]
         X = [[ds[i], Y[i],  sgn * r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
         if component is not None:
             if component == j:
@@ -2852,7 +2887,7 @@ class WeilRep(object):
                 raise ValueError('Not yet implemented')
             return len(self.cusp_forms_basis(weight))
 
-    def eigenforms(self, k, prec, cusp_forms = False, eta_twist = 0, _p = Integer(2), _name = '', _final_recursion = True, _K_list = []):
+    def eigenforms(self, k, prec = 20, cusp_forms = False, eta_twist = 0, _p = Integer(2), _name = '', _final_recursion = True, _K_list = []):
         r"""
         Compute modular forms that are eigenforms of the Hecke operators.
 
@@ -2877,7 +2912,11 @@ class WeilRep(object):
         else:
             X = k
             k = X[0].weight()
-        M = matrix([X.coordinates(x.hecke_T(_p)) for x in X]).transpose()
+            prec = X[0].precision()
+        try:
+            M = matrix([X.coordinates(x.hecke_T(_p), check=True) for x in X]).transpose()
+        except ValueError:
+            raise ValueError('Insufficient precision') from None
         chi = M.characteristic_polynomial()
         F = chi.factor()
         L = []
