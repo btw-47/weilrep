@@ -2024,18 +2024,10 @@ class WeilRep(object):
         w = self.dual()
         X = self.poincare_series(2 - k, b, m, prec, nterms = nterms, _flag = 'maass').fourier_expansion()
         cm = ceil(-m)
-        for i, x in enumerate(X):
-            if not x[1]:
-                if x[0]:
-                    e = w.poincare_series(2 - k, x[0], 0, prec, nterms = nterms, component = i)
-                elif self.is_symmetric_weight(2 - k):
-                    e = w.eisenstein_series(2 - k, prec, components = ([vector([0] * self.gram_matrix().nrows())], [None]))[0]
-                else:
-                    e = [0, 0, X[0][2].parent()(0)]
-                if self:
-                    X[i][2] -= e[2][cm]
-                else:
-                    X[i][2] -= e[cm]
+        #for i, x in enumerate(X):
+        #    if not x[1]:
+        #        e = w.poincare_series(2 - k, x[0], 0, prec, nterms = nterms, component = i)
+        #        X[i][2] -= e[2][cm]
         return WeilRepMockModularForm(k, self.gram_matrix(), X, w.poincare_series(2 - k, b, -m, prec, nterms = nterms) * ((4 * math.pi * abs(m))**(1-k) / math.gamma(1 - k)), weilrep = self)
 
     def poincare_series(self, k, b, m, prec, nterms = 50, _flag = None, component = None, eta_twist = 0):
@@ -2063,12 +2055,13 @@ class WeilRep(object):
         if _flag == 'maass':
             s1 = self.is_symmetric_weight(2 + eta_twist / 2 - k)
             exponent *= -1
+            sgn = -1
             if s1:
                 eps = 1
                 if not s:
                     h = lambda x: x.imag()
-            else:
-                sgn = -1
+            #else:
+            #    sgn = -1
         elif s:
             eps = 1
         if s is None or k < 2 or (k == 2 and not m):
@@ -2097,7 +2090,10 @@ class WeilRep(object):
             gamma_k = math.gamma(k)
         r, q = PowerSeriesRing(RR, 'q').objgen()
         X = [vector(RR, [0]*(prec - floor(u))) for u in nl]
-        s1 = e(-two_pi_i * k / 4)
+        if _flag == 'maass':
+            s1 = e(two_pi_i * k / 4)
+        else:
+            s1 = e(-two_pi_i * k / 4)
         abs_m = abs(m)
         for c in range(1, nterms):
             two_pi_i_c = two_pi_i / c
@@ -2113,11 +2109,11 @@ class WeilRep(object):
                     zeta1, zeta2 = e(two_pi_i_c * m * b) , e(two_pi_i_c * d)
                     for i, g in enumerate(ds):
                         if rds[i] is None:
-                            u = nl[i] + 1
+                            u = nl[i]# + 1
                             if eta_twist:
                                 u -= (1 - eta_twist / 24)
                             zeta = s1 * zeta1 * e(two_pi_i_c * u * d)
-                            for n in range(1, len(Y[i])):
+                            for n in range(len(Y[i])):
                                 Y[i][n] += h(M[j, i].conjugate() * zeta)
                                 zeta *= zeta2
             for i, y in enumerate(Y):
@@ -2125,12 +2121,14 @@ class WeilRep(object):
                 if eta_twist:
                     u = -frac(-u - eta_twist / 24)
                 if rds[i] is None and (_flag or eps == 1 or 2 % denominator(ds[i])):
-                    for n in range(1, len(Y[i])):
+                    for n in range(len(Y[i])):
                         if n + u > 0:
                             if m:
                                 X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs_m)**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs_m * (n + u))) / c
                             else:
                                 X[i][n] += (four_pi_c * (n + u) / 2.0)**k  * Y[i][n] / (gamma_k * (n + u))
+                        elif n + u == 0 and _flag == 'maass':
+                            X[i][n] += (2 * math.pi)**k * (c / abs_m)**exponent * Y[i][n] / math.gamma(k) / c
                 Y[i] = u
         for i, x in enumerate(X):
             if rds[i]:
@@ -2141,7 +2139,7 @@ class WeilRep(object):
             if component == j:
                 X[0][2] += 0.5 * q**ceil(m)
             if component == j1:
-                X[0][2] += 0.5 * q**ceil(m)
+                X[0][2] += eps * 0.5 * q**ceil(m)
             return X[0]
         X[j][2] += 0.5 * q**ceil(m)
         X[j1][2] += eps * 0.5 * q**ceil(m)
