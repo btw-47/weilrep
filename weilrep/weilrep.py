@@ -47,7 +47,7 @@ from sage.misc.persist import _base_save
 from sage.modular.dirichlet import DirichletGroup, kronecker_character
 from sage.modular.modform.constructor import CuspForms, ModularForms
 from sage.modular.modform.eis_series import eisenstein_series_qexp
-from sage.modular.modform.element import is_ModularFormElement
+from sage.modular.modform.element import ModularFormElement
 from sage.modular.modform.j_invariant import j_invariant_qexp
 from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module import span
@@ -900,7 +900,7 @@ class WeilRep(object):
             [(1/3, 1/3), 27*q^(2/3) + 216*q^(5/3) + 459*q^(8/3) + 1080*q^(11/3) + 1350*q^(14/3) + 2592*q^(17/3) + O(q^(20/3))]
 
         """
-        if not is_ModularFormElement(mf):
+        if not isinstance(mf, ModularFormElement):
             raise TypeError('The Bruinier-Bundschuh lift takes modular forms as input')
         p = mf.level()
         if not p.is_prime() and p != 2 and self.discriminant() == p:
@@ -1903,7 +1903,7 @@ class WeilRep(object):
             sage: from weilrep import *
             sage: WeilRep([]).maass_eisenstein_series(-2, 5)
             Harmonic Maass form with holomorphic part pi^(-3) times
-            -45/2*zeta(3) - 45/2*q - 405/16*q^2 - 70/3*q^3 - 3285/128*q^4 + O(q^5)
+            -45/2*zeta(3) - 45/2*q - 405/2*q^2 - 630*q^3 - 3285/2*q^4 + O(q^5)
             and shadow
             3 + 720*q + 6480*q^2 + 20160*q^3 + 52560*q^4 + O(q^5)
         """
@@ -1942,7 +1942,7 @@ class WeilRep(object):
             sage: from weilrep import *
             sage: WeilRep([]).mock_eisenstein_series(-2, 5)
             pi^(-3) times
-            -45/2*zeta(3) - 45/2*q - 405/16*q^2 - 70/3*q^3 - 3285/128*q^4 + O(q^5)
+            -45/2*zeta(3) - 45/2*q - 405/2*q^2 - 630*q^3 - 3285/2*q^4 + O(q^5)
         """
         if not self.is_symmetric_weight(k):
             raise ValueError('Invalid weight in Maass Eisenstein series.')
@@ -2091,7 +2091,7 @@ class WeilRep(object):
         r, q = PowerSeriesRing(RR, 'q').objgen()
         X = [vector(RR, [0]*(prec - floor(u))) for u in nl]
         if _flag == 'maass':
-            s1 = e(two_pi_i * k / 4)
+            s1 = e(two_pi_i * (2 - k) / 4)
         else:
             s1 = e(-two_pi_i * k / 4)
         abs_m = abs(m)

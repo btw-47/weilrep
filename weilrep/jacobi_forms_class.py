@@ -39,7 +39,7 @@ from sage.modular.arithgroup.congroup_gamma import Gamma_constructor
 from sage.modular.arithgroup.congroup_gamma0 import Gamma0_constructor
 from sage.modular.arithgroup.congroup_gamma1 import Gamma1_constructor
 from sage.modular.modform.eis_series import eisenstein_series_qexp
-from sage.modular.modform.element import is_ModularFormElement
+from sage.modular.modform.element import ModularFormElement
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
@@ -643,6 +643,17 @@ class JacobiForms:
             return L.jacobi_forms()
         return [L[0].jacobi_form()]
 
+    def eigenforms(self, k, prec, **kwargs):
+        if not self.is_positive_definite():
+            p, a = self._pos_def_quotient()
+            pt = p.transpose()
+            J = JacobiForms(a)
+            X = J.eigenforms(k, prec, **kwargs)
+            return [x.pullback(pt) for x in X]
+        w = self.weilrep()
+        N = w.gram_matrix().nrows()
+        return w.eigenforms(k - Integer(N) / 2, prec, **kwargs).jacobi_forms()
+
     def jacobi_forms_basis(self, weight, prec=1, **kwargs):
         r"""
         Compute a basis of Jacobi forms.
@@ -717,7 +728,7 @@ class JacobiForms:
             if verbose:
                 print('I need to find %d Jacobi form' % dim +['s.', '.'][dim == 1])
             if try_theta_blocks is None:
-                try_theta_blocks = (dim < 3)  #arbitrary?
+                try_theta_blocks = (dim < 4)  #arbitrary?
             if try_theta_blocks:
                 from .weilrep_misc import weight_two_basis_from_theta_blocks, weight_three_basis_from_theta_blocks
                 if verbose:
@@ -1591,7 +1602,7 @@ class JacobiForm:
                 except TypeError:
                     pass
             return JacobiForm(self.weight() + other.weight(), S1 + S2, f, w_scale = scale)
-        elif is_ModularFormElement(other):
+        elif isinstance(other, ModularFormElement):
             try:
                 modform = self.modform() * smf(other.weight(), other.qexp())
             except (AttributeError, TypeError):
@@ -1686,7 +1697,7 @@ class JacobiForm:
                 if qshift:
                     return JacobiFormWithCharacter(self.weight() - other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale(), character = ~other.character(), qshift = -qshift)
                 return JacobiForm(self.weight() - other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale())
-        elif is_ModularFormElement(other):
+        elif isinstance(other, ModularFormElement):
             try:
                 modform = self.modform() / smf(-other.weight(), ~other.qexp())
             except (AttributeError, TypeError):
@@ -1707,7 +1718,7 @@ class JacobiForm:
         N = self.nvars()
         if other in CC:
             x = JacobiForm(0, matrix(N), self.qexp().parent()(other))
-        elif is_ModularFormElement(other):
+        elif isinstance(other, ModularFormElement):
             x = JacobiForm(other.weight(), matrix(N), self.qexp().parent()(other.qexp()))
         elif isinstance(other, WeilRepModularForm):
             if other.weilrep().gram_matrix().nrows() == 0:
@@ -1835,16 +1846,13 @@ class JacobiForm:
                     g *= theta.hecke_U(r) ** a
         C = 2 * k - C
         g *= (eta ** Integer(C))
-        print('g:', g)
         C1 /= S.nrows()
-        print('C1:', C1)
         d = denominator(C1)
         C1 *= d
         r = PowerSeriesRing(g.qexp().parent(), 's')
         f = r([0] + [-self.hecke_V(N).qexp() for N in range(1, prec)]).add_bigoh(prec).exp()
         J = [JacobiForm(0, (N+C1)*S, f) for N, f in enumerate(f.padded_list())]
         J = [JacobiForm(k, N*S, 0) for N in range(C1)] + [g*x for x in J]
-        print('J:', J)
         return OrthogonalModularForms(self.weilrep()).modular_form_from_fourier_jacobi_expansion(J)
 
     def __call__(self, *args):
@@ -1878,6 +1886,9 @@ class JacobiForm:
         g = P.gens()
         return self.pullback(matrix(ZZ, [[x.coefficient(h) for x in args] for h in g]))
 
+    def eigenvalue(self, n):
+        return self.theta_decomposition().eigenvalue(n)
+
     def gritsenko_lift(self):
         r"""
         Compute the Gritsenko lift.
@@ -1891,10 +1902,15 @@ class JacobiForm:
             (r^-12 - 3*r^-11 + 6*r^-9 - r^-8 - 4*r^-7 - 4*r^-6 + 3*r^-5 + 3*r^-4 + 4*r^-2 - 2*r^-1 - 6 - 2*r + 4*r^2 + 3*r^4 + 3*r^5 - 4*r^6 - 4*r^7 - r^8 + 6*r^9 - 3*r^11 + r^12)*q*s + (-r^-17 + 2*r^-16 + r^-15 - 3*r^-14 + r^-13 - 2*r^-12 + r^-11 + 6*r^-8 - 4*r^-7 + 2*r^-6 - r^-5 - 6*r^-4 - r^-3 + r^-2 + 4*r^-1 + 4*r + r^2 - r^3 - 6*r^4 - r^5 + 2*r^6 - 4*r^7 + 6*r^8 + r^11 - 2*r^12 + r^13 - 3*r^14 + r^15 + 2*r^16 - r^17)*q^2*s + (-r^-17 + 2*r^-16 + r^-15 - 3*r^-14 + r^-13 - 2*r^-12 + r^-11 + 6*r^-8 - 4*r^-7 + 2*r^-6 - r^-5 - 6*r^-4 - r^-3 + r^-2 + 4*r^-1 + 4*r + r^2 - r^3 - 6*r^4 - r^5 + 2*r^6 - 4*r^7 + 6*r^8 + r^11 - 2*r^12 + r^13 - 3*r^14 + r^15 + 2*r^16 - r^17)*q*s^2 + (r^-21 - r^-20 - r^-19 - 2*r^-18 + 2*r^-17 + 3*r^-16 + r^-15 - 3*r^-13 + r^-12 - 2*r^-11 - 4*r^-9 + 2*r^-7 + 4*r^-6 + 3*r^-5 + 2*r^-3 - 2*r^-2 - r^-1 - 6 - r - 2*r^2 + 2*r^3 + 3*r^5 + 4*r^6 + 2*r^7 - 4*r^9 - 2*r^11 + r^12 - 3*r^13 + r^15 + 3*r^16 + 2*r^17 - 2*r^18 - r^19 - r^20 + r^21)*q^3*s + (2*r^-23 - 3*r^-22 - 2*r^-21 + 2*r^-20 - r^-19 + 6*r^-18 - r^-17 - 2*r^-15 - 4*r^-14 + 4*r^-13 - 6*r^-12 + r^-11 + 3*r^-10 + 3*r^-9 - r^-7 - 3*r^-5 + 4*r^-4 + r^-3 - 2*r^-2 - r^-1 - r - 2*r^2 + r^3 + 4*r^4 - 3*r^5 - r^7 + 3*r^9 + 3*r^10 + r^11 - 6*r^12 + 4*r^13 - 4*r^14 - 2*r^15 - r^17 + 6*r^18 - r^19 + 2*r^20 - 2*r^21 - 3*r^22 + 2*r^23)*q^2*s^2 + (r^-21 - r^-20 - r^-19 - 2*r^-18 + 2*r^-17 + 3*r^-16 + r^-15 - 3*r^-13 + r^-12 - 2*r^-11 - 4*r^-9 + 2*r^-7 + 4*r^-6 + 3*r^-5 + 2*r^-3 - 2*r^-2 - r^-1 - 6 - r - 2*r^2 + 2*r^3 + 3*r^5 + 4*r^6 + 2*r^7 - 4*r^9 - 2*r^11 + r^12 - 3*r^13 + r^15 + 3*r^16 + 2*r^17 - 2*r^18 - r^19 - r^20 + r^21)*q*s^3 + O(q, s)^5
         """
         try:
-            return self.modform().gritsenko_lift()
+            f = self.modform().gritsenko_lift()
         except AttributeError:
             from .lifts import OrthogonalModularForms
-            return OrthogonalModularForms(self.weilrep()).modular_form_from_fourier_jacobi_expansion([self.hecke_V(N) for N in range(self.precision())])
+            f = OrthogonalModularForms(self.weilrep()).modular_form_from_fourier_jacobi_expansion([self.hecke_V(N) for N in range(self.precision())])
+        S = self.index_matrix()
+        if S.nrows() == 1:
+            from .paramodular import ParamodularForm
+            f.__class__ = ParamodularForm
+        return f
 
     def hecke_P(self, N):
         ##fix this!!

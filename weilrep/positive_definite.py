@@ -423,8 +423,6 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             sage: f = ParamodularForms(4).borcherds_input_by_weight(1/2, 5)[0].borcherds_lift()
             sage: (f ** 8).fourier_jacobi()
             [O(q^5), (w^-4 - 8*w^-3 + 28*w^-2 - 56*w^-1 + 70 - 56*w + 28*w^2 - 8*w^3 + w^4)*q + (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q^2 + (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q^3 + O(q^4), (-8*w^-5 + 56*w^-4 - 168*w^-3 + 288*w^-2 - 336*w^-1 + 336 - 336*w + 288*w^2 - 168*w^3 + 56*w^4 - 8*w^5)*q + (8*w^-8 - 56*w^-7 + 224*w^-6 - 616*w^-5 + 1120*w^-4 - 1400*w^-3 + 1568*w^-2 - 2024*w^-1 + 2352 - 2024*w + 1568*w^2 - 1400*w^3 + 1120*w^4 - 616*w^5 + 224*w^6 - 56*w^7 + 8*w^8)*q^2 + O(q^3), (28*w^-6 - 168*w^-5 + 420*w^-4 - 616*w^-3 + 756*w^-2 - 1008*w^-1 + 1176 - 1008*w + 756*w^2 - 616*w^3 + 420*w^4 - 168*w^5 + 28*w^6)*q + O(q^2), O(q^1)]
-
-
         """
         try:
             return self.__fourier_jacobi
@@ -543,7 +541,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         S = matrix([[-2]])
         return OrthogonalModularFormLorentzian(self.weight() / 2, WeilRepLorentzian(S), f, scale = self.scale(), weylvec = vector([self.weyl_vector()[0]]), qexp_representation = 'shimura')
 
-    def pullback(self, *v):
+    def _pullback(self, *v):
         r"""
         Compute the pullback of self to the lattice spanned by 'v'.
         """
@@ -711,6 +709,23 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         w = II(1)
         X = [(vector([0, 0]), 0, self.fourier_expansion()[0][2])]
         return WeilRepModularForm(self.weight(), w.gram_matrix(), X, weilrep = w)
+
+    def _add_II(self):
+        r"""
+        Add a hyperbolic plane to self.
+        """
+        f = self.fourier_expansion()
+        w = self.weilrep()
+        from .lorentz import II
+        w1 = w + II(1)
+        dsdict = w.ds_dict()
+        X = [[g, None, None] for g in w1.ds()]
+        for i, x in enumerate(X):
+            g = x[0]
+            j = dsdict[tuple(g[1:-1])]
+            h = f[j]
+            X[i] = (g, h[1], h[2])
+        return WeilRepModularForm(self.weight(), w1.gram_matrix(), X, weilrep = w1)
 
     ## special methods
 
@@ -1065,7 +1080,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                         if bool_1:
                             C = coeffs[tuple([0] + [frac(y) for y in g] + [0, n])]
                         elif bool_2:
-                            C = sum(coeffs[tuple([i/N2, 0] + [frac(y) for y in g] + [0, n])] * zeta**(i * d % N2) for i in srange(N2))
+                            C = sum(coeffs[tuple([i/N2, 0] + [frac(y) for y in g] + [0, n])] * zeta**(i) for i in srange(N2))
                         else:
                             C = coeffs[tuple([frac(y) for y in g] + [n])]
                         f += C * rb_frac(wp_const_term(v_monomial))
@@ -1107,9 +1122,24 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                     F[j0] /= s
             else:
                 f /= s
+        u = self
+        if w.is_positive_definite():
+            u = u._add_II()
+        if N2 != 1:
+            def p(v):
+                v1 = vector([0] + list(v) + [0])
+                x = vector([1] + [0]*(1 + len(v)))
+                y = vector([0]*(1 + len(v)) + [1])
+                h = u.pullback([x, v1, y])
+                n = h.gram_matrix()[1, 1]
+                h._OrthogonalModularForm__weilrep = WeilRep([[n]]) + II(N2)
+                return h.theta_lift()
+        else:
+            def p(v):
+                return u.pullback(v).theta_lift()
         if list_bool:
-            return [OrthogonalModularForm(wt, self.weilrep(), f + C[i], scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h) for i, f in enumerate(F)]
-        return OrthogonalModularForm(wt, self.weilrep(), f + C, scale = 1, weylvec = vector([0] * (nrows + 2)), qexp_representation = h)
+            return [OrthogonalModularForm(wt, self.weilrep(), f + C[i], scale = 1, weylvec = vector([0] * (nrows + 2)), pullback_function = p, qexp_representation = h) for i, f in enumerate(F)]
+        return OrthogonalModularForm(wt, self.weilrep(), f + C, scale = 1, weylvec = vector([0] * (nrows + 2)), pullback_function = p, qexp_representation = h)
     additive_lift = theta_lift
     gritsenko_lift = theta_lift
     maass_lift = theta_lift

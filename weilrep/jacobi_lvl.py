@@ -30,7 +30,7 @@ from sage.matrix.special import block_diagonal_matrix, identity_matrix
 from sage.misc.functional import isqrt
 from sage.modular.arithgroup.congroup_gamma0 import Gamma0_constructor
 from sage.modular.arithgroup.congroup_gamma1 import Gamma1_constructor
-from sage.modular.modform.element import is_ModularFormElement
+from sage.modular.modform.element import ModularFormElement
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
 from sage.rings.infinity import Infinity
@@ -1017,7 +1017,7 @@ class JacobiFormWithLevel:
             if n1 != n2:
                 raise ValueError('Incompatible indices')
             return JacobiFormWithLevel(self.weight() + other.weight(), level, self.index_matrix() + other.index_matrix(), sf * of, w_scale = scale, q_scale = q_scale)
-        elif is_ModularFormElement(other):
+        elif isinstance(other, ModularFormElement):
             sf, of = self.qexp(), other.qexp()
             scale = self.scale()
             q_scale = self.q_scale()
@@ -1084,7 +1084,7 @@ class JacobiFormWithLevel:
                 if r is not LaurentPolynomialRing:
                     f = f.change_ring(LaurentPolynomialRing(r.base_ring(), r.gens()))
                 return JacobiFormWithLevel(self.weight() - other.weight(), self.level(), self.index_matrix(), f, w_scale = scale, q_scale = q_scale)
-        elif is_ModularFormElement(other):
+        elif isinstance(other, ModularFormElement):
             level = lcm(self.level(), other.level())
             of = other.qexp()
             scale = self.scale()

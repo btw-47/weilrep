@@ -430,7 +430,7 @@ class OrthogonalModularForm(object):
     - ``scale`` -- a natural number. If scale != 1 then all exponents in the Fourier expansion should be divided by `scale`. (This is done in the __repr__ method)
     - ``weylvec`` -- a ``Weyl vector``. For modular forms that are not constructed as Borcherds products this vector should be zero.
     """
-    def __init__(self, k, w, f, scale, weylvec, qexp_representation = None, ppcoeffs = None):
+    def __init__(self, k, w, f, scale, weylvec, pullback_function = NotImplemented, qexp_representation = None, ppcoeffs = None):
         s = qexp_representation
         self.__fourier_expansion = f
         self.__qexp_representation = s
@@ -439,6 +439,7 @@ class OrthogonalModularForm(object):
         self.__weight = k
         self.__weilrep = w
         self.__weylvec = weylvec
+        self.__pullback = pullback_function
         if ppcoeffs:
             self.__ppcoeffs = ppcoeffs
         ## change class
@@ -553,6 +554,9 @@ class OrthogonalModularForm(object):
     def _principal_part_coefficients(self):
         return self.__ppcoeffs
 
+    def pullback(self, *args, **kwargs):
+        return self.__pullback(*args, **kwargs)
+
     def qexp_representation(self):
         return self.__qexp_representation
 
@@ -627,6 +631,10 @@ class OrthogonalModularForm(object):
         nrows = self.nvars()
         f = self.true_fourier_expansion()
         d_prec = d * prec
+        if d_prec < Infinity:
+            constant_prec = max(10, d_prec)
+        else:
+            constant_prec = 10
         for j_t, p in f.dict().items():
             if j_t < d_prec:
                 j_t = Integer(j_t)
@@ -643,8 +651,9 @@ class OrthogonalModularForm(object):
                                     hn, hd = h.numerator(), h.denominator()
                                     r = hd.parent()
                                     if hd.constant_coefficient():
-                                        s = PowerSeriesRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)))
-                                        h = s(hn) / s(hd)
+                                        s = PowerSeriesRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)), default_prec = constant_prec)
+                                        #h = s(hn) / s(hd)
+                                        h = s(h).add_bigoh(constant_prec)
                                     else:
                                         s = LaurentPolynomialRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)))
                                         h = s(hn) / s(hd)
@@ -660,8 +669,8 @@ class OrthogonalModularForm(object):
                                     hn, hd = h.numerator(), h.denominator()
                                     r = hd.parent()
                                     if hd.constant_coefficient():
-                                        s = PowerSeriesRing(r.base_ring(), 'r_0')
-                                        h = s(hn) / s(hd)
+                                        s = PowerSeriesRing(r.base_ring(), 'r_0', default_prec = constant_prec)
+                                        h = s(h).add_bigoh(constant_prec)
                                     else:
                                         s = LaurentPolynomialRing(r.base_ring(), 'r_0')
                                         h = s(hn) / s(hd)
@@ -765,12 +774,14 @@ class OrthogonalModularForm(object):
                 raise ValueError('Incompatible characters')
         self_scale = self.scale()
         other_scale = other.scale()
+        def p(*args, **kwargs):
+            return self.pullback(*args, **kwargs) + other.pullback(*args, **kwargs)
         if not self_scale == other_scale:
             new_scale = lcm(self_scale, other_scale)
             X1 = self.rescale(new_scale // self_scale)
             X2 = other.rescale(new_scale // other_scale)
-            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() + X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v, qexp_representation = self.qexp_representation())
-        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() + other.true_fourier_expansion(), scale = self_scale, weylvec = self_v, qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() + X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
+        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() + other.true_fourier_expansion(), scale = self_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
 
     __radd__ = __add__
 
@@ -793,15 +804,19 @@ class OrthogonalModularForm(object):
                 raise ValueError('Incompatible characters')
         self_scale = self.scale()
         other_scale = other.scale()
+        def p(*args, **kwargs):
+            return self.pullback(*args, **kwargs) - other.pullback(*args, **kwargs)
         if not self_scale == other_scale:
             new_scale = lcm(self_scale, other_scale)
             X1 = self.rescale(new_scale // self_scale)
             X2 = other.rescale(new_scale // other_scale)
-            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() - X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v, qexp_representation = self.qexp_representation())
-        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() - other.true_fourier_expansion(), scale = self_scale, weylvec = self_v, qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() - X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
+        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() - other.true_fourier_expansion(), scale = self_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
 
     def __neg__(self):
-        return OrthogonalModularForm(self.__weight, self.__weilrep, -self.true_fourier_expansion(), scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+        def p(*args, **kwargs):
+            return -self.pullback(*args, **kwargs)
+        return OrthogonalModularForm(self.__weight, self.__weilrep, -self.true_fourier_expansion(), scale = self.scale(), weylvec = self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
 
     def __mul__(self, other):
         r"""
@@ -828,9 +843,13 @@ class OrthogonalModularForm(object):
             if f1.valuation() < 0 or f2.valuation() < 0 and f.valuation() >= 0:
                 r = PowerSeriesRing(f.base_ring(), 't')
                 f = r(f)
-            return OrthogonalModularForm(self.__weight + other.weight(), self.__weilrep, f, scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector(), qexp_representation = self.qexp_representation())
+            def p(*args, **kwargs):
+                return self.pullback(*args, **kwargs) * other.pullback(*args, **kwargs)
+            return OrthogonalModularForm(self.__weight + other.weight(), self.__weilrep, f, scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
         else:
-            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() * other, scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+            def p(*args, **kwargs):
+                return other * self.pullback(*args, **kwargs)
+            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() * other, scale = self.scale(), weylvec = self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
 
     __rmul__ = __mul__
 
@@ -843,14 +862,18 @@ class OrthogonalModularForm(object):
                 raise ValueError('Incompatible Gram matrices')
             self_scale = self.scale()
             other_scale = other.scale()
+            def p(*args, **kwargs):
+                return self.pullback(*args, **kwargs) / other.pullback(*args, **kwargs)
             if self_scale != 1 or other_scale != 1:
                 new_scale = lcm(self.scale(), other.scale())
                 X1 = self.rescale(new_scale // self_scale)
                 X2 = other.rescale(new_scale // other_scale)
                 return OrthogonalModularForm(self.__weight - other.weight(), self.__weilrep, X1.true_fourier_expansion() * X2.inverse(), scale = new_scale, weylvec = self.weyl_vector() - other.weyl_vector(), qexp_representation = self.qexp_representation())
-            return OrthogonalModularForm(self.weight() - other.weight(), self.__weilrep, self.true_fourier_expansion() * other.inverse(), scale = 1, weylvec = self.weyl_vector() - other.weyl_vector(), qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.weight() - other.weight(), self.__weilrep, self.true_fourier_expansion() * other.inverse(), scale = 1, weylvec = self.weyl_vector() - other.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
         else:
-            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() / other, scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+            def p(*args, **kwargs):
+                return self.pullback(*args, **kwargs) / other
+            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() / other, scale = self.scale(), weylvec = self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
 
     __truediv__ = __div__
 
@@ -870,7 +893,9 @@ class OrthogonalModularForm(object):
     def __pow__(self, other):
         if not other in ZZ:
             raise ValueError('Not a valid exponent')
-        return OrthogonalModularForm(other * self.weight(), self.__weilrep, self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector(), qexp_representation = self.qexp_representation())
+        def p(*args, **kwargs):
+            return self.pullback(*args, **kwargs) ** other
+        return OrthogonalModularForm(other * self.weight(), self.__weilrep, self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
 
     def n(self):
         d = self.true_coefficients()
