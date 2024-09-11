@@ -1181,7 +1181,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         negative = lambda v: next(s for s in v if s) < 0
         if K:
             try:
-                _, _, vs_matrix = pari(K_inv).qfminim(1 - val, flag=2)
+                _, _, vs_matrix = pari(K_inv).qfminim(2 - (val + val), flag=2)
                 vs_list = vs_matrix.sage().columns()
             except PariError:
                 vs_list = [vector([n]) for n in srange(1, isqrt(2 * K[0, 0] * (-val)) + 1)]

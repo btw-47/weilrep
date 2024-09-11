@@ -959,6 +959,8 @@ def jacobian(*X):
     if N == 1:
         X = X[0]
         N = len(X)
+    if not all(x._base_ring_is_laurent_polynomial_ring() for x in X):
+        X = [x._laurent_to_fraction() for x in X]
     Xref = X[0]
     if isinstance(Xref, UnitaryModularForm):
         return unitary_jacobian(X)

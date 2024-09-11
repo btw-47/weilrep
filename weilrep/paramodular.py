@@ -90,7 +90,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
                 K = NumberField(x, name)
                 i += 1
             else:
-                K = QQ
+                K = M.base_ring()
             M_K = matrix(K, M)
             V = x(M_K).transpose().kernel().basis_matrix()
             V_rows = V.rows()
@@ -389,6 +389,9 @@ class ParamodularHeckeOperator:
         self.__degree = d
         self.__omf = m
         self.__level = m.level()
+
+    def __repr__(self):
+        return "Hecke operator of index %s acting on paramodular forms of level %s"%(self.__index, self.__level)
 
     def degree(self):
         return self.__degree

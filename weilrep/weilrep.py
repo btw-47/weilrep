@@ -126,7 +126,7 @@ class WeilRep(object):
             else:
                 raise ValueError('Invalid input')
         except AttributeError: #This should appear when calling (for example) WeilRep([[2, 1], [1, 2]]).
-            S = matrix(S)
+            S = matrix(ZZ, S)
             self.__gram_matrix = S
             self.__quadratic_form = QuadraticForm(S)
         self.__eisenstein = {}

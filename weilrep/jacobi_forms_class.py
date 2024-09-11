@@ -2005,6 +2005,19 @@ class JacobiForm:
             f += sum([a**(k_1) * q**(a * (i + val)) * F[d * (i + val) - val].subs(sub_a) for i in range(max(0, ceil(val * (1 / d - 1))), min(-((len(F) + (1 - d) * val) // -d), max_prec))])
         return JacobiForm(k_1 + 1, N * S, f, w_scale = self.scale())
 
+
+    def hecke_V_adj(self, N):
+        r"""
+        Apply the adjoint of the Nth Hecke V-operator.
+
+        INPUT:
+        - ``N`` -- a natural number
+
+        OUTPUT: Jacobi form of the same weight and index self.index()/N
+        """
+        return NotImplemented
+        return self.theta_decomposition().hecke_V_adj(N).jacobi_form()
+
     def pullback(self, A):  #return self evaluated at tau, A*z
         r"""
         Apply a linear map to self's elliptic variables.

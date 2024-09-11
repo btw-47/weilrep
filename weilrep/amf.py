@@ -341,7 +341,7 @@ class AlgebraicModularForms(object):
 
     ## modular forms
 
-    def basis(self, k, spin = Integer(1), det = Integer(1)):
+    def basis(self, k, spin = Integer(1), det = Integer(1), verbose = False, reynolds = False):
         r"""
         Compute a basis of algebraic modular forms of weight Har_k.
 
@@ -363,11 +363,15 @@ class AlgebraicModularForms(object):
         except KeyError:
             pass
         dim = self.dimension(k, separate_classes = True, spin = spin, det = det)
+        if verbose:
+            print('I need to find %s modular forms.'%dim)
         R = self._base_ring()
         L = []
         for i, x in enumerate(self.classes()):
+            if verbose:
+                print('I will compute invariant polynomials for class %s of %s.'%(i, len(self.classes())))
             if k:
-                y = invariant_weight_k_polynomials_with_dim_bound(x.gram_matrix(), x.automorphism_group(), k, dim[i], spin = spin, det = det)
+                y = invariant_weight_k_polynomials_with_dim_bound(x.gram_matrix(), x.automorphism_group(), k, dim[i], spin = spin, det = det, verbose = verbose, reynolds = reynolds)
                 y = [b / b.content() for b in y]
             elif x._spin_numbers()[(spin, det)]:
                 y = [R(1)]
@@ -589,9 +593,9 @@ class AlgebraicModularForms(object):
                 K_list_2, eigenvectors = self.eigenforms([sum(v[i]*X[i] for i in range(len(v))) for v in V_rows], _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
                 K_list.extend(K_list_2)
                 L.extend([x * V for x in eigenvectors])
-        L = [sum(X[i] * y for i, y in enumerate(x)) for x in L]
         eigenforms = []
         if _final_recursion:
+            L = [sum(X[i] * y for i, y in enumerate(x)) for x in L]
             for i, x in enumerate(L):
                 x.__class__ = AlgebraicModularFormEigenform
                 x._AlgebraicModularFormEigenform__field = K_list[i]
@@ -599,7 +603,7 @@ class AlgebraicModularForms(object):
             return eigenforms
         return K_list, L
 
-    def hecke_operator(self, p, d = 1, safe = True):
+    def hecke_operator(self, p, d = 1, safe = False):
         r"""
         Construct the Hecke operator T_{p, d}.
         This is the Hecke operator defined using p^d-neighbors.
@@ -939,8 +943,8 @@ class AlgebraicModularFormEigenform(AlgebraicModularForm):
 
     def eigenvalue(self, p, d=1):
         K = self.base_field()
-        if not self.amf().level() % p:
-            raise ValueError('The prime %s divides the lattice level %s.'%(p, self.amf().level()))
+        #if not self.amf().level() % p:
+        #    raise ValueError('The prime %s divides the lattice level %s.'%(p, self.amf().level()))
         T = self.amf().hecke_operator(p, d=d)
         n = self.amf().gram_matrix().nrows()
         denominator = 10 * n
@@ -1150,10 +1154,12 @@ def hyperbolic_splitting(S, p, V = None, X = [], j = 0):
         return [v1, v2] + H, j + 1
     return [], 0
 
-def isotropic_subspaces(S, p, k):
+def isotropic_subspaces_nondegenerate(S, p, k):
     r"""
     Compute all k-dimensional isotropic subspaces in a quadratic form S over Z/pZ.
     """
+    if not k:
+        return []
     H, j = hyperbolic_splitting(S, p)
     H = matrix(ZZ, H)
     S_H = H * S * H.transpose()
@@ -1216,6 +1222,64 @@ def isotropic_subspaces(S, p, k):
         subspaces += X
     subspaces_with_pivot.clear_cache()
     return subspaces
+
+def compute_radical(S, p):
+    r"""
+    Split off the radical of the quadratic form.
+    """
+    K = GF(p)
+    Sp = S.change_ring(K)
+    V = Sp.right_kernel().basis_matrix()
+    N = V.nrows()
+    U = matrix(ZZ, V).transpose().echelon_form(transformation = True)[1].inverse().columns()
+    return U[:N], U[N:]
+
+def GFp_subspaces(p, N, k):
+    allowed_pivots = combinations(range(N), k)
+    X = []
+    range_p = list(range(p))
+    for pivots in allowed_pivots:
+        J = [[[0] for _ in range(pivot)] + [range_p for _ in range(pivot, N)] for pivot in pivots]
+        for j, pivot in enumerate(pivots):
+            for j2 in range(k):
+                if j2 != j:
+                    J[j2][pivot] = [0]
+            J[j][pivot] = [1]
+        V = [list(product(*j)) for j in J]
+        X = X + list(product(*V))
+    return X
+
+def isotropic_subspaces(S, p, k):
+    radical, nondegen = compute_radical(S, p)
+    if not radical:
+        return isotropic_subspaces_nondegenerate(S, p, k)
+    N = len(radical)
+    if not nondegen:
+        B = GFp_subspaces(p, N, k)
+        return [[sum(x[i] * v for i, v in enumerate(radical)) for x in y] for y in B]
+    else:
+        H = matrix(nondegen)
+        Ht = H.transpose()
+        SH = matrix(ZZ, H * S * Ht)
+        Q = QuadraticForm(SH)
+        if Q.is_anisotropic(p):
+            B = GFp_subspaces(p, N, k)
+            return [[sum(x[i] * v for i, v in enumerate(radical)) for x in y] for y in B]
+        X = []
+        range_p = list(range(p))
+        range_p_N = [list(x) for x in product(*[range_p for _ in range(N)])]
+        Zt = matrix(radical + nondegen).transpose()
+        for j in range(N + 1):
+            A = isotropic_subspaces_nondegenerate(SH, p, k - j)
+            V = [list(x) for x in product(*[range_p_N for _ in range(k - j)])]
+            A2 = []
+            for v in V:
+                A2 += [[v[i] + list(a) for i, a in enumerate(a)] for a in A]
+            B = GFp_subspaces(p, N, j)
+            A = [[Zt * vector(x) % p for x in x] for x in A2]
+            B = [[sum(x[i] * v for i, v in enumerate(radical)) for x in y] for y in B]
+            X += [x + y for x in B for y in A]
+        return X
 
 def lift_p_to_psqr(S, p, X, Z):
     r"""
@@ -1284,7 +1348,10 @@ def pk_neighbors_from_X(S, X, p):
     Compute (p^k)-neighbors of Q given a k-dimensional isotropic subspace X
     """
     n = S.nrows()
-    Z = hyperbolic_complement(S, X, p)
+    try:
+        Z = hyperbolic_complement(S, X, p)
+    except StopIteration:
+        return []
     X, Z = lift_p_to_psqr(S, p, X, Z)
     X = matrix(ZZ, X)
     Z = matrix(ZZ, Z)
@@ -1444,13 +1511,15 @@ def monomial_iterator(r, d):
 
 
 
-def invariant_weight_k_polynomials_with_dim_bound(S, G, k, bound, spin = 1, det = 1):
+def invariant_weight_k_polynomials_with_dim_bound(S, G, k, bound, spin = 1, det = 1, verbose = False, reynolds = False):
     current_rank = 0
     current_list = []
     R = PolynomialRing(QQ, ['x_%s'%i for i in range(S.nrows())])
     N = S.nrows()
     dim = binomial(N + k, N)
-    if len(G) > 10 * dim: #cutoff where linear algebra might be less awful than the Reynolds projector
+    if len(G) > 10 * dim and not reynolds: #cutoff where linear algebra might be less awful than the Reynolds projector
+        if verbose:
+            print('The automorphism group is large (%s elements) so I will use linear algebra.'%len(G))
         for f in harmonic_invariant_polynomial_generator(S, G, S.nrows(), k, spin = spin, det = det):
             new_list = current_list + [f]
             V = polynomial_relations(new_list)
@@ -1459,14 +1528,45 @@ def invariant_weight_k_polynomials_with_dim_bound(S, G, k, bound, spin = 1, det 
             if len(current_list) == bound:
                 return current_list
     else:
+        if verbose:
+            print('I will compute polynomials via harmonic projection.')
+        excluded_monomials = set([])
+        n = S.nrows()
+        if spin == 1:
+            if det == 1:
+                character = lambda y: 1
+            else:
+                character = lambda y: y.det()
+        else:
+            if det == 1:
+                character = lambda y: (-1)**len([p for p in spinor_norm(S, y).prime_factors() if spin % p == 0])
+            else:
+                character = lambda y: y.det() * (-1)**len([p for p in spinor_norm(S, y).prime_factors() if spin % p == 0])
+        v = vector(R.gens())
+        G = [matrix(n, n, g) for g in G]
+        Gv = [g * v for g in G]
+        Gchar = [character(g) for g in G]
         for x in monomial_iterator(R, k):
-            f = R(invariant_harmonic_projection(x, G, S, spin = spin, det = det))
-            new_list = current_list + [f]
-            V = polynomial_relations(new_list)
-            if not V.dimension():
-                current_list = new_list
-            if len(current_list) == bound:
-                return current_list
+            if x not in excluded_monomials:
+                f = 0
+                for j, chi in enumerate(Gchar):
+                    gx = x(*Gv[j])
+                    if gx.is_monomial():
+                        excluded_monomials.add(gx)
+                    f += chi * gx
+                if f:
+                    if verbose:
+                        print('I am computing the projection of %s.'%f)
+                    #f = R(invariant_harmonic_projection(x, G, S, spin = spin, det = det))
+                    f = harmonic_projection(f, S)
+                    new_list = current_list + [f]
+                    V = polynomial_relations(new_list)
+                    if not V.dimension():
+                        current_list = new_list
+                    if verbose:
+                        print('I have found %s of %s polynomials.'%(len(current_list), bound))
+                    if len(current_list) == bound:
+                        return current_list
     return []
 
 

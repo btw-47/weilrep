@@ -42,7 +42,7 @@ from sage.misc.functional import denominator, isqrt, symbolic_sum
 from sage.misc.misc_c import prod
 from sage.modular.etaproducts import qexp_eta
 from sage.modular.modform.eis_series import eisenstein_series_qexp
-from sage.modular.modform.element import is_ModularFormElement
+from sage.modular.modform.element import ModularFormElement
 from sage.modular.modform.j_invariant import j_invariant_qexp
 from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module_element import vector
@@ -128,7 +128,7 @@ class WeilRepModularForm(object):
         try:
             return self.__qexp_string
         except AttributeError:
-            r = r'((?<!\w)q(?!\w)(\^-?\d+)?)|((?<!\^)\d+\s)' #identify exponents that are non integral
+            r = r'((?<!\w)q(?!\w)(\^-?\d+)?)|((?<![\^_])\d+\s)' #identify exponents that are non integral
             X = self.__fourier_expansions
             z = X[0]
             def a(x):
@@ -262,7 +262,7 @@ class WeilRepModularForm(object):
         if ending_with is None:
             ending_with = prec + 1
         elif ending_with > prec + 1:
-            raise ValueError('Insufficient precision')
+            raise ValueError('Insufficient precision') from None
         if starting_from is None:
             starting_from = self.valuation()
         for n in range(floor(starting_from),ceil(ending_with)+1):
@@ -413,7 +413,7 @@ class WeilRepModularForm(object):
             # construct Puiseux series this way to try not to break things. This is not really good
             e = f.exponents()
             c = f.coefficients()
-            return sum(c * q**(e[i] + n) for i, c in enumerate(c))
+            return r( sum(c * q**(e[i] + n) for i, c in enumerate(c)) )
         return [(g, a(f, n).add_bigoh(prec)) for g, n, f in x]
 
     def puiseux_series_component(self, v):
@@ -1051,7 +1051,7 @@ class WeilRepModularForm(object):
                     u1 = x1[1]
                     for x2 in f2:
                         u2 = x2[1]
-                        g = tuple(list(x1[0]) + list(x2[0]))
+                        g = tuple(map(frac, list(x1[0]) + list(x2[0])))
                         i = _ds_dict[g]
                         s = u1+u2
                         f = x1[2] * x2[2]
@@ -1060,7 +1060,7 @@ class WeilRepModularForm(object):
                         else:
                             X[i] = vector(g), s, f
                 return WeilRepModularForm(self.__weight+other.weight(), S, X, weilrep = w)
-        elif is_ModularFormElement(other):
+        elif isinstance(other, ModularFormElement):
             if not other.level() == 1:
                 raise NotImplementedError
             X = self.fourier_expansion()
@@ -1165,7 +1165,7 @@ class WeilRepModularForm(object):
         NOTE: Attempting this will generally raise an error since dividing vector-valued modular forms is not well-defined. If you are dividing by a scalar modular form ( i.e. a WeilRepModularForm for WeilRep([]) ) then the __rdiv__ method should kick in and everything should be OK.
         """
         X = self.fourier_expansion()
-        if is_ModularFormElement(other):
+        if isinstance(other, ModularFormElement):
             if not other.level() == 1:
                 raise NotImplementedError
             return WeilRepModularForm(self.weight() - other.weight(), self.gram_matrix(), [(x[0], x[1], x[2]/other.qexp()) for x in X], weilrep = self.weilrep())
@@ -1436,7 +1436,7 @@ class WeilRepModularForm(object):
                     c3 = f[i1]
                     h2 += c3 * q**i
             X[j0][2] += h
-            X[j][2] += psqr**(k - 1) * h2
+            X[j][2] += p**Integer(k + k - 2) * h2
         return WeilRepModularForm(k, S, X, w)
 
     def hecke_T(self, N):
@@ -1499,11 +1499,11 @@ class WeilRepModularForm(object):
             symm = -1
         def rho(n, a):
             if a == 1:
-                return 1
+                return Integer(1)
             if odd_rank:
                 nl = Integer(n * l)
                 if (nl * N_sqr) % a:
-                    return 0
+                    return Integer(0)
                 g1 = GCD(a, nl)
                 f = isqrt(g1)
                 fsqr = f * f
@@ -1518,32 +1518,31 @@ class WeilRepModularForm(object):
             if indices[i] is None:
                 offset = F[i][1]
                 for a in divisors(N_sqr):
-                    if True:
-                        Na_inv = N * a.inverse_mod(l)
-                        a_sqr = a * a
-                        b = N_sqr / a_sqr
-                        a_pow = a ** k1
-                        j = ds_dict[tuple(frac(Na_inv * x) for x in g)]
-                        u = F[j][1]
-                        for n0 in range(val, prec - floor(offset)):
-                            n = n0 + offset
-                            if odd_rank:
-                                if (N_sqr_l * n) % a_sqr == 0:
-                                    try:
-                                        F[i][2] += a_pow * rho(-n, a) * T[j][2][Integer(b * n - u)] * q ** (n0)
-                                    except IndexError:
-                                        if n0 > 0:
-                                            F[i][2] = F[i][2].add_bigoh(n0)
-                                            break
-                            else:
-                                nl = Integer(l * n)
-                                if nl % a == 0:
-                                    try:
-                                        F[i][2] += a_pow * kronecker(D, a) * T[j][2][Integer(b * n - u)] * q ** (n0)
-                                    except IndexError:
-                                        if n0 > 0:
-                                            F[i][2] = F[i][2].add_bigoh(n0)
-                                            break
+                    Na_inv = N * a.inverse_mod(l)
+                    a_sqr = a * a
+                    b = N_sqr / a_sqr
+                    a_pow = a ** k1
+                    j = ds_dict[tuple(frac(Na_inv * x) for x in g)]
+                    u = F[j][1]
+                    for n0 in range(val, prec - floor(offset)):
+                        n = n0 + offset
+                        if odd_rank:
+                            if (N_sqr_l * n) % a_sqr == 0:
+                                try:
+                                    F[i][2] += a_pow * rho(-n, a) * T[j][2][Integer(b * n - u)] * q ** (n0)
+                                except IndexError:
+                                    if n0 > 0:
+                                        F[i][2] = F[i][2].add_bigoh(n0)
+                                        break
+                        else:
+                            nl = Integer(l * n)
+                            if nl % a == 0:
+                                try:
+                                    F[i][2] += a_pow * kronecker(D, a) * T[j][2][Integer(b * n - u)] * q ** (n0)
+                                except IndexError:
+                                    if n0 > 0:
+                                        F[i][2] = F[i][2].add_bigoh(n0)
+                                        break
             else:
                 F[i][2] = symm * F[indices[i]][2]
         return WeilRepModularForm(k, S, F, w)
@@ -1677,7 +1676,59 @@ class WeilRepModularForm(object):
             else:
                 i = indices[j]
                 Y[j] = [g, big_offset, eps * Y[i][2]]
-        return WeilRepModularForm(self.weight(), N*S, Y )
+        return WeilRepModularForm(self.weight(), N*S, Y , weilrep = big_w)
+
+    def hecke_V_adj(self, N):
+        r"""
+        Apply the adjoint of self.hecke_V(N).
+
+        This is only well-defined if self's WeilRep is of the form L(N) with an even lattice L.
+
+        WARNING: this doesn't work correctly!
+        """
+        return NotImplemented
+        from .weilrep import WeilRep
+        k = self.weight()
+        S = self.gram_matrix()
+        try:
+            new_w = WeilRep(S / N)
+        except TypeError:
+            raise ValueError('The lattice is not divisible by %s'%N) from None
+        indices = new_w.rds(indices = True)
+        new_ds_dict = new_w.ds_dict()
+        new_ds = new_w.ds()
+        new_nl = new_w.norm_list()
+        w = self.weilrep()
+        ds = w.ds()
+        nl = w.norm_list()
+        indices = w.rds(indices = True)
+        k1 = k + Integer(S.nrows())/2 - 2
+        X = self.fourier_expansion()
+        r, q = X[0][2].parent().objgen()
+        prec = self.precision()
+        prec_N = prec // N
+        h = r(0).add_bigoh(prec_N)
+        val = floor(min(0, self.valuation()))
+        Y = [[b, new_nl[i], h] for i, b in enumerate(new_ds)]
+        for j, g in enumerate(ds):
+            o = nl[j]
+            g = vector(g)
+            f = X[j][2]
+            for d in divisors(N):
+                try:
+                    i1 = new_ds_dict[tuple(map(frac, d * g))]
+                    dsqr = d * d
+                    d_pow = d ** k1
+                    new_o = new_nl[i1]
+                    for n in range(val, prec_N):
+                        n1 = n + new_o
+                        n2 = n1 * N / dsqr - o
+                        if n2 in ZZ:
+                            m = (q**n) * f[n2] * d_pow
+                            Y[i1][2] += m
+                except KeyError:
+                    pass
+        return WeilRepModularForm(k, new_w.gram_matrix(), Y, weilrep = new_w)
 
     def eigenvalue(self, p):
         r"""
@@ -1692,28 +1743,47 @@ class WeilRepModularForm(object):
         v, = V.rows()
         return -(v[1] / v[0])
 
-    #def euler_factor(self, p):
-    #    u = self.eigenvalue(p)
-    #    x = PolynomialRing(u.parent(), 'X').gen()
-    #    k = self.weight()
-    #    return (1 - u * x + p**Integer(k + k - 1) * x * x) #* (1 - p**(k + k - 2) * x * x)
+    def euler_factor(self, p):
+        m = self.weilrep().level()
+        u = self.eigenvalue(p)
+        x = PolynomialRing(u.parent(), 'X').gen()
+        k = self.weight()
+        try:
+            n = Integer(k - 1)
+            return 1 - u*x + p**n * u * x * x - p**(3 * n) * x**3
+        except TypeError:
+            n = Integer(k + k - 2)
+            if (m // 4) % p:
+                return 1 - u * x + p**n * x * x
+            return 1 - u * x / 2
 
-    #def l_function(self, max_prec = 23):
-    #    r"""
-    #    Compute the L-function
-    #    L(s) = \sum a_n n^{-s}
-    #    where a_n are self's Hecke eigenvalues.
-    #
-    #    NOTE: for integral weight eigenforms, this is not the usual L-function.
-    #    """
-    #    from .lfunctions import dirichlet_series_from_euler_product as ds
-    #    L = []
-    #    for p in prime_range(max_prec):
-    #        try:
-    #            L.append(self.euler_factor(p))
-    #        except ValueError:
-    #            return ds(L)
-    #    return ds(L)
+    def lfunction(self, max_prec = None):
+        r"""
+        Compute the L-function
+        L(s) = \sum a_n n^{-s}
+        where a_n are self's Hecke eigenvalues.
+
+        NOTE: for integral weight eigenforms, this is not the usual L-function.
+        """
+        from .lfunctions import dirichlet_series_from_euler_product as ds, LFunction
+        if max_prec is None:
+            max_prec = 100
+            #max_prec = isqrt(self.precision()) * self.weilrep().level()
+        L = []
+        for p in prime_range(max_prec):
+            try:
+                L.append(self.euler_factor(p))
+            except ValueError:
+                f = ds(L)
+                break
+        f = ds(L)
+        return f
+        #k = self.weight()
+        #n = self.weilrep().level()
+        #eps = 1
+        #if k % 2:
+        #    eps = -1
+        #return LFunction(f.coefficients(), conductor = n, gammaV = [0, 1, 2 - k], weight = k + k - 1, eps = eps)
 
     def _jacobi_form_multiplication(self, other, theta = None):
         S1 = self.gram_matrix()
@@ -2347,7 +2417,7 @@ class WeilRepModularFormsBasis:
     def __bool__(self):
         return len(self) > 0
 
-    def coordinates(self, X):
+    def coordinates(self, X, check = False):
         r"""
         Compute coordinates for X with respect to self.
 
@@ -2367,6 +2437,10 @@ class WeilRepModularFormsBasis:
         L = [v.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True, sorted_indices = self._sorted_indices()) for v in self.__basis]
         d = max(map(len, L))
         m = matrix([list(x) + [0]*(d - len(x)) for x in L])
+        if check:
+            rk = m.rank()
+            if rk != m.nrows():
+                raise ValueError('The representation may not be unique.')
         v = X.coefficient_vector(starting_from = val, ending_with = prec, inclusive = False, completion = True, sorted_indices = self._sorted_indices())
         try:
             return m.solve_left(vector(list(v) + [0] * (d - len(v))))
@@ -2475,16 +2549,17 @@ class WeilRepModularFormsBasis:
         prec = self.precision()
         val = self.valuation()
         e = Integer(S.nrows())
+        K = [x[0][2].base_ring() for x in X]
         if e:
-            Rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e) ))
+            Rb = [LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(e) )) for K in K]
         else:
-            Rb = QQ
-        R, q = PowerSeriesRing(Rb, 'q', prec).objgen()
+            Rb = [K for K in K]
+        R = [PowerSeriesRing(x, 'q', prec) for x in Rb]
         w = self.weilrep()
         if e > 1:
             precval = prec - val
             _ds_dict = self.weilrep().ds_dict()
-            jf = [[Rb(0)]*precval for _ in self.__basis]
+            jf = [[x(0)]*precval for x in Rb]
             if not w.is_positive_definite():
                 raise ValueError('Index is not positive definite')
             S_inv = S.inverse()
@@ -2495,8 +2570,8 @@ class WeilRepModularFormsBasis:
                 symm = self.is_symmetric()
                 symm = 1 if symm else -1
                 for v in vs_list:
-                    wv = Rb.monomial(*v)
-                    wv_symm = wv + (symm * (wv ** (-1)))
+                    wv = [x.monomial(*v) for x in Rb]
+                    wv_symm = [wv + (symm * (wv ** (-1))) for wv in wv]
                     r = S_inv * v
                     r_norm = v*r / 2
                     i_start = ceil(r_norm)
@@ -2505,7 +2580,7 @@ class WeilRepModularFormsBasis:
                     m = ceil(i_start + val - r_norm)
                     for i in range(i_start, precval):
                         for ell, h in enumerate(f):
-                            jf[ell][i] += wv_symm * h[m]
+                            jf[ell][i] += wv_symm[ell] * h[m]
                         m += 1
                 f = [x[0][2] for x in X]#deal with v=0 separately
                 for i in range(precval):
@@ -2521,19 +2596,20 @@ class WeilRepModularFormsBasis:
                     for v in vs[n]:
                         r = S_inv * v
                         rfrac = tuple(frac(r[i]) for i in range(e))
-                        wv = Rb.monomial(*v)
+                        wv = [x.monomial(*v) for x in Rb]
                         if v:
-                            wv += symm * (wv ** (-1))
+                            for i, x in enumerate(wv):
+                                wv[i] = x + symm * (x ** (-1))
                         j = _ds_dict[rfrac]
                         f = [x[j][2] for x in X]
                         m = ceil(i_start + val - r_norm)
                         for i in range(i_start,prec):
                             for ell, h in enumerate(f):
-                                jf[ell][i] += wv * h[m]
+                                jf[ell][i] += wv[ell] * h[m]
                             m += 1
                 pass
         elif e:
-            w, = Rb.gens()
+            #w, = Rb[0].gens()
             m = S[0,0] #twice the index
             if self.is_symmetric():
                 eps = 1
@@ -2542,6 +2618,7 @@ class WeilRepModularFormsBasis:
             jf = [[None]*(prec - val) for _ in self.__basis]
             for i in range(prec - val):
                 for j, x in enumerate(X):
+                    w, = Rb[j].gens()
                     jf[j][i] = x[0][2][i + val]
                     for r in range(1, isqrt(2 * i * m) + 1):
                         wr = (w ** r + eps * (w ** (-r)))
@@ -2550,7 +2627,7 @@ class WeilRepModularFormsBasis:
         else:
             k = self.weight()
             return [JacobiForm(k, S, x.fourier_expansion()[0][2], weilrep = self.__weilrep, modform = x) for x in self.__basis]
-        return [JacobiForm(k, S, q**val * R(x) + O(q**prec), weilrep = self.__weilrep, modform = self[i]) for i, x in enumerate(jf)]
+        return [JacobiForm(k, S, (R[i].gens()[0]**val * R[i](x)).add_bigoh(prec), weilrep = self.__weilrep, modform = self[i]) for i, x in enumerate(jf)]
 
     def __len__(self):
         return len(self.__basis)

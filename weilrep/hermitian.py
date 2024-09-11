@@ -444,7 +444,7 @@ class HermitianHeckeOperator:
         self.__index = p
 
     def __repr__(self):
-        return 'Hecke operator of index %p acting on Hermitian modular forms over %s'%(self.index(), self.hmf().base_field())
+        return 'Hecke operator of index %s acting on Hermitian modular forms over %s'%(self.index(), self.hmf().base_field())
 
     def hmf(self):
         return self.__hmf
