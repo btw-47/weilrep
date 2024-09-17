@@ -540,7 +540,7 @@ class WeilRepModularForm(object):
                         if chi:
                             h *= cmath_exp(complex(0.0, two_pi) * (f * chi._k()) / 24)
                         return self.weilrep()._evaluate(1, f, 0, 1) * h
-                    raise RunTimeError('Oops!')
+                    raise RuntimeError('Oops!')
         elif self.is_quasimodular():
             if 0 < abs(z) < 1:
                 z1 = -1 / z
@@ -572,7 +572,7 @@ class WeilRepModularForm(object):
                         if chi:
                             h *= cmath.exp(complex(0.0, two_pi) * (f * chi._k()) / 24)
                         return self.weilrep()._evaluate(1, f, 0, 1) * h
-                    raise RunTimeError('Oops!')
+                    raise RuntimeError('Oops!')
         eps = 1
         if not self.is_symmetric():
             eps = -1
