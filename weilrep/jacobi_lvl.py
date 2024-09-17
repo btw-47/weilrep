@@ -295,7 +295,7 @@ class JacobiFormsGamma0:
 
     def _svn(self):
         r"""
-        Short vector norms within cosets of selfs underlying lattice
+        Short vector norms within cosets of self underlying lattice
         """
         try:
             return self.__svn
