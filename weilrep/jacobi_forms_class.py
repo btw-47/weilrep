@@ -1058,11 +1058,12 @@ class JacobiForm:
         r"""
         Compute development coefficients.
 
-        Suppose 'self' is a Jacobi form of weight 'k' and lattice index 'L'. For any sublattice K <= L and any vectors v_1,...,v_N \in L orthogonal to K, the development coefficient D_{v_1,...,v_N} is a Jacobi form of weight k+N and lattice index K. It is a modification of the Taylor coefficient that transforms as a Jacobi form.
+        Suppose 'self' is a Jacobi form of weight 'k' and lattice index 'L'. For any sublattice K <= L and any vectors `v_1,...,v_N \in L` orthogonal to K, the development coefficient `D_{v_1,...,v_N}` is a Jacobi form of weight k+N and lattice index K. It is a modification of the Taylor coefficient that transforms as a Jacobi form.
 
         INPUT:
-        - ``lattice_basis" -- a list of linearly independent integral vectors (which span the sublattice K). This can be the empty list.
-        - ``v" -- the list [v_1,...,v_N]
+
+        - ``lattice_basis`` -- a list of linearly independent integral vectors (which span the sublattice K). This can be the empty list.
+        - ``v`` -- the list [v_1,...,v_N]
 
         NOTE: If 'self' is a Jacobi form of scalar index then we can instead call
         self.development_coefficient(N)

@@ -88,7 +88,7 @@ class WeilRepModularForm(object):
         - ``g`` -- a vector of length = size of S
         - ``n`` -- a rational number for which n + g*S*g/2 is integral
         - ``f`` -- a power series with rational Fourier coefficients
-        The vectors g are assumed to be sorted in the order they appear in WeilRep(S).ds(). (We do not check this!)
+          The vectors g are assumed to be sorted in the order they appear in WeilRep(S).ds(). (We do not check this!)
 
     - ``weilrep`` -- optional (default None). This should be set if the VVMF was created by a WeilRep instance.
 
@@ -1892,7 +1892,7 @@ class WeilRepModularForm(object):
 
     def pullback(self, *v, **kwargs):
         r"""
-        Compute the pullback of self to the lattice spanned by *v.
+        Compute the pullback of self to the lattice spanned by ``*v``.
 
         This computes the theta-contraction of 'self' to an arbitrary sublattice.
         """
@@ -1971,7 +1971,7 @@ class WeilRepModularForm(object):
 
         This implements the lattice-reduction map from isotropic lattices of signature (b^+, b^-) to signature (b^+ - 1, b^- - 1). In Borcherds' notation (Chapter 5 of 'Automorphic forms with singularities on Grassmannians') this takes the form F_M as input and outputs the form F_K.
 
-        NOTE: If it is possible to choose zeta with <z, zeta> = 1 then this method yields a smaller-rank lattice with an equivalent discriminant form and it preserves Fourier coefficients. (This is always possible if we have an isotropic lattice of square-free discriminant.) Otherwise if L is the original lattice and K is the result lattice then |L'/L| = N^2 * |K'/K| where <z, zeta> = N.
+        NOTE: If it is possible to choose zeta with ``<z, zeta> = 1`` then this method yields a smaller-rank lattice with an equivalent discriminant form and it preserves Fourier coefficients. (This is always possible if we have an isotropic lattice of square-free discriminant.) Otherwise if L is the original lattice and K is the result lattice then `|L'/L| = N^2 * |K'/K|` where ``<z, zeta> = N``.
 
         INPUT:
         - ``z`` -- a primitive norm-zero vector. If this is not given then we try to compute such a vector using PARI qfsolve(), and raise a ValueError if this does not exist (i.e. the lattice is anisotropic; this can only happen if the lattice is definite, or indefinite of rank less than 5).
@@ -2937,13 +2937,14 @@ def theta_product(f, g, _check = True):
     r"""
     Computes the theta-product of f and g.
 
-    This is defined following the prepring 'Algebra of Borcherds products' by S. Ma. [Ma] Suppose f and g are vector-valued modular forms for a WeilRep of signature (p, q) and Witt index q. The theta-product f *_I g (with respect to a maximal isotropic lattice I) is defined by applying the following steps
+    This is defined following the preprint 'Algebra of Borcherds products' by S. Ma. [Ma] Suppose f and g are vector-valued modular forms for a WeilRep of signature (p, q) and Witt index q. The theta-product ``f *_I g`` (with respect to a maximal isotropic lattice I) is defined by applying the following steps:
+
     1) lattice reduction of f
     2) theta contraction of f
-    (after which the result is a scalar modular form)
+       (after which the result is a scalar modular form)
     3) multiply the result to g
 
-    NOTE: we pick a lattice 'I' as above if it exists and raise a TypeError if it does not. It is not possible to choose your own lattice I for now.
+    NOTE: we pick a lattice 'I' as above if it exists and raise a ``TypeError`` if it does not. It is not possible to choose your own lattice I for now.
     """
     if _check and f.weilrep() != g.weilrep():
         raise ValueError('These modular forms do not come from the same lattice.')

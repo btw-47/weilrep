@@ -30,11 +30,12 @@ class WeilRepMorphism:
     This class represents morphisms of discriminant forms.
 
     INPUT:
+
     Construct a WeilRepMorphism using WeilRepMorphism(w1, w2, f), where
 
-    - `` w1 ``, `` w2 `` -- WeilRep instances
+    - ``w1``, ``w2`` -- WeilRep instances
 
-    - `` f `` -- a function that inputs a vector in w1.ds() and outputs another vector in w2.ds()
+    - ``f`` -- a function that inputs a vector in w1.ds() and outputs another vector in w2.ds()
 
     f is meant to be an morphism, i.e. f(x+y) = f(x) + f(y) and  Q2(f(x)) = Q1(x) for all x, y if Q1 is the quadratic form of w1 and Q2 of w2.
     """
@@ -309,9 +310,9 @@ class WeilRepAutomorphismGroup:
 
         EXAMPLES::
 
-        sage: from weilrep import *
-        sage: II(3).automorphism_group().orbits()
-        [[(0, 0)], [(0, 2/3), (1/3, 0), (0, 1/3), (2/3, 0)], [(1/3, 1/3), (2/3, 2/3)], [(2/3, 1/3), (1/3, 2/3)]]
+            sage: from weilrep import *
+            sage: II(3).automorphism_group().orbits()
+            [[(0, 0)], [(0, 2/3), (1/3, 0), (0, 1/3), (2/3, 0)], [(1/3, 1/3), (2/3, 2/3)], [(2/3, 1/3), (1/3, 2/3)]]
         """
         X = []
         L = []
@@ -337,9 +338,9 @@ class WeilRepAutomorphismGroup:
 
         EXAMPLES::
 
-        sage: from weilrep import *
-        sage: II(4).automorphism_group().orbit_representatives()
-        [(0, 0), (1/4, 0), (1/2, 0), (1/4, 1/4), (1/2, 1/4), (3/4, 1/4), (1/2, 1/2)]
+            sage: from weilrep import *
+            sage: II(4).automorphism_group().orbit_representatives()
+            [(0, 0), (1/4, 0), (1/2, 0), (1/4, 1/4), (1/2, 1/4), (3/4, 1/4), (1/2, 1/2)]
         """
         ds = self.weilrep().ds()
         return [ds[i] for i in self._orbit_representatives_indices()]
@@ -352,9 +353,9 @@ class WeilRepAutomorphismGroup:
 
         EXAMPLES::
 
-        sage: from weilrep import *
-        sage: II(4).automorphism_group()._orbit_representatives_indices()
-        [0, 1, 2, 5, 6, 7, 10]
+            sage: from weilrep import *
+            sage: II(4).automorphism_group()._orbit_representatives_indices()
+            [0, 1, 2, 5, 6, 7, 10]
         """
         try:
             return self._orbit_rep_indices

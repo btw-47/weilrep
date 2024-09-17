@@ -1890,10 +1890,11 @@ class WeilRep(object):
         Compute the Maass Eisenstein series of negative weight k < 0.
 
         This is the series
-        \sum_M ( y^(1-k) e_0 ) |_k M
+        `\sum_M ( y^(1-k) e_0 ) |_k M`
         where M runs through representatives of Mp_2(ZZ) modulo the stabilizer of e_0.
 
         INPUT:
+
         - ``k`` -- the weight
         - ``prec`` -- the precision
 
@@ -1924,7 +1925,7 @@ class WeilRep(object):
         Compute the mock Eisenstein series of negative weight k < 0.
 
         This is the holomorphic part of the series
-        \sum_M ( y^(1-k) e_0 ) |_k M
+        `\sum_M ( y^(1-k) e_0 ) |_k M`
         where M runs through representatives of Mp_2(ZZ) modulo the stabilizer of e_0.
 
         WARNING: this may have issues in half-integral weight
@@ -1933,6 +1934,7 @@ class WeilRep(object):
         self.mock_eisenstein_series(k, prec).n()
 
         INPUT:
+
         - ``k`` -- the weight
         - ``prec`` -- the precision
 
