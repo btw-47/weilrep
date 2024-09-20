@@ -229,13 +229,13 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                             sign = True
                         if r1exp:
                             if coef:
-                                  s += '*'
+                                s += '*'
                             if r1exp != r2exp or not r1exp.is_integer():
-                                  s += q_power+'*r1^(%s)*r2^(%s)*'%(r1exp, r2exp)+s_power
+                                s += q_power+'*r1^(%s)*r2^(%s)*'%(r1exp, r2exp)+s_power
                             elif r1exp != 1:
-                                  s += q_power+'*r1^%s*r2^%s*'%(r1exp, r2exp)+s_power
+                                s += q_power+'*r1^%s*r2^%s*'%(r1exp, r2exp)+s_power
                             else:
-                                  s += q_power+'*r1*r2*'+s_power
+                                s += q_power+'*r1*r2*'+s_power
                         else:
                             if coef and z:
                                 s += '*'

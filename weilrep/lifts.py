@@ -891,7 +891,7 @@ class OrthogonalModularForm(object):
             return X1.true_fourier_expansion() == X2.true_fourier_expansion()
 
     def __pow__(self, other):
-        if not other in ZZ:
+        if other not in ZZ:
             raise ValueError('Not a valid exponent')
         def p(*args, **kwargs):
             return self.pullback(*args, **kwargs) ** other

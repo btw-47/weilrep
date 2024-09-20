@@ -601,7 +601,7 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
     """
 
     def __init__(self, N, **kwargs):
-        if 'K' in kwargs.keys() or not N in ZZ:
+        if 'K' in kwargs.keys() or N not in ZZ:
             from .unitary import HermitianRescaledHyperbolicPlane
             self.__class__ = HermitianRescaledHyperbolicPlane
             HermitianRescaledHyperbolicPlane.__init__(self, N, **kwargs)
@@ -899,7 +899,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     z[0] = i / N
                     try:
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                        lift += c * sum([n ** (k - 1) * (zeta **  ( i * n)) * t ** (n * j) for n in srange(1, prec//j + 1)])
+                        lift += c * sum([n ** (k - 1) * (zeta ** (i * n)) * t ** (n * j) for n in srange(1, prec//j + 1)])
                     except KeyError:
                         pass
             else:
@@ -1351,7 +1351,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             vs_list = vs_matrix.sage().columns()
             rb0 = rb.gens()[0]
         elif nrows == 2:
-            vs_list = [vector([n]) for n in range(1, isqrt(4 * new_prec *  s_0[0, 0]))]
+            vs_list = [vector([n]) for n in range(1, isqrt(4 * new_prec * s_0[0, 0]))]
         else:
             vs_list = []
         h = O(t ** prec)
@@ -1892,7 +1892,7 @@ def _theta_lifts(X, prec = None, constant_term_weight_one = True):
                     z[0] = i / N
                     try:
                         c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
-                        lift += c * sum([n ** (k - 1) * (zeta **  ( i * n)) * t ** (n * j) for n in srange(1, prec//j + 1)])
+                        lift += c * sum([n ** (k - 1) * (zeta ** (i * n)) * t ** (n * j) for n in srange(1, prec//j + 1)])
                     except KeyError:
                         pass
             else:

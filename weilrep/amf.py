@@ -614,8 +614,8 @@ class AlgebraicModularForms(object):
 
         OUTPUT: AlgebraicModularFormHeckeOperator
         """
-        if self.level() % p or safe == False:
-            return AlgebraicModularFormHeckeOperator(self, p, d = d)
+        if self.level() % p or safe is False:
+            return AlgebraicModularFormHeckeOperator(self, p, d=d)
         raise NotImplementedError('Hecke operators are only implemented for primes not dividing the discriminant.')
 
 

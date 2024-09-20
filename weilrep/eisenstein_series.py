@@ -261,8 +261,8 @@ def local_normal_form_with_change_vars(S,p):
 
         sage: local_normal_form_with_change_vars(matrix([[2,1],[1,2]]),3)
         (
-        Quadratic form in 2 variables over Integer Ring with coefficients: 
-        [ 1 0 ]                                                            
+        Quadratic form in 2 variables over Integer Ring with coefficients:
+        [ 1 0 ]
         [ * 3 ]                                                            ,
         <BLANKLINE>
         [ 1  0]
@@ -323,9 +323,9 @@ def twonf_with_change_vars(Q):
         sage: Q = QuadraticForm(matrix([[2,1,0],[1,2,1],[0,1,2]]))
         sage: twonf_with_change_vars(Q)
         (
-        Quadratic form in 3 variables over Integer Ring with coefficients: 
-        [ 1 1 0 ]                                                          
-        [ * 1 0 ]                                                          
+        Quadratic form in 3 variables over Integer Ring with coefficients:
+        [ 1 1 0 ]
+        [ * 1 0 ]
         [ * * 6 ]                                                          ,
         <BLANKLINE>
         [ 1  0  0]
@@ -420,7 +420,7 @@ def twoadic_isospectral_normal_form(Q,L):
         sage: Q = QuadraticForm(matrix([[4,2],[2,4]]))
         sage: L = vector([2,0])
         sage: twoadic_isospectral_normal_form(Q,L)
-        (Quadratic form in 0 variables over Integer Ring with coefficients: 
+        (Quadratic form in 0 variables over Integer Ring with coefficients:
         , 2, 0)
 
     """
@@ -546,9 +546,9 @@ def twoadic_jordan_blocks(Q):
 
         sage: Q = QuadraticForm(matrix([[2,1,0],[1,2,0],[0,0,12]]))
         sage: twoadic_jordan_blocks(Q)
-        [(0, Quadratic form in 2 variables over Integer Ring with coefficients: 
+        [(0, Quadratic form in 2 variables over Integer Ring with coefficients:
         [ 1 1 ]
-        [ * 1 ]), (2, Quadratic form in 1 variables over Integer Ring with coefficients: 
+        [ * 1 ]), (2, Quadratic form in 1 variables over Integer Ring with coefficients:
         [ 3 ])]
 
     """
@@ -895,7 +895,7 @@ def tilde_hq_diff(a,u,Q0,t): #H3
     eps = (-1) ** Q0[1]%2
     j = len(Q0[0])
     r = QQ(j + 2*(Q0[1] + Q0[2]))
-    two_r =  2 ** (-r)
+    two_r = 2 ** (-r)
     if j == 1:
         b = Q0[0][0]
         return two_r*(ig(a+b,u,3,t) - ig(a+b,u,2,t))
