@@ -324,11 +324,12 @@ class HermitianWeilRep(WeilRep):
 
     def unitary_reflection(self, r, alpha=-1):
         r"""
-        Construct the complex reflection \sigma_{r, \alpha}(v) = v - (1 - \alpha) <r, v> r / <r, r>.
+        Construct the complex reflection `\sigma_{r, \alpha}(v) = v - (1 - \alpha) <r, v> r / <r, r>`.
 
         INPUT:
-        - ``r" -- a dual lattice vector
-        - ``\alpha" -- a unit in O_K which is not 1.
+
+        - ``r`` -- a dual lattice vector
+        - ``\alpha`` -- a unit in O_K which is not 1.
 
         OUTPUT: WeilRepAutomorphism
         """

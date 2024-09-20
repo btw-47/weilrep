@@ -247,11 +247,11 @@ class JacobiFormsGamma0:
 
     def weak_forms_basis(self, k, prec, **kwargs):
         r"""
-        Compute a basis of the space of weak Jacobi forms of weight k and level \Gamma_0(N) up to precision prec.
+        Compute a basis of the space of weak Jacobi forms of weight k and level `\Gamma_0(N)` up to precision prec.
 
         NOTE: This is inefficient because for any index L, the graded ring of weak Jacobi forms of all weights has a decomposition as a tensor product,
-        J_{*, L}^w( \Gamma_0(N) ) = J_{*, L}^w( SL_2(ZZ) ) \otimes M_*(\Gamma_0(N))
-        and J_{*, L}^w( SL_2(ZZ) ) can be computed using the faster code from jacobi_forms_class.py
+        `J_{*, L}^w( \Gamma_0(N) ) = J_{*, L}^w( SL_2(ZZ) ) \otimes M_*(\Gamma_0(N))`
+        and `J_{*, L}^w( SL_2(ZZ) )` can be computed using the faster code from jacobi_forms_class.py
 
         EXAMPLES::
 
@@ -295,7 +295,7 @@ class JacobiFormsGamma0:
 
     def _svn(self):
         r"""
-        Short vector norms within cosets of selfs underlying lattice
+        Short vector norms within cosets of self underlying lattice
         """
         try:
             return self.__svn

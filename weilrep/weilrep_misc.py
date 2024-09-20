@@ -115,7 +115,8 @@ def relations(*x):
     This computes the vector space of linear relations among the input 'x'. This can be vector-valued modular forms, Jacobi forms, or modular forms on orthogonal groups.
 
     INPUT:
-    - ``x" -- one or more (or a list of) JacobiForm's; or WeilRepModularForm's; or OrthogonalModularForm's.
+
+    - ``x`` -- one or more (or a list of) JacobiForm's; or WeilRepModularForm's; or OrthogonalModularForm's.
 
     OUTPUT: a Free Module
 

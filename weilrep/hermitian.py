@@ -522,7 +522,7 @@ class HermitianHeckeOperator:
 
 def hecke_coeff(f, p, A):
     r"""
-    Compute the coefficient of A in the image of f unter the Hecke operator T_p,
+    Compute the coefficient of A in the image of f under the Hecke operator T_p,
     i.e. the double coset of diag(1, 1, p, p).
     """
     k = f.weight()
@@ -582,7 +582,7 @@ def hecke_coeff(f, p, A):
 
 def hecke_coeff_inert(f, p, A):
     r"""
-    Compute the coefficient of A in the image of f unter the Hecke operator T_{p^2},
+    Compute the coefficient of A in the image of f under the Hecke operator T_{p^2},
     i.e. the double coset of diag(1, p, p^2, p).
 
     Here p should be a prime that is *inert* in the quadratic field K.
@@ -638,7 +638,7 @@ def hecke_coeff_inert(f, p, A):
 
 def hecke_coeff_split(f, pi, A):
     r"""
-    Compute the coefficient of A in the image of f unter the Hecke operator T_{pi},
+    Compute the coefficient of A in the image of f under the Hecke operator T_{pi},
     i.e. the double coset of diag(1, pi, p, pi).
 
     Here p = (pi) * (pi conjugate)

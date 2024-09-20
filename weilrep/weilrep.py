@@ -1234,7 +1234,7 @@ class WeilRep(object):
 
     def eisenstein_series(self, k, prec, allow_small_weight = False, components = None, _flag = None, funct = _sentinel):
         r"""
-        Constuct Eisenstein series attached to the vector e_0.
+        Construct Eisenstein series attached to the vector e_0.
 
         This constructs the Eisenstein series E_(k,0) of weight k and constant term e_0 with Fourier expansion up to precision `prec`.
 
@@ -1890,10 +1890,11 @@ class WeilRep(object):
         Compute the Maass Eisenstein series of negative weight k < 0.
 
         This is the series
-        \sum_M ( y^(1-k) e_0 ) |_k M
+        `\sum_M ( y^(1-k) e_0 ) |_k M`
         where M runs through representatives of Mp_2(ZZ) modulo the stabilizer of e_0.
 
         INPUT:
+
         - ``k`` -- the weight
         - ``prec`` -- the precision
 
@@ -1924,7 +1925,7 @@ class WeilRep(object):
         Compute the mock Eisenstein series of negative weight k < 0.
 
         This is the holomorphic part of the series
-        \sum_M ( y^(1-k) e_0 ) |_k M
+        `\sum_M ( y^(1-k) e_0 ) |_k M`
         where M runs through representatives of Mp_2(ZZ) modulo the stabilizer of e_0.
 
         WARNING: this may have issues in half-integral weight
@@ -1933,6 +1934,7 @@ class WeilRep(object):
         self.mock_eisenstein_series(k, prec).n()
 
         INPUT:
+
         - ``k`` -- the weight
         - ``prec`` -- the precision
 
@@ -2609,7 +2611,7 @@ class WeilRep(object):
         \Theta_{c_1, c_2}(q) = \sum_{x \in L'} ( sgn( <x, c1> ) - sgn( <x, c2> )) * q^{Q(x)} e_x.
 
         This is implemented only when c1, c2 are isotropic vectors, (in which case the above series is a modular form of weight n/2 + 1/2).
-        Some components of this series diverge and are regularized by unterstanding this series as the radial limit,
+        Some components of this series diverge and are regularized by understanding this series as the radial limit,
         \lim_{h \rightarrow 0} \Theta_{c_1 + h v_1, c_2 + h v_2},
         where v_1, v_2 are (any) strictly positive elements and the Theta series above is the Theta function attached to the Schwartz function
         ( E( <x, c_1 + h v_1> / ||c_1 + h v_1|| ) - E( <x, c_2 + h v_2> / ||c_2 + h v_2|| ) ) * e^{-2\pi Q(x)}

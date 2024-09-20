@@ -195,16 +195,18 @@ def isospectral_normal_form(Q, L, p):
     Computes an isospectral normal form of the quadratic polynomial Q + L modulo the odd prime p, where Q is a quadratic form and L is a linear form.
 
     An ``isospectral normal form`` is a quadratic polynomial of the form
-        P(x_1,...,x_n) = a_1 x_1^2 + ... + a_(n-1) x_(n-1)^2 + b_n x_n + c
+        `P(x_1,...,x_n) = a_1 x_1^2 + ... + a_(n-1) x_(n-1)^2 + b_n x_n + c`
     with the following property: for every integer N, the number of zeros of the equations
-        Q(x_1,...,x_n) + L(x_1,...,x_n) = N
+        `Q(x_1,...,x_n) + L(x_1,...,x_n) = N`
     and
-        P(x_1,...,x_n) = N
+        `P(x_1,...,x_n) = N`
+
     modulo any power of p are the same.
 
     ALGORITHM: We use Section 4.9 of [CKW]. Essentially this is repeated use of either Hensel's lemma or completing the square.
 
     INPUT:
+
     - ``Q`` -- a quadratic form
     - ``L`` a vector
     - ``p`` an odd prime
@@ -393,16 +395,18 @@ def twoadic_isospectral_normal_form(Q,L):
     Computes an isospectral normal form of the quadratic polynomial Q + L modulo the  pime p=2, where Q is a quadratic form and L is a linear form.
 
     An ``isospectral normal form`` is a quadratic polynomial of the form
-        P(x_1,...,x_n) = a_1 Q_1(x) + ... + a_(n-1) Q_(n-1)(x) + b_n x_n + c
+        `P(x_1,...,x_n) = a_1 Q_1(x) + ... + a_(n-1) Q_(n-1)(x) + b_n x_n + c`
     where Q_i(x) is a unimodular quadratic form in at most two variables and with the following property: for every integer N, the number of zeros of the equations
-        Q(x_1,...,x_n) + L(x_1,...,x_n) = N
+        `Q(x_1,...,x_n) + L(x_1,...,x_n) = N`
     and
-        P(x_1,...,x_n) = N
+        `P(x_1,...,x_n) = N`
+
     modulo any power of 2 are the same.
 
     ALGORITHM: We use Section 4.9 of [CKW].
 
     INPUT:
+
     - ``Q`` -- a quadratic form
     - ``L`` a vector
 
