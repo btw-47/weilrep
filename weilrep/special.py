@@ -125,6 +125,7 @@ class HalfIntegralWeightModularForm(object):
     def weight(self):
         return self.__weight
 
+
 class KohnenPlusSpaceForm(HalfIntegralWeightModularForm):
 
     def __init__(self, k, N, f, X):
@@ -136,5 +137,6 @@ class KohnenPlusSpaceForm(HalfIntegralWeightModularForm):
 
     def involution(self):
         return HalfIntegralWeightModularForm(self.weight(), self.level(), self.vvmf()[0][2])
+
 
 cohen_eisenstein_series = lambda *x: KohnenPlusSpace(4).eisenstein_series(*x)

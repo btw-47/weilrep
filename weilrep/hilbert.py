@@ -281,7 +281,9 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
             eigenforms.append(x)
         return eigenforms
 
+
 HMF = HilbertModularForms
+
 
 class HilbertModularForm(OrthogonalModularFormLorentzian):
     r"""
@@ -335,13 +337,13 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                             sign = True
                         if q1exp:
                             if coef:
-                                  s += '*'
+                                s += '*'
                             if q1exp != q2exp or q1exp not in ZZ:
-                                  s += 'q1^(%s)*q2^(%s)'%(q1exp, q2exp)
+                                s += 'q1^(%s)*q2^(%s)'%(q1exp, q2exp)
                             elif q1exp != 1:
-                                  s += 'q1^%s*q2^%s'%(q1exp, q2exp)
+                                s += 'q1^%s*q2^%s'%(q1exp, q2exp)
                             else:
-                                  s += 'q1*q2'
+                                s += 'q1*q2'
                         sign = True
             if hprec % d:
                 self.__string = s + ' + O(q1, q2)^(%s)'%(hprec/d)

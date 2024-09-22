@@ -461,7 +461,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             qshift = frac(c)
             if qshift:
                 chi = EtaCharacterPower(24 * qshift)
-                self.__fourier_jacobi = [JacobiFormWithCharacter(k, (n  + qshift) * S, j, qshift = qshift, character = chi, w_scale = wscale) for n, j in enumerate(L)]
+                self.__fourier_jacobi = [JacobiFormWithCharacter(k, (n + qshift) * S, j, qshift = qshift, character = chi, w_scale = wscale) for n, j in enumerate(L)]
             else:
                 self.__fourier_jacobi = [JacobiForm(k, n * S, j) for n, j in enumerate(L)]
             return self.__fourier_jacobi

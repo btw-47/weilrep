@@ -229,7 +229,7 @@ class WeilRepModularForm(object):
             (0, 1, -6, -10, 90, 8, -540, 310, 1488, -1750)
 
         """
-        if not set_v is None:
+        if set_v is not None:
             self.__coefficient_vector = set_v
             return None
         if not (starting_from or ending_with):
@@ -1379,7 +1379,7 @@ class WeilRepModularForm(object):
         s, _ = w._smith_form
         k = self.weight()
         r = len([x for x in s.diagonal() if x % p])
-        gauss_sum = [Integer(0) for _  in ds]
+        gauss_sum = [Integer(0) for _ in ds]
         if p == 2:
             zeta_p = -Integer(1)
         else:
@@ -1407,14 +1407,16 @@ class WeilRepModularForm(object):
             def _delta_p(N):
                 return kronecker(-N, p) * eps_sqrtp
         else:
-        #elif p % 2:
+            #elif p % 2:
             def _delta_p(N):
                 if N % p:
                     return -1
                 return p - 1
+
         if False:
             def _delta_p(N):
                 return 1
+
         F = self.fourier_expansion()
         X = [[g, n, 0] for g, n, _ in F]
         prec = (self.precision() // psqr)
@@ -1870,7 +1872,7 @@ class WeilRepModularForm(object):
             if indices[i] is None:
                 offset = norm_list[i]
                 h = list(map(frac, gz))
-                X[i][2] += r( [coeffs[tuple(h + [n + offset])] * P([0]*S.nrows() + [(n + offset)]) for n  in range(ceil(val - offset), ceil(prec - offset))] ).shift(ceil(val - offset)).add_bigoh(ceil(prec - offset))
+                X[i][2] += r( [coeffs[tuple(h + [n + offset])] * P([0]*S.nrows() + [(n + offset)]) for n in range(ceil(val - offset), ceil(prec - offset))] ).shift(ceil(val - offset)).add_bigoh(ceil(prec - offset))
             else:
                 X[i][2] = eps * X[indices[i]][2]
         return WeilRepModularForm(k + Integer(nrows) / 2 + N, w.gram_matrix(), X, weilrep = w)

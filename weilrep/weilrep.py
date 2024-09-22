@@ -74,7 +74,7 @@ from .eisenstein_series import *
 from .mock import WeilRepMockModularForm, WeilRepQuasiModularForm
 from .morphisms import WeilRepAutomorphism, WeilRepAutomorphismGroup, WeilRepMorphism
 from .weilrep_misc import QuadraticLFunction
-from .weilrep_modular_forms_class import EtaCharacterPower, smf,  WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
+from .weilrep_modular_forms_class import EtaCharacterPower, smf, WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
 
 sage_one_half = Integer(1) / Integer(2)
 sage_three_half = Integer(3) / Integer(2)
@@ -1495,7 +1495,7 @@ class WeilRep(object):
                                     else:
                                         D *= (p ** (e % 2))
                                 little_D = abs(fundamental_discriminant(D))
-                                sqrt_factor = sqrt(2 * n  * dets / little_D)
+                                sqrt_factor = sqrt(2 * n * dets / little_D)
                                 correct_L_function_list = [quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D) for k_shift in k_shift_list]
                                 D_list.append(D)
                                 for j, k_shift in enumerate(k_shift_list):
@@ -1511,7 +1511,7 @@ class WeilRep(object):
                                     else:
                                         D *= (p ** (e % 2))
                                 little_D = abs(fundamental_discriminant(D))
-                                sqrt_factor = sqrt(2 * n  * dets / little_D)
+                                sqrt_factor = sqrt(2 * n * dets / little_D)
                                 correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
                                 D_list.append(D)
                                 main_term_list.append(correct_L_function * ((4 * n / little_D) ** k_shift) / sqrt_factor)
@@ -1828,7 +1828,7 @@ class WeilRep(object):
         X = [None] * len(_ds)
         t, = PolynomialRing(QQ, 't').gens()
         for i, g in enumerate(_ds):
-            L =  g * S
+            L = g * S
             c = L * g
             L = L + L
             if _indices[i]:
@@ -1871,7 +1871,7 @@ class WeilRep(object):
             else:
                 dg = denominator(g)
                 dg *= dg
-                L =  g * S
+                L = g * S
                 c, L = L * g, L + L
                 offset = n_list[i]
                 if offset:
@@ -1975,7 +1975,7 @@ class WeilRep(object):
                     try:
                         N = constant_term_factor * prod((1 - p ** (-dk)) / (1 - p ** (-dk - 1)) * L_values(2 * Sg, [gSg], S, p, 2 - k)[0] for p in prime_divisors(2 * d))
                     except RuntimeError:
-                        constant_term_factor =  k0 * 2**(k-1) * pi / (sqrt(d) * zeta(dk + 1))
+                        constant_term_factor = k0 * 2**(k-1) * pi / (sqrt(d) * zeta(dk + 1))
                         print('const_term:', k0 * 2**(k-1) * pi / (sqrt(d) * zeta(dk + 1)))
                         N = constant_term_factor * log(2) * QQ((1 - 2 ** (-dk)) / (1 - 2 ** (-dk - 1)) * L_value_deriv(2 * Sg, [gSg], S, 2, 2-k)[0] * prod((1 - p ** (-dk)) / (1 - p ** (-dk - 1)) * L_values(2 * Sg, [gSg], S, p, 2 - k)[0] for p in prime_divisors(2 * d)[1:]))
                         print('L_val_deriv:', QQ((1 - 2 ** (-dk)) / (1 - 2 ** (-dk - 1)) * L_value_deriv(2 * Sg, [gSg], S, 2, 2-k)[0]))
@@ -2128,7 +2128,7 @@ class WeilRep(object):
                             if m:
                                 X[i][n] += 2 * math.pi * math.sqrt((n + u) / abs_m)**exponent * Y[i][n] * J(four_pi_c * math.sqrt(abs_m * (n + u))) / c
                             else:
-                                X[i][n] += (four_pi_c * (n + u) / 2.0)**k  * Y[i][n] / (gamma_k * (n + u))
+                                X[i][n] += (four_pi_c * (n + u) / 2.0)**k * Y[i][n] / (gamma_k * (n + u))
                         elif n + u == 0 and _flag == 'maass':
                             X[i][n] += (2 * math.pi)**k * (c / abs_m)**exponent * Y[i][n] / math.gamma(k) / c
                 Y[i] = u
@@ -2136,7 +2136,7 @@ class WeilRep(object):
             if rds[i]:
                 X[i] = [eps*x for x in X[rds[i]]]
                 Y[i] = Y[rds[i]]
-        X = [[ds[i], Y[i],  sgn * r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
+        X = [[ds[i], Y[i], sgn * r(x).add_bigoh(ceil(prec - nl[i]))] for i, x in enumerate(X)]
         if component is not None:
             if component == j:
                 X[0][2] += 0.5 * q**ceil(m)
@@ -2191,7 +2191,7 @@ class WeilRep(object):
                     return funct(f)
                 return f
             except AttributeError:
-                return self.pss(weight, b, m, prec,  weilrep = weilrep, fix = fix, funct = None)
+                return self.pss(weight, b, m, prec, weilrep=weilrep, fix=fix, funct=None)
         S = self.gram_matrix()
         if not weilrep:
             if S:
@@ -2507,7 +2507,7 @@ class WeilRep(object):
                         if not deg_P:
                             X = WeilRepModularFormsBasis(X.weight(), X._WeilRepModularFormsBasis__basis + [self.eisenstein_series(X.weight(), prec)], self)
                         t = self.theta_series(bound, P = P, _flag = False, funct = funct)
-                        return  X.coordinates(t) * X
+                        return X.coordinates(t) * X
                 else:
                     t = []
             else:
@@ -2872,7 +2872,7 @@ class WeilRep(object):
                 if not symm:
                     alpha_T = alpha_T - alpha_T_order_two
             g2 = gauss_sum_2.real if symm else gauss_sum_2.imag
-            result_dim = modforms_rank * (weight + 5)/12 +  (cmath.exp(pi_i * (2*weight + sig + 1 - eps - eta_twist)/4) * g2).real / (4*sqrt_A) - alpha_T -  (cmath.exp(pi_i * (3*sig - 2*eta_twist + 4 * weight - 10)/12) * (gauss_sum_1 + eps * gauss_sum_3)).real / (3 * math.sqrt(3) * sqrt_A) - count_isotropic_vectors[eta_twist] + (1 - symm) * count_isotropic_vectors_of_order_two[eta_twist]
+            result_dim = modforms_rank * (weight + 5)/12 + (cmath.exp(pi_i * (2*weight + sig + 1 - eps - eta_twist)/4) * g2).real / (4*sqrt_A) - alpha_T - (cmath.exp(pi_i * (3*sig - 2*eta_twist + 4 * weight - 10)/12) * (gauss_sum_1 + eps * gauss_sum_3)).real / (3 * math.sqrt(3) * sqrt_A) - count_isotropic_vectors[eta_twist] + (1 - symm) * count_isotropic_vectors_of_order_two[eta_twist]
             if not force_Riemann_Roch:
                 if weight == 2:
                     result_dim += self._invariants_dim()
@@ -3036,7 +3036,7 @@ class WeilRep(object):
                 raise ValueError('This character does not satisfy chi(-1) = (-1)^k.')
         except IndexError:
             raise ValueError('The automorphism group you provided does not contain x --> -x.') from None
-        if weight >= sage_five_half or (weight == 2 and cusp_forms == False) or force_Riemann_Roch:
+        if weight >= sage_five_half or (weight == 2 and cusp_forms is False) or force_Riemann_Roch:
             eps = 1 if symm else -1
             modforms_rank = self.rank(symm)
             two_pi_i = complex(0.0, 2 * math.pi)
@@ -3179,7 +3179,7 @@ class WeilRep(object):
 
     ## bases of spaces associated to this representation
 
-    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive = False,  inclusive_except_zero_component = False, keep_N = False, symmetry_data = None, verbose = False, eta_twist = 0):
+    def basis_vanishing_to_order(self, k, N=0, prec=0, inclusive=False, inclusive_except_zero_component=False, keep_N=False, symmetry_data=None, verbose=False, eta_twist=0):
         r"""
         Compute bases of modular forms that vanish to a specified order at infinity.
 
@@ -3526,7 +3526,7 @@ class WeilRep(object):
                             delta_j = deltasmf[-1]
                             X.append(delta_j * (self.eisenstein_series(k_j, prec-j) - self.pss(k_j, b, m, prec - j, weilrep = w_new)))
                             if verbose:
-                                 print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
+                                print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
                         j += 1
                         k_j -= 12
                 rank = len(X)
@@ -3559,7 +3559,7 @@ class WeilRep(object):
                             delta_j = deltasmf[-1]
                             X.append(delta_j * self.pssd(k_j, b, m, prec - j, weilrep = w_new))
                             if verbose:
-                                 print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
+                                print('I computed a Poincare square series of index %s and weight %s.'%([b, m], k_j))
                         j += 1
                         k_j -= 12
                 rank = len(X)

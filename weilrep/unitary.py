@@ -64,7 +64,7 @@ class HermitianWeilRep(WeilRep):
 
     INPUT:
 
-    - ``S`` -- a 
+    - ``S`` -- a
     """
     def __init__(self, S, **kwargs):
         K = S.base_ring()
@@ -747,7 +747,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                             h = h.add_bigoh(k1)
                             maxprec = k1
                         v = X[0]
-                        p = sum(v[i+1] * (cm_val[0] * e4)**i1 * (cm_val[1] * e6)**i2  * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]))
+                        p = sum(v[i+1] * (cm_val[0] * e4)**i1 * (cm_val[1] * e6)**i2 * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]))
                         h += p * prod(z[i]** a for i, a in enumerate(a))
                     except AttributeError: #g=0
                         pass
@@ -1375,7 +1375,7 @@ class UnitaryModularForm:
         N = self.complex_gram_matrix().rank() + 1
         if N > 2:
             h_grad = [h.derivative(a) for a in z]
-            h_double_tau = h_tau.map_coefficients(serre_deriv) - (ZZ(1)/144) * r(e4) * (k * h  + sum(a * h_grad[a] for a in z))
+            h_double_tau = h_tau.map_coefficients(serre_deriv) - (ZZ(1)/144) * r(e4) * (k * h + sum(a * h_grad[a] for a in z))
         else:
             h_grad = [h.derivative()]
             h_double_tau = h_tau.map_coefficients(serre_deriv) - (ZZ(1)/144) * r(e4) * (k * h + z * h_grad[0])
