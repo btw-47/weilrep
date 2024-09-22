@@ -50,6 +50,7 @@ from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
+from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
@@ -95,7 +96,13 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             return self.__string
         except AttributeError:
             d = self.scale()
-            h = self.fourier_expansion()
+            try:
+                h = self.fourier_expansion()
+            except TypeError as t:
+                if self.qexp_representation() == 'shimura':
+                    h = self.true_fourier_expansion()
+                    return str(h).replace('t', 'q')
+                raise t
             hprec = h.prec()
             def m(obj):
                 m1, m2 = obj.span()
@@ -121,19 +128,46 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             elif self.has_fourier_jacobi_representation():
                 S = self.gram_matrix()
                 f = self._q_s_expansion()
-                s = str(f)
+                v = self._q_s_valuation()
+                if v:
+                    qd = f.dict()
+                    def c(x, a, b):
+                        t = ''
+                        u = ''
+                        if x == -1:
+                            t = '-'
+                        elif x in QQ:
+                            if x != 1:
+                                t = str(x)+'*'
+                        else:
+                            t = '(%s)*'%x
+                        if a:
+                            u = 'q^%s'%a
+                            if b:
+                                u += '*s^%s'%b
+                        elif b:
+                            u = 's^%s'%b
+                        u = u.replace('(', '').replace(')', '')
+                        return t+u
+                    s = ' + '.join(c(x, a+v, b+v) for (a, b), x in qd.items()).replace('+ -', '- ')
+                else:
+                    s = str(f)
                 if not self._base_ring_is_laurent_polynomial_ring():#represent 'r'-terms as Laurent polynomials if possible
                     n = self.nvars() - 2
                     r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(n)))
                     def _a(obj):
                         obj_s = obj.string[slice(*obj.span())]
-                        j = 0
+                        j = 1
                         if obj_s[:2] == '((':
                             obj_s = obj_s[1:]
-                            j = 1
+                            j = 2
                         i = obj_s.index(')/')
-                        return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:]))
+                        return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:])) + ')'*j
                     s = sub(r'\([^()]*?\)\/((\((r_\d*(\^\d*)?\*?)+\))|(r_\d*(\^\d*)?\*?)+)', _a, s)
+                if v:
+                    s = s.replace('q^0*', '').replace('s^0', '').replace('* ', ' ')
+                    s = s.replace('q^1', 'q').replace('s^1', 's')
+                    s = s + ' + O(q, s)^%s'%(d * (self.precision() + v))
                 self.__string = s
                 d = self.__q_s_scale
                 qs = len(f.parent().gens()) - 1
@@ -182,6 +216,8 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         except AttributeError:
             N2 = 1
         rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(nrows)))
+        if not self._base_ring_is_laurent_polynomial_ring():
+            rb = FractionField(rb)
         z = rb.gens()[0]
         r, q = PowerSeriesRing(rb, 'q').objgen()
         k = self.weight()
@@ -217,12 +253,9 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         rb_old = f.base_ring()
         r_old = f.parent()
         s = r_old.gens()[1]
-        r_new = r_old.remove_var(s)
-        change_name = {rb_old('r_%d'%j):rb('w_%d'%j) for j in range(nrows)}
         prec = self.precision()
         f = f.polynomial()
-        _change_ring = lambda f: r([x.subs(change_name) for x in f.list()])
-        self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, _change_ring(r_new(f.coefficient({s : n}))) + O(q ** (prec - n)), w_scale = scale, q_scale = d) for n in range(prec)]
+        self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, r({x[0]: rb(y) for x, y in f.coefficient({s : n}).dict().items()}).add_bigoh(prec - n), w_scale = scale, q_scale = d) for n in range(prec)]
         return self.__fourier_jacobi
 
     def has_fourier_jacobi_representation(self):
@@ -377,7 +410,9 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         try:
             return self.__q_s_exp
         except AttributeError:
-            hval = min(0, h.valuation())
+            qsval = ZZ(h.valuation()) / 2
+            hval = min(0, qsval)
+            self.__qs_valuation = 0
             hprec = h.prec()
             if not h:
                 q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
@@ -391,28 +426,36 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 self.__q_s_scale = 1
                 self.__q_s_prec = h.prec()
                 return self.__q_s_exp
+            v = 0
+            if isinstance(h.parent(), LaurentSeriesRing):
+                v = ZZ(max(h.valuation(), 0))
+                h = h.valuation_zero_part()
+                m = ZZ(max(h[0].degree(), -h[0].valuation()))
+                if m:
+                    h = h.shift(m)
+                    qsval -= m / 2
+            else:
+                m = 0
+                qsval = 0
+            self.__qs_valuation = qsval
             try:
-                try:
-                    q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-                    self.__q_s_exp = sum((q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p[n] for i, p in enumerate(h.padded_list()) for n in p.exponents() ).O(hprec)
-                except ValueError:
-                    mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
-                    hprec += hprec
-                    d += d
-                    self.__q_s_exp = sum((q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents()) ).O(hprec)
-            except (AttributeError, NotImplementedError):
-                rs, s = LaurentSeriesRing(self.base_ring(), 's').objgen()
-                q, = LaurentSeriesRing(rs, 'q').gens()
-                try:
-                    self.__q_s_exp = O(s ** hprec) + O(q ** hprec) + sum((q ** (ZZ(i + hval - n) / 2)) * (s ** (ZZ(i + hval + n) / 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) )
-                except ValueError:
-                    mapdict = {u: u*u for u in self.base_ring().base_ring().gens()}
-                    hprec += hprec
-                    d += d
-                    self.__q_s_exp = sum((q ** ((i + hval - n))) * (s ** ((i + hval + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ) + O(s ** hprec) + O(q ** hprec)
+                q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
+                self.__q_s_exp = sum((q ** (ZZ(i + v - n) / 2)) * (s ** (ZZ(i + v + n) / 2)) * p[n] for i, p in enumerate(h.list()) for n in p.exponents() ).O(hprec + m)
+            except ValueError:
+                mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
+                hprec += hprec
+                d += d
+                self.__q_s_exp = sum((q ** ((i - n))) * (s ** ((i + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ).O(hprec - hval)
             self.__q_s_scale = d
             self.__q_s_prec = hprec
             return self.__q_s_exp
+
+    def _q_s_valuation(self):
+        try:
+            return self.__qs_valuation
+        except AttributeError:
+            _ = self._q_s_expansion()
+            return self.__qs_valuation
 
     ## other
 
@@ -442,7 +485,10 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         elif self.has_fourier_jacobi_representation():
             N = self.gram_matrix()[0, 0]
             f = self.true_fourier_expansion()
-            R = PowerSeriesRing(QQ, 't')
+            if self._base_ring_is_laurent_polynomial_ring():
+                R = PowerSeriesRing(QQ, 't')
+            else:
+                R = PowerSeriesRing(self.base_ring(), 't')
             prec = f.prec()
             f = R([f[j][-j] for j in range(prec)]).O(prec)
             S = matrix([[N]])
@@ -991,7 +1037,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             L.append(i)
                     indices = [None] * len(ds)
                     e = w.dual().eisenstein_series(sage_three_half, max(1, 1 - floor(val)), allow_small_weight = True, components = (ds, indices)).fourier_expansion()
-                    s = sum([(f[j][2] * e[j][2] * q ** (floor(f[j][1] + e[i][1])))[0] for i, j in enumerate(L)])
+                    s = sum([(f[j][2] * e[j][2] * q ** (floor(f[j][1] + e[j][1])))[0] for j in L])
                 else:
                     s = f[0][2][0]
                 return vector([s * (1 + N) / 24])
@@ -1360,6 +1406,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         val = self.valuation(exact = True)
         excluded_vectors = set([])
         rpoly, tpoly = PolynomialRing(K, 'tpoly').objgen()
+        rpoly_ff = FractionField(rpoly)
         negative = lambda v: v[0] < 0 or next(s for s in reversed(v[1:]) if s) < 0
         if nrows >= 2:
             weyl_diff = weyl_vector[0] - weyl_vector[1]
@@ -1500,7 +1547,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if verbose:
                         print('Multiplying by: %s'%rb_x(rpoly(p).subs({tpoly:m})))
                 except TypeError:
-                    raise ValueError('I caught a TypeError. This probably means you are trying to compute a product that is not holomorphic.') from None
+                    const_f *= rpoly_ff(p).subs({tpoly:m})
         v = a.rows()[0]
         norm_v = v * S * v / 2
         for j in srange(1, prec):

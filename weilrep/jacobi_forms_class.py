@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2023 Brandon Williams
+#       Copyright (C) 2020-2024 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,10 +22,11 @@ import cypari2
 pari = cypari2.Pari()
 PariError = cypari2.PariError
 
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import product
 from re import sub
 
+from sage.arith.functions import lcm
 from sage.arith.misc import divisors, GCD, is_square, XGCD
 from sage.calculus.var import var
 from sage.combinat.root_system.root_system import RootSystem
@@ -50,10 +51,17 @@ from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.number_field.number_field import CyclotomicField
-from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
+from sage.rings.number_field.number_field_base import NumberField
+from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing, LaurentPolynomialRing_generic
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
+
+from sage.rings.real_mpfr import RealField_class, RR
+try:
+    from sage.rings.complex_mpfr import ComplexField_class
+except ModuleNotFoundError:
+    from sage.rings.complex_field import ComplexField_class
 
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import EtaCharacterPower, smf, WeilRepModularForm, WeilRepModularFormWithCharacter, WeilRepModularFormsBasis
@@ -987,12 +995,26 @@ class JacobiForm:
         except KeyError:
             pass
         self.__wscale = kwargs.pop('w_scale', 1)
+        if not bool(self.__index_matrix) and self.__index_matrix.nrows() == 1: #elliptic function case?
+            self.__class__ = EllipticFunction
 
     def __repr__(self):
         try:
             return self.__string
         except AttributeError:
             s = str(self.fourier_expansion())
+            if not self._base_ring_is_laurent_polynomial_ring():#represent 'w'-terms as Laurent polynomials if possible
+                n = self.nvars()
+                r = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(n)))
+                def m(obj):
+                    obj_s = obj.string[slice(*obj.span())]
+                    j = 1
+                    if obj_s[:2] == '((':
+                        obj_s = obj_s[1:]
+                        j = 2
+                    i = obj_s.index(')/')
+                    return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:])) + ')'*j
+                s = sub(r'\([^()]*?\)\/((\((w_\d*(\^\d*)?\*?)+\))|(w_\d*(\^\d*)?\*?)+)', m, s)
             if self.scale() == 2: #divide by scale
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
@@ -1008,6 +1030,8 @@ class JacobiForm:
                 s = sub(r'((?<!q)\^-?\d+)|w\_\d+(?!\^)', m, s)
             if self.nvars() == 1:
                 s = s.replace('w_0', 'w')
+            s = s.replace('((', '(')
+            s = s.replace('))', ')')
             self.__string = s
             return s
 
@@ -1027,6 +1051,18 @@ class JacobiForm:
             Univariate Laurent Polynomial Ring in w_0 over Rational Field
         """
         return self.fourier_expansion().base_ring()
+
+    def _base_ring_is_laurent_polynomial_ring(self):
+        r"""
+        Is self's base ring actually a Laurent polynomial ring?
+        This should return False if it is a FractionField.
+        """
+        try:
+            return self.__brilpr
+        except AttributeError:
+            r = self.base_ring()
+            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class) #are we missing anything?
+            return self.__brilpr
 
     def character(self):
         return EtaCharacterPower(0)
@@ -2543,12 +2579,54 @@ def _jf_relations(X):
     This should no longer be called directly. Use weilrep_misc.relations instead.
     """
     Xref = X[0]
+    N = Xref.nvars()
     if Xref.scale() == 2:
         return _jf_relations([x.hecke_U(2) for x in X])
-    if not all(x.weight() == Xref.weight() and x.index() == Xref.index() for x in X[1:]):
+    if not Xref.index():
+        if not all(x.weight() == Xref.weight() for x in X[1:]):
+            raise ValueError('Incompatible Jacobi forms')
+    elif not all(x.weight() == Xref.weight() and x.index() == Xref.index() for x in X[1:]):
         raise ValueError('Incompatible Jacobi forms')
-    X = [x.theta_decomposition() for x in X]
-    val = min(x.valuation() for x in X)
-    prec = min(x.precision() for x in X)
-    M = matrix([x.coefficient_vector(starting_from = val, ending_with = prec) for x in X])
-    return M.kernel()
+    try:
+        X = [x.theta_decomposition() for x in X]
+        val = min(x.valuation() for x in X)
+        prec = min(x.precision() for x in X)
+        M = matrix([x.coefficient_vector(starting_from = val, ending_with = prec) for x in X])
+        return M.kernel()
+    except ZeroDivisionError:
+        def V(n):
+            p = [x.qexp()[n] for x in X]
+            q = lcm([x.denominator() for x in p])
+            p = [p*q for p in p]
+            p_ref = p[0]
+            r = LaurentPolynomialRing(QQ, ['w_%s'%j for j in range(N)])
+            p = [defaultdict(lambda: 0, r(p).dict()) for p in p]
+            p_keys = [set(x.keys()) for x in p]
+            p_keys = list(p_keys[0].union(*p_keys[1:]))
+            m = matrix([[x[j] for j in p_keys] for x in p])
+            return m.kernel()
+        m = V(0)
+        for n in range(1, Xref.prec()):
+            if not m.dimension():
+                return m
+            m = m.intersection(V(n))
+        return m
+
+
+def weierstrass_p(prec):
+    r"""
+    The Fourier series of 1/(2pi i)^2 * Weierstrass p-function.
+    """
+    r, w = LaurentPolynomialRing(QQ, 'w_0').objgen()
+    q = PowerSeriesRing(FractionField(r), 'q').gen()
+    f = (w * w + 10 * w + 1) / (12 * (w - 1) * (w - 1))
+    return JacobiForm(2, matrix([[0]]), f + sum( n * (w**n + w**(-n) - 2) * sum( q ** (m * n) for m in range(1, (prec // n) + 1) ) for n in range(1, prec)).add_bigoh(prec))
+
+
+class EllipticFunction(JacobiForm):
+
+    def derivative(self):
+        f = self.qexp()
+        w, = f.base_ring().gens()
+        d = lambda x: w * x.derivative()
+        return JacobiForm(self.weight() + 1, matrix([[0]]), f.map_coefficients(d))

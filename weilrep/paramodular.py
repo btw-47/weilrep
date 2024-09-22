@@ -28,7 +28,9 @@ from sage.modular.arithgroup.congroup_gamma0 import is_Gamma0
 from sage.modules.free_module_element import vector
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
+from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.number_field.number_field import NumberField
+from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing_generic
 from sage.rings.polynomial.polydict import ETuple
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.rational_field import QQ
@@ -165,7 +167,10 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
         a, d = a + d, a - d
         f = self.true_fourier_expansion()
         try:
-            return f[a][d][b]
+            g = f[a][d]
+            if not isinstance(g.parent(), LaurentPolynomialRing_generic):
+                return LaurentSeriesRing(g.base_ring(), 'r')(g)[b]
+            return g[b]
         except KeyError:
             return 0
 
@@ -178,6 +183,8 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
 
         'd' can theoretically be any natural number, but using d >= 3 would be silly.
         """
+        if not self._base_ring_is_laurent_polynomial_ring():
+            return NotImplemented
         p = Integer(p)
         if not p.is_prime():
             raise ValueError('Hecke operators are only implemented for prime index')

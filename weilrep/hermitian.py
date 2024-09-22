@@ -161,9 +161,10 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
         """
         K = self.__base_field
         h = self.fourier_expansion()
+        val = self._q_s_valuation()
         S = self.gram_matrix()
         S_inv = S.inverse()
-        hprec = h.prec()
+        hprec = self.precision()
         d = self.scale()
         if h:
             D = K.discriminant()
@@ -179,8 +180,8 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
             hdict = h.dict()
             for i in h.exponents():
                 p = hdict[i]
-                a = Integer(i[0])/d
-                c = Integer(i[1])/d
+                a = (Integer(i[0]) + val)/d
+                c = (Integer(i[1]) + val)/d
                 if a:
                     if a != 1:
                         if a.is_integer():
@@ -202,57 +203,116 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                 else:
                     s_power = ''
                 z = (a or c)
-                for (b1, b2), C in p.dict().items():
-                    if C:
-                        v = vector([b1, b2]) * S_inv
-                        r1exp = v[0] + v[1] * omega
-                        r2exp = v[0] + v[1] * omega_c
-                        coef = True
-                        if sign:
-                            if C > 0 and C!= 1:
-                                s += ' + ' + str(C)
-                            elif C + 1 and C!= 1:
-                                s += ' - ' + str(-C)
-                            elif C + 1:
-                                s += ' + '
-                                coef = False
-                            elif C - 1:
-                                s += ' - '
-                                coef = False
-                        else:
-                            if abs(C) != 1 or not z:
-                                s += str(C)
+                try:
+                    for (b1, b2), C in p.dict().items():
+                        if C:
+                            v = vector([b1, b2]) * S_inv
+                            r1exp = v[0] + v[1] * omega
+                            r2exp = v[0] + v[1] * omega_c
+                            coef = True
+                            if sign:
+                                if C > 0 and C!= 1:
+                                    s += ' + ' + str(C)
+                                elif C + 1 and C!= 1:
+                                    s += ' - ' + str(-C)
+                                elif C + 1:
+                                    s += ' + '
+                                    coef = False
+                                elif C - 1:
+                                    s += ' - '
+                                    coef = False
                             else:
-                                coef = False
-                                if C == -1:
-                                    s += '-'
-                            sign = True
-                        if r1exp:
-                            if coef:
-                                s += '*'
-                            if r1exp != r2exp or not r1exp.is_integer():
-                                s += q_power+'*r1^(%s)*r2^(%s)*'%(r1exp, r2exp)+s_power
-                            elif r1exp != 1:
-                                s += q_power+'*r1^%s*r2^%s*'%(r1exp, r2exp)+s_power
+                                if abs(C) != 1 or not z:
+                                    s += str(C)
+                                else:
+                                    coef = False
+                                    if C == -1:
+                                        s += '-'
+                                sign = True
+                            if r1exp:
+                                if coef:
+                                      s += '*'
+                                if r1exp != r2exp or not r1exp.is_integer():
+                                      s += q_power+'*r1^(%s)*r2^(%s)*'%(r1exp, r2exp)+s_power
+                                elif r1exp != 1:
+                                      s += q_power+'*r1^%s*r2^%s*'%(r1exp, r2exp)+s_power
+                                else:
+                                      s += q_power+'*r1*r2*'+s_power
                             else:
-                                s += q_power+'*r1*r2*'+s_power
-                        else:
-                            if coef and z:
-                                s += '*'
-                            if a:
-                                s += q_power
-                                if c:
+                                if coef and z:
                                     s += '*'
-                            s += s_power
-            if hprec % d:
-                self.__string = s + ' + O(q, s)^(%s)'%(hprec/d)
+                                if a:
+                                    s += q_power
+                                    if c:
+                                        s += '*'
+                                s += s_power
+                except AttributeError:
+                    p_num = p.numerator()
+                    p_denom = p.denominator()
+                    def Y(_dict):
+                        t = ''
+                        t_sign = False
+                        for (b1, b2), C in _dict.items():
+                            if C:
+                                v = vector([b1, b2]) * S_inv
+                                r1exp = v[0] + v[1] * omega
+                                r2exp = v[0] + v[1] * omega_c
+                                coef = True
+                                if t_sign:
+                                    if C > 0 and C!= 1:
+                                        t += ' + ' + str(C)
+                                    elif C + 1 and C!= 1:
+                                        t += ' - ' + str(-C)
+                                    elif C + 1:
+                                        t += ' + '
+                                        coef = False
+                                    elif C - 1:
+                                        t += ' - '
+                                        coef = False
+                                else:
+                                    if abs(C) != 1:
+                                        t += str(C)
+                                    else:
+                                        coef = False
+                                        if C == -1:
+                                            t += '-'
+                                if r1exp:
+                                    if coef:
+                                          t += '*'
+                                    if r1exp != r2exp or not r1exp.is_integer():
+                                          t += 'r1^(%s)*r2^(%s)'%(r1exp, r2exp)
+                                    elif r1exp != 1:
+                                          t += 'r1^%s*r2^%s'%(r1exp, r2exp)
+                                    else:
+                                          t += 'r1*r2'
+                                else:
+                                    t += '1'
+                            t_sign = True
+                        return t
+                    t_num = Y(p_num.dict())
+                    t_dict = Y(p_denom.dict())
+                    if sign:
+                        s += ' + '
+                    else:
+                        sign = True
+                    if q_power:
+                        if s_power:
+                            s += '((%s)/(%s))*%s*%s'%(t_num, t_dict, q_power, s_power)
+                        else:
+                            s += '((%s)/(%s))*%s'%(t_num, t_dict, q_power)
+                    elif s_power:
+                        s += '((%s)/(%s))*%s'%(t_num, t_dict, s_power)
+                    else:
+                        s += '(%s)/(%s)'%(t_num, t_dict)
+            if hprec not in ZZ:
+                self.__string = s + ' + O(q, s)^(%s)'%(hprec)
             else:
-                self.__string = s + ' + O(q, s)^%s'%(hprec/d)
+                self.__string = s + ' + O(q, s)^%s'%(hprec)
         else:
-            if hprec % d:
-                self.__string = 'O(q, s)^(%s)'%(hprec/d)
+            if hprec not in ZZ:
+                self.__string = 'O(q, s)^(%s)'%(hprec)
             else:
-                self.__string = 'O(q, s)^%s'%(hprec/d)
+                self.__string = 'O(q, s)^%s'%(hprec)
         return self.__string
 
     ## basic attributes

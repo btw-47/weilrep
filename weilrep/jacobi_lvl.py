@@ -36,9 +36,16 @@ from sage.modules.free_module_element import vector
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
-from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
+from sage.rings.number_field.number_field_base import NumberField
+from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing, LaurentPolynomialRing_generic
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
+from sage.rings.real_mpfr import RealField_class, RR
+
+try:
+    from sage.rings.complex_mpfr import ComplexField_class
+except ModuleNotFoundError:
+    from sage.rings.complex_field import ComplexField_class
 
 
 from .jacobi_forms_class import JacobiForm, JacobiForms, JacobiFormWithCharacter
@@ -758,6 +765,18 @@ class JacobiFormWithLevel:
             Univariate Laurent Polynomial Ring in w_0 over Rational Field
         """
         return self.fourier_expansion().base_ring()
+
+    def _base_ring_is_laurent_polynomial_ring(self):
+        r"""
+        Is self's base ring actually a Laurent polynomial ring?
+        This should return False if it is a FractionField.
+        """
+        try:
+            return self.__brilpr
+        except AttributeError:
+            r = self.base_ring()
+            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class) #are we missing anything?
+            return self.__brilpr
 
     def __bool__(self):
         return self.fourier_expansion().__bool__()

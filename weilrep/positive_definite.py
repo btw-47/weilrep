@@ -345,6 +345,28 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         except AttributeError:
             s = str(self.fourier_expansion())
             d = self.scale()
+            v = self._q_s_valuation()
+            if v:
+                qd = self.qexp().dict()
+                def c(x, a, b):
+                    t = ''
+                    u = ''
+                    if x == -1:
+                        t = '-'
+                    elif x in QQ:
+                        if x != 1:
+                            t = str(x)+'*'
+                    else:
+                        t = '(%s)*'%x
+                    if a:
+                        u = 'q^%s'%a
+                        if b:
+                            u += '*s^%s'%b
+                    elif b:
+                        u = 's^%s'%b
+                    u = u.replace('(', '').replace(')', '')
+                    return t+u
+                s = ' + '.join(c(x, a+v, b+v) for (a, b), x in qd.items()).replace('+ -', '- ')
             if not self._base_ring_is_laurent_polynomial_ring():#represent 'r'-terms as Laurent polynomials if possible
                 n = self.nvars() - 2
                 r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(n)))
@@ -357,9 +379,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
                     i = obj_s.index(')/')
                     return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:])) + ')'*j
                 s = sub(r'\([^()]*?\)\/((\((r_\d*(\^\d*)?\*?)+\))|(r_\d*(\^\d*)?\*?)+)', m, s)
-            if d == 1:
-                self.__string = s
-            else: #divide by scale
+            if d != 1:
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
                     x = obj_s[0]
@@ -371,10 +391,15 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
                             return '^%d'%u
                         return '^(%s)'%u
                     return (x, obj_s)[x == '_'] + '^(%s)'%(1/d)
-                self.__string = sub(r'\^-?\d+|(?<!O\(|\, )(\_\d+|q|s)(?!\^)', m, s)
+                s = sub(r'\^-?\d+|(?<!O\(|\, )(\_\d+|q|s)(?!\^)', m, s)
+            if v:
+                s = s.replace('q^0*', '').replace('s^0', '').replace('* ', ' ')
+                s = s.replace('q^1', 'q').replace('s^1', 's')
+                s = s + ' + O(q, s)^%s'%(self.precision())
             if self.gram_matrix().nrows() == 1:
-                self.__string = self.__string.replace('r_0', 'r')
-            return self.__string
+                s = s.replace('r_0', 'r')
+            self.__string = s
+            return s
 
     ## basic attributes
 
@@ -402,9 +427,30 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         except AttributeError:
             h = self._OrthogonalModularForm__fourier_expansion
             q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-            self.__qexp = O(q ** h.prec()) + sum([(q ** ((i - n) // 2)) * (s ** ((i + n) // 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ])
+            qsval = ZZ(self.valuation()) / 2
+            v = ZZ(min(0, self.valuation()))
+            if isinstance(h.parent(), LaurentSeriesRing):
+                u = ZZ(max(0, self.valuation()))
+                h = h.valuation_zero_part()
+                m = ZZ(max(h[0].degree(), -h[0].valuation()))
+                if m:
+                    h = h.shift(m)
+                    qsval -= m / 2
+            else:
+                u = 0
+                qsval = 0
+            self.__qexp = O(q ** (h.prec() - v)) + sum([(q ** ((i + u - n) // 2)) * (s ** ((i + u + n) // 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ])
+            self.__qsval = qsval
             return self.__qexp
     qexp = fourier_expansion
+    _q_s_expansion = fourier_expansion
+
+    def _q_s_valuation(self):
+        try:
+            return self.__qsval
+        except AttributeError:
+            _ = self.qexp()
+            return self.__qsval
 
     def fourier_jacobi(self):
         r"""
@@ -434,10 +480,13 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         rb_old = f.base_ring()
         K = rb_old.base_ring()
         rb = LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(nrows)))
+        if not self._base_ring_is_laurent_polynomial_ring():
+            rb = FractionField(rb)
         z = rb.gens()[0]
         r, q = PowerSeriesRing(rb, 'q').objgen()
         k = self.weight()
         scale = self.scale()
+        v = ZZ(min(0, self.valuation()) / 2)
         if scale != 1:
             prec = self.precision()
             floor_prec = floor(prec)
@@ -461,18 +510,15 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             qshift = frac(c)
             if qshift:
                 chi = EtaCharacterPower(24 * qshift)
-                self.__fourier_jacobi = [JacobiFormWithCharacter(k, (n + qshift) * S, j, qshift = qshift, character = chi, w_scale = wscale) for n, j in enumerate(L)]
+                self.__fourier_jacobi = [JacobiFormWithCharacter(k, (n  + qshift + v) * S, j, qshift = qshift, character = chi, w_scale = wscale) for n, j in enumerate(L)]
             else:
-                self.__fourier_jacobi = [JacobiForm(k, n * S, j) for n, j in enumerate(L)]
+                self.__fourier_jacobi = [JacobiForm(k, (n + v) * S, j) for n, j in enumerate(L)]
             return self.__fourier_jacobi
         r_old = f.parent()
         s = r_old.gens()[1]
-        r_new = r_old.remove_var(s)
-        change_name = {rb_old('r_%d'%j):rb('w_%d'%j) for j in range(nrows)}
         prec = self.precision()
         f = f.polynomial()
-        _change_ring = lambda f: r([x.subs(change_name) for x in f.list()])
-        self.__fourier_jacobi = [JacobiForm(k, n * S, _change_ring(r_new(f.coefficient({s : n}))) + O(q ** (prec - n))) for n in range(prec)]
+        self.__fourier_jacobi = [JacobiForm(k, (n + v) * S, r({x[0]: rb(y) for x, y in f.coefficient({s : n}).dict().items()}).add_bigoh(prec - n)) for n in range(prec)]
         return self.__fourier_jacobi
 
     def is_lift(self):
@@ -534,7 +580,10 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             q - 24*q^2 + 252*q^3 - 1472*q^4 + 4830*q^5 + O(q^6)
         """
         f = self.true_fourier_expansion()
-        R = PowerSeriesRing(QQ, 't')
+        if self._base_ring_is_laurent_polynomial_ring():
+            R = PowerSeriesRing(QQ, 't')
+        else:
+            R = PowerSeriesRing(self.base_ring(), 't')
         prec = f.prec()
         f = R([f[j][j] for j in range(prec)]).O(prec)
         from .lorentz import WeilRepLorentzian, OrthogonalModularFormLorentzian
@@ -1347,7 +1396,10 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                         if c >= 0:
                             corrector *= p.subs({t0 : m})
                         elif p != 1:
-                            deg_p = p.degree()
+                            try:
+                                deg_p = p.degree()
+                            except AttributeError:
+                                raise ValueError('This Borcherds product does not have a well-defined Fourier--Jacobi expansion') from None
                             try:
                                 corrector *= (h + sum(p * t ** (d * (a_plus_c * j - c * deg_p)) * x ** (d * ((c - a) * j - c * deg_p)) * m ** (d*j) for j, p in enumerate(list(p))))
                             except TypeError:
@@ -1433,18 +1485,17 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
                 corrector = r(corrector)
             except TypeError:
                 corrector = r1(corrector)
-                f = r1({a:rb_x_1({c:rb_1(d) for c, d in b.dict().items()}) for a, b in f.dict().items()})
-                weyl_vector_term = r1(weyl_vector_term)
+                f = r1({a:rb_x_1({c:rb_1(d) for c, d in b.dict().items()}) for a, b in f.dict().items()}).add_bigoh(f.prec())
+                x, = rb_x_1.gens()
+                t, = r1.gens()
+                weyl_vector_term = (t ** (weyl_v[0] + weyl_v[-1])) * (x ** (weyl_v[0] - weyl_v[-1])) * rb_x_1(weyl_monomial)
             X = OrthogonalModularForm(weight, self.weilrep(), f * corrector * weyl_vector_term, scale = d, weylvec = weyl_v / d, qexp_representation = h, ppcoeffs = self.principal_part_coefficients())
             if verbose:
                 print('Multiplying by the factor %s'%(corrector))
                 print('Multiplying by the factor (Weyl vector) %s'%(weyl_vector_term))
-            try:
-                X._OrthogonalModularForm__inverse = f**(-1) * weyl_vector_term_inverse / FractionField(rb)(rb(corrector))
-            except (RecursionError, TypeError, ValueError):
-                pass
             return X
-        except TypeError:
+        except (TypeError, ValueError):
+            return weyl_vector_term
             raise RuntimeError('I caught a TypeError. This probably means you are trying to compute a Borcherds product that is not holomorphic.')
 
     def formal_lift(self, prec = Infinity):

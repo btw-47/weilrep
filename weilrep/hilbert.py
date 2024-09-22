@@ -31,7 +31,9 @@ from sage.rings.big_oh import O
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
+from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.number_field.number_field import NumberField
+from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing_generic
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
@@ -308,8 +310,14 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                 sqrtD /= 2
             s = ''
             sign = False
+            _b = False
+            if not isinstance(h.base_ring(), LaurentPolynomialRing_generic):
+                X = LaurentSeriesRing(self.base_ring(), 'x')
+                _b = True
             for i, p in enumerate(h.list()):
                 i = ZZ(i)
+                if _b:
+                    p = X(p)
                 for n in p.exponents():
                     c = p[n]
                     if c:

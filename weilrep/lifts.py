@@ -48,6 +48,7 @@ from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
+from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.number_field.number_field_base import NumberField
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing, LaurentPolynomialRing_generic
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
@@ -523,7 +524,13 @@ class OrthogonalModularForm(object):
         return self.weilrep().gram_matrix()
 
     def inverse(self):
-        return NotImplemented
+        f = self.true_fourier_expansion()
+        try:
+            g = ~f
+        except ValueError:
+            g = ~self._laurent_to_fraction().true_fourier_expansion()
+        return OrthogonalModularForm(-self.__weight, self.__weilrep, g, self.__scale, -self.__weylvec, qexp_representation = self.__qexp_representation)
+    __invert__ = inverse
 
     def _laurent_to_fraction(self):
         r"""
@@ -635,11 +642,22 @@ class OrthogonalModularForm(object):
             constant_prec = max(10, d_prec)
         else:
             constant_prec = 10
-        for j_t, p in f.dict().items():
+        try:
+            D = f.dict()
+        except AttributeError:
+            v = f.valuation()
+            D = {(x+v) : y for x, y in f.valuation_zero_part().dict().items()}
+        for j_t, p in D.items():
             if j_t < d_prec:
                 j_t = Integer(j_t)
                 if nrows > 1:
-                    for j_x, h in p.dict().items():
+                    try:
+                        p_dict = p.dict()
+                    except AttributeError:
+                        p = LaurentSeriesRing(p.base_ring(), 'x')(p)
+                        v = p.valuation()
+                        p_dict = {(x+v) : y for x, y in p.valuation_zero_part().dict().items()}
+                    for j_x, h in p_dict.items():
                         j_x = Integer(j_x)
                         if nrows > 2:
                             if nrows > 3:
@@ -652,7 +670,6 @@ class OrthogonalModularForm(object):
                                     r = hd.parent()
                                     if hd.constant_coefficient():
                                         s = PowerSeriesRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)), default_prec = constant_prec)
-                                        #h = s(hn) / s(hd)
                                         h = s(h).add_bigoh(constant_prec)
                                     else:
                                         s = LaurentPolynomialRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)))
@@ -671,12 +688,23 @@ class OrthogonalModularForm(object):
                                     if hd.constant_coefficient():
                                         s = PowerSeriesRing(r.base_ring(), 'r_0', default_prec = constant_prec)
                                         h = s(h).add_bigoh(constant_prec)
+                                        try:
+                                            for j_r, y in h.dict().items():
+                                                g = tuple([j_t / d, j_x / d, Integer(j_r) / d])
+                                                L[g] = y
+                                        except AttributeError:
+                                            pass
                                     else:
-                                        s = LaurentPolynomialRing(r.base_ring(), 'r_0')
-                                        h = s(hn) / s(hd)
-                                    for j_r, y in h.dict().items():
-                                        g = tuple([j_t / d, j_x / d, Integer(j_r) / d])
-                                        L[g] = y
+                                        s = LaurentSeriesRing(r.base_ring(), 'r_0')
+                                        h = s(hn) * s(1 / hd)
+                                        hval = h.valuation()
+                                        h = h.valuation_zero_part()
+                                        try:
+                                            for j_r, y in h.dict().items():
+                                                g = tuple([j_t / d, j_x / d, (Integer(j_r) + hval) / d])
+                                                L[g] = y
+                                        except AttributeError:
+                                            pass
                         else:
                             g = tuple([j_t / d, j_x / d])
                             L[g] = h
@@ -858,24 +886,18 @@ class OrthogonalModularForm(object):
         Divide modular forms, rescaling if necessary.
         """
         if isinstance(other, OrthogonalModularForm):
-            if not self.gram_matrix() == other.gram_matrix():
-                raise ValueError('Incompatible Gram matrices')
-            self_scale = self.scale()
-            other_scale = other.scale()
-            def p(*args, **kwargs):
-                return self.pullback(*args, **kwargs) / other.pullback(*args, **kwargs)
-            if self_scale != 1 or other_scale != 1:
-                new_scale = lcm(self.scale(), other.scale())
-                X1 = self.rescale(new_scale // self_scale)
-                X2 = other.rescale(new_scale // other_scale)
-                return OrthogonalModularForm(self.__weight - other.weight(), self.__weilrep, X1.true_fourier_expansion() * X2.inverse(), scale = new_scale, weylvec = self.weyl_vector() - other.weyl_vector(), qexp_representation = self.qexp_representation())
-            return OrthogonalModularForm(self.weight() - other.weight(), self.__weilrep, self.true_fourier_expansion() * other.inverse(), scale = 1, weylvec = self.weyl_vector() - other.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
+            return self.__mul__(other.inverse())
         else:
             def p(*args, **kwargs):
                 return self.pullback(*args, **kwargs) / other
             return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() / other, scale = self.scale(), weylvec = self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
 
     __truediv__ = __div__
+
+    def __rdiv__(self, other):
+        return self.inverse().__mul__(other)
+
+    __rtruediv__ = __rdiv__
 
     def __eq__(self, other):
         if self._base_ring_is_laurent_polynomial_ring() + other._base_ring_is_laurent_polynomial_ring() == 1:
