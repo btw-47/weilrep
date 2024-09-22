@@ -145,9 +145,9 @@ class WeilRepModularForm(object):
             if w:
                 if w._is_hermitian_weilrep(): #pass to a lattice over an imaginary-quadratic field if necessary
                     ds = w.hds()
-                    s = '\n'.join(['[%s, %s]'%(ds[i], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(ds[i], x[2]) for i, x in enumerate(X)])
+                    s = '\n'.join('[%s, %s]'%(ds[i], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(ds[i], x[2]) for i, x in enumerate(X))
                 else:
-                    s = '\n'.join(['[%s, %s]'%(x[0], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X])
+                    s = '\n'.join('[%s, %s]'%(x[0], sub(r, a(x[1]), str(x[2]))) if x[1] else '[%s, %s]'%(x[0], x[2]) for x in X)
             elif z[1]:
                 s = sub(r, a(z[1]), str(z[2]))
             else:
@@ -185,7 +185,7 @@ class WeilRepModularForm(object):
                     return 'q'
             return b
         if self.weilrep():
-            return r'\begin{align*}&' + ' + &'.join(['\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r, a(x[1]), str(x[2])), x[0]) for x in X])[:-2]+r'\end{align*}'
+            return r'\begin{align*}&' + ' + &'.join('\\left(%s\\right)\\mathfrak{e}_{%s}\\\\'%(sub(r, a(x[1]), str(x[2])), x[0]) for x in X)[:-2]+r'\end{align*}'
         else:
             return X[0][2]._latex_()
 
@@ -2377,16 +2377,16 @@ class WeilRepModularFormsBasis:
         X = self.__basis
         if X:
             s = '\n' + '-'*60 + '\n'
-            return s.join([x.__repr__() for x in self.__basis])
+            return s.join(x.__repr__() for x in self.__basis)
         return '[]'
 
     def __add__(self, other):
         try:
             if self.weilrep() == other.weilrep() and self.weight() == other.weight():
                 if self.__flag2:
-                    X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.__weilrep_hidden)
+                    X = WeilRepModularFormsBasis(self.weight(), self.__basis + list(other), self.__weilrep_hidden)
                 else:
-                    X = WeilRepModularFormsBasis(self.weight(), self.__basis + [x for x in other], self.weilrep())
+                    X = WeilRepModularFormsBasis(self.weight(), self.__basis + list(other), self.weilrep())
                 if self._flag() == 'quasimodular' or other._flag() == 'quasimodular':
                     X._WeilRepModularFormsBasis__flag = 'quasimodular'
                 if self._WeilRepModularFormsBasis__symmetry_data and other._WeilRepModularFormsBasis__symmetry_data:
@@ -2555,7 +2555,7 @@ class WeilRepModularFormsBasis:
         if e:
             Rb = [LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(e) )) for K in K]
         else:
-            Rb = [K for K in K]
+            Rb = list(K)
         R = [PowerSeriesRing(x, 'q', prec) for x in Rb]
         w = self.weilrep()
         if e > 1:
@@ -2666,7 +2666,7 @@ class WeilRepModularFormsBasis:
             pass
         norm_dict = w.norm_dict()
         w.sorted_ds = sorted(w.ds(), key = lambda x: -norm_dict[tuple(x)])
-        s = '\n'.join(['%d %s'%(i, str(x.principal_part())) for i, x in enumerate(self)])
+        s = '\n'.join('%d %s'%(i, str(x.principal_part())) for i, x in enumerate(self))
         del(w.sorted_ds)
         try:
             del(w.h_sorted_ds)

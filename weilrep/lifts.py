@@ -326,7 +326,7 @@ class OrthogonalModularForms(object):
             Y = WeilRepModularFormsBasis(wt, [], w)
         if wt >= 0:
             X = w.basis_vanishing_to_order(wt, max(0, -pole_order), prec)
-            X = WeilRepModularFormsBasis(wt, [x for x in X], w)
+            X = WeilRepModularFormsBasis(wt, list(X), w)
             if X:
                 X.extend(Y)
                 return X
@@ -390,7 +390,7 @@ class OrthogonalModularForms(object):
             Y = WeilRepModularFormsBasis(wt, [], w)
         if wt >= 0:
             X = w.basis_vanishing_to_order(wt, max(0, -pole_order), prec)
-            X = WeilRepModularFormsBasis(wt, [x for x in X], w)
+            X = WeilRepModularFormsBasis(wt, list(X), w)
             if X:
                 X.extend(Y)
                 return X

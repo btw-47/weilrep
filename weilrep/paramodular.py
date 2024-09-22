@@ -495,7 +495,7 @@ class ParamodularHeckeOperator:
                     for c in srange(-rbound, rbound):
                         A = matrix([[N * (a - b) / 2, c / 2], [c/2, (a + b)/2]])
                         try:
-                            L1 = [x for x in L]
+                            L1 = list(L)
                             L1.append([self._get_coefficient(f, A) for f in X])
                             M = matrix(L1)
                             rank1 = M.rank()

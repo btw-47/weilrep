@@ -236,10 +236,10 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             for x, y in coeffs.items():
                 a = x[0]
                 c = x[2]
-                b = [x for x in x[1:-1]]
+                b = x[1:-1]
                 wscale = 1
                 if any(u not in ZZ for u in b):
-                    b = [b + b for b in b]
+                    b = [e + e for e in b]
                     wscale = 2
                 if nrows > 1:
                     u = rb.monomial(*b)
