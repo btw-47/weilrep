@@ -19,16 +19,12 @@ AUTHORS:
 # ****************************************************************************
 
 import cypari2
-pari = cypari2.Pari()
-PariError = cypari2.PariError
 
 from collections import Counter, defaultdict
-from itertools import product
 from re import sub
 
 from sage.arith.functions import lcm
 from sage.arith.misc import divisors, GCD, is_square, XGCD
-from sage.calculus.var import var
 from sage.combinat.root_system.root_system import RootSystem
 from sage.functions.other import binomial, ceil, floor, frac
 from sage.matrix.constructor import matrix
@@ -57,22 +53,26 @@ from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 
-from sage.rings.real_mpfr import RealField_class, RR
+from sage.rings.real_mpfr import RealField_class
 try:
     from sage.rings.complex_mpfr import ComplexField_class
 except ModuleNotFoundError:
     from sage.rings.complex_field import ComplexField_class
 
 from .weilrep import WeilRep
-from .weilrep_modular_forms_class import EtaCharacterPower, smf, WeilRepModularForm, WeilRepModularFormWithCharacter, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import (EtaCharacterPower, smf,
+                                          WeilRepModularForm, WeilRepModularFormsBasis)
 
-sage_one_half = Integer(1) / Integer(2)
-sage_three_half = Integer(3) / Integer(2)
+sage_three_half = Integer(3) / 2
+
+pari = cypari2.Pari()
+PariError = cypari2.PariError
 
 type0 = type(Gamma0_constructor(3))
 type1 = type(Gamma1_constructor(3))
 type2 = type(Gamma_constructor(3))
 type3 = type(Gamma0_constructor(1))
+
 
 class JacobiForms:
     r"""
@@ -85,7 +85,7 @@ class JacobiForms:
     - ``m`` -- a natural number (not 0)
 
     """
-    def __init__(self, index_matrix = None, weilrep=None, **kwargs):
+    def __init__(self, index_matrix=None, weilrep=None, **kwargs):
         if index_matrix in QQ:
             self.__index_matrix = matrix([[2 * index_matrix]])
         elif isinstance(index_matrix, type0):
@@ -204,7 +204,7 @@ class JacobiForms:
         """
         try:
             return self.__nvars
-        except:
+        except AttributeError:
             self.__nvars = Integer(self.index_matrix().nrows())
             return self.__nvars
 
@@ -242,7 +242,7 @@ class JacobiForms:
 
     weilrep = theta_decomposition
 
-    ##construction of Jacobi Forms associated to this index
+    # ## construction of Jacobi Forms associated to this index
 
     def eisenstein_series(self, k, prec, allow_small_weight=False):
         r"""
@@ -310,7 +310,7 @@ class JacobiForms:
             b = vector([b / f0])
         return self.weilrep().eisenstein_oldform(k - self.nvars() / 2, b, prec, allow_small_weight=allow_small_weight).jacobi_form()
 
-    def poincare_series(self, k, n, r, prec, nterms = 10):
+    def poincare_series(self, k, n, r, prec, nterms=10):
         r"""
         Compute a numerical approximation to the Jacobi Poincare series of index (n, r).
 
@@ -326,9 +326,9 @@ class JacobiForms:
             r = vector([r])
         m = self.index_matrix()
         mr = m.inverse() * r
-        return self.weilrep().poincare_series(k - self.nvars() / 2, mr, n - r * mr / 2, prec, nterms = nterms).jacobi_form()
+        return self.weilrep().poincare_series(k - self.nvars() / 2, mr, n - r * mr / 2, prec, nterms=nterms).jacobi_form()
 
-    ## dimensions associated to this index
+    # ## dimensions associated to this index
 
     def cusp_forms_dimension(self, weight, **kwargs):
         r"""
@@ -347,17 +347,16 @@ class JacobiForms:
             1
         """
         if not self.is_even():
-            return len(self.cusp_forms_basis(weight, prec = ceil(weight / 12 - self.nvars() / 24) + 1, **kwargs))
+            return len(self.cusp_forms_basis(weight, prec=ceil(weight / 12 - self.nvars() / 24) + 1, **kwargs))
         eta_twist = kwargs.pop('eta_twist', 0)
         if not eta_twist:
             if self.nvars() == 1 and weight == 2:
                 dim = self.weilrep().cusp_forms_dimension(sage_three_half, force_Riemann_Roch=True)
                 N = self.index()
-                sqrtN = isqrt(N)
                 return dim + Integer(len(divisors(N)) + N.is_square()) / 2
             if weight <= 1:
                 return 0
-        return self.weilrep().cusp_forms_dimension(weight - self.nvars() / 2, eta_twist = eta_twist, **kwargs)
+        return self.weilrep().cusp_forms_dimension(weight - self.nvars() / 2, eta_twist=eta_twist, **kwargs)
 
     def dimension(self, weight, **kwargs):
         r"""
@@ -382,7 +381,7 @@ class JacobiForms:
             2
         """
         if not self.is_even():
-            return len(self.basis(weight, prec = ceil(weight / 12 - self.nvars() / 24) + 1, **kwargs))
+            return len(self.basis(weight, prec=ceil(weight / 12 - self.nvars() / 24) + 1, **kwargs))
         eta_twist = kwargs.pop('eta_twist', 0)
         if not eta_twist:
             if self.nvars() == 1 and weight == 2:
@@ -392,7 +391,7 @@ class JacobiForms:
                 return dim + len([d for d in divisors(N) if d <= sqrtN and N % (d * d)])
             if weight <= 1:
                 return 0
-        return self.weilrep().modular_forms_dimension(weight - self.nvars() / 2, eta_twist = eta_twist, **kwargs)
+        return self.weilrep().modular_forms_dimension(weight - self.nvars() / 2, eta_twist=eta_twist, **kwargs)
 
     jacobi_forms_dimension = dimension
 
@@ -424,7 +423,7 @@ class JacobiForms:
             if k_plus_m < 0:
                 return 0
             r, t = PolynomialRing(ZZ, 't').objgen()
-            f = (r([1,0]+[1]*(m - 1)) * (1 + t**4 + t**8) * (1 + t**6))
+            f = (r([1, 0]+[1]*(m - 1)) * (1 + t**4 + t**8) * (1 + t**6))
             return sum(f[k_plus_m - 12*n] * (n + 1) for n in range(1 + k_plus_m // 12))
         if not self.is_even():
             return len(self.weak_forms_basis(k))
@@ -434,27 +433,26 @@ class JacobiForms:
         ds = w.ds()
         k_dual = 2 - k + n/2
         if k_dual <= 0:
-            rds = w.rds(indices = True)
-            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None )
+            rds = w.rds(indices=True)
+            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None)
             return self.dimension(k) + d
         N = max(svn) + 1
-        #N = max(N, (k_dual / 12) + 1)
+        # N = max(N, (k_dual / 12) + 1)
         wdual = w.dual()
         X = wdual.modular_forms_basis(k_dual, N)
         if not X:
-            rds = w.rds(indices = True)
-            d = sum(ceil(n) for i, n in enumerate(svn) if rds[i] is None and (not(k % 2) or 2 % denominator(ds[i])))
+            rds = w.rds(indices=True)
+            d = sum(ceil(n) for i, n in enumerate(svn)
+                    if rds[i] is None and (not (k % 2) or 2 % denominator(ds[i])))
             return d
-        v_list = wdual.coefficient_vector_exponents(N, 1 - k % 2, include_vectors = True)
-        len_v_list = len(v_list)
+        v_list = wdual.coefficient_vector_exponents(N, 1 - k % 2, include_vectors=True)
         dsdict = wdual.ds_dict()
         I = [i for i, (g, n) in enumerate(v_list) if n <= svn[dsdict[g]]]
-        Y1 = [x.coefficient_vector(starting_from = 0) for x in X]
+        Y1 = [x.coefficient_vector(starting_from=0) for x in X]
         Y = matrix([[y[i] for i in I] for y in Y1])
         return Y.ncols() - Y.rank()
 
-
-    def hilbert_series(self, polynomial = False):
+    def hilbert_series(self, polynomial=False):
         r"""
         Compute the Hilbert series f = \sum_k dim J_k t^k.
 
@@ -484,9 +482,9 @@ class JacobiForms:
         return r(p) / ((1 - t**4) * (1 - t**6))
 
     def hilbert_polynomial(self):
-        return self.hilbert_series(polynomial = True)
+        return self.hilbert_series(polynomial=True)
 
-    def weak_hilbert_series(self, polynomial = False, verbose = False):
+    def weak_hilbert_series(self, polynomial=False, verbose=False):
         r"""
         Compute the Hilbert series of weak Jacobi forms f = \sum_k dim J_k^w t^k.
 
@@ -509,7 +507,7 @@ class JacobiForms:
         try:
             N = self._longest_short_vector_norm()
             k_min = floor(-12 * N)
-            _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose = verbose) for k in range(k_min)]
+            _ = [self.weilrep().dual().cusp_forms_basis(k + self.nvars() / 2, N, verbose=verbose) for k in range(k_min)]
         except TypeError:
             J0 = JacobiForms(2 * self.index_matrix())
             N = J0._longest_short_vector_norm() / 2
@@ -549,15 +547,15 @@ class JacobiForms:
         if self.nvars() == 1:
             r, t = LaurentPolynomialRing(ZZ, 't').objgen()
             m = Integer(self.index_matrix()[0, 0])
-            return t**(-m) * r([1,0]+[1]*(m - 1))
-        return self.weak_hilbert_series(polynomial = True)
+            return t**(-m) * r([1, 0]+[1]*(m - 1))
+        return self.weak_hilbert_series(polynomial=True)
 
     def zero(self, *args, **kwargs):
         return self.weilrep().zero(*args, **kwargs).jacobi_form()
 
-    ## bases of spaces associated to this index
+    # ## bases of spaces associated to this index
 
-    def cusp_forms_basis(self, weight, prec = 1, **kwargs):
+    def cusp_forms_basis(self, weight, prec=1, **kwargs):
         r"""
         Compute a basis of Jacobi cusp forms.
 
@@ -584,7 +582,7 @@ class JacobiForms:
 
         """
         if not self.is_positive_definite():
-            #In this case we compute a basis of cusp forms of index L/R, where L is self's index (a lattice), and R is its radical, and then lift them to L.
+            # In this case we compute a basis of cusp forms of index L/R, where L is self's index (a lattice), and R is its radical, and then lift them to L.
             p, a = self._pos_def_quotient()
             pt = p.transpose()
             J = JacobiForms(a)
@@ -606,7 +604,7 @@ class JacobiForms:
                 U.append(A.rows()[i])
                 n += 1
             J = JacobiForms(S + A)
-            X = J.cusp_forms_basis(weight + n/2, prec = prec, eta_twist = eta_twist + 3 * n, verbose = verbose, try_theta_blocks = try_theta_blocks)
+            X = J.cusp_forms_basis(weight + n/2, prec=prec, eta_twist=eta_twist + 3 * n, verbose=verbose, try_theta_blocks=try_theta_blocks)
             if not X:
                 return []
             prec = max(1, X[0].precision())
@@ -617,7 +615,7 @@ class JacobiForms:
             if not V_rows:
                 return []
             Z = [sum(x * u[i] for i, x in enumerate(X)) for u in V_rows]
-            f = jacobi_theta_series(prec = prec)
+            f = jacobi_theta_series(prec=prec)
             f = prod(f.pullback(matrix(u).transpose()) for u in U)
             return [z / f for z in Z]
         if not eta_twist and self.nvars() == 1 and weight <= 3:
@@ -626,22 +624,22 @@ class JacobiForms:
                 return []
             jacobi_dim = self.dimension(weight)
             if verbose:
-                print('I need to find %d Jacobi cusp form'%dim + ['s.', '.'][dim == 1])
+                print('I need to find %d Jacobi cusp form' % dim + ['s.', '.'][dim == 1])
             if try_theta_blocks is None:
-                try_theta_blocks = (dim < 3) and (jacobi_dim == dim)  #arbitrary?
+                try_theta_blocks = (dim < 3) and (jacobi_dim == dim)  # arbitrary?
             if try_theta_blocks and (jacobi_dim == dim):
                 from .weilrep_misc import weight_two_basis_from_theta_blocks, weight_three_basis_from_theta_blocks
                 if verbose:
-                    print('I will look for theta blocks of weight %d.' %weight)
+                    print('I will look for theta blocks of weight %d.' % weight)
                 if weight == 2:
                     return weight_two_basis_from_theta_blocks(self.index(), prec, dim, jacobiforms=self, verbose=verbose)
                 else:
                     return weight_three_basis_from_theta_blocks(self.index(), prec, dim, jacobiforms=self, verbose=verbose)
         wt = weight - self.nvars() / 2
         if verbose:
-            print('I will look for the corresponding vector-valued cusp forms of weight %s.'% wt)
+            print('I will look for the corresponding vector-valued cusp forms of weight %s.' % wt)
             print('-' * 60)
-        L = self.weilrep().cusp_forms_basis(wt, prec, verbose=verbose, eta_twist = eta_twist, **kwargs)
+        L = self.weilrep().cusp_forms_basis(wt, prec, verbose=verbose, eta_twist=eta_twist, **kwargs)
         if not L:
             return []
         if verbose:
@@ -713,7 +711,7 @@ class JacobiForms:
                 n += 1
             J = JacobiForms(S + A)
             w = J.weilrep()
-            X = w.basis_vanishing_to_order(weight + n/2, 1/8, prec = prec, eta_twist = eta_twist + 3 * n, verbose = verbose).jacobi_forms()
+            X = w.basis_vanishing_to_order(weight + n/2, 1/8, prec=prec, eta_twist=eta_twist + 3 * n, verbose=verbose).jacobi_forms()
             if not X:
                 return []
             prec = max(1, X[0].precision())
@@ -724,7 +722,7 @@ class JacobiForms:
             if not V_rows:
                 return []
             Z = [sum(x * u[i] for i, x in enumerate(X)) for u in V_rows]
-            f = jacobi_theta_series(prec = prec)
+            f = jacobi_theta_series(prec=prec)
             f = prod(f.pullback(matrix(u).transpose()) for u in U)
             return [z / f for z in Z]
         if not eta_twist and self.nvars() == 1 and weight <= 3:
@@ -734,9 +732,9 @@ class JacobiForms:
             if not dim:
                 return []
             if verbose:
-                print('I need to find %d Jacobi form' % dim +['s.', '.'][dim == 1])
+                print('I need to find %d Jacobi form' % dim + ['s.', '.'][dim == 1])
             if try_theta_blocks is None:
-                try_theta_blocks = (dim < 4)  #arbitrary?
+                try_theta_blocks = (dim < 4)  # arbitrary?
             if try_theta_blocks:
                 from .weilrep_misc import weight_two_basis_from_theta_blocks, weight_three_basis_from_theta_blocks
                 if verbose:
@@ -748,9 +746,9 @@ class JacobiForms:
                     return weight_three_basis_from_theta_blocks(self.index(), prec, dim, jacobiforms=self, verbose=verbose)
         wt = weight - self.nvars() / 2
         if verbose:
-            print('I will look for the corresponding vector-valued modular forms of weight %s.'% wt)
+            print('I will look for the corresponding vector-valued modular forms of weight %s.' % wt)
             print('-' * 60)
-        L = self.weilrep().modular_forms_basis(wt, prec, verbose=verbose, eta_twist = eta_twist, **kwargs)
+        L = self.weilrep().modular_forms_basis(wt, prec, verbose=verbose, eta_twist=eta_twist, **kwargs)
         if not L:
             return []
         if verbose:
@@ -825,7 +823,7 @@ class JacobiForms:
                 n += 1
             J = JacobiForms(S + A)
             kwargs['reduce_prec'] = False
-            X = J.weak_forms_basis(weight - n, prec = prec, verbose = verbose, eta_twist = eta_twist, **kwargs)
+            X = J.weak_forms_basis(weight - n, prec=prec, verbose=verbose, eta_twist=eta_twist, **kwargs)
             if not X:
                 return []
             prec = max(1, X[0].precision())
@@ -838,36 +836,38 @@ class JacobiForms:
             Z = [sum(x * u[i] for i, x in enumerate(X)) for u in V_rows]
             if verbose:
                 print(r'I will now divide by the weak Jacobi form \phi_{-1, 0}.')
-            f = jacobi_theta_series(prec = prec) / smf_eta(prec = prec)**3
+            f = jacobi_theta_series(prec=prec) / smf_eta(prec=prec)**3
             f = prod(f.pullback(matrix(u).transpose()) for u in U)
             return [z / f for z in Z]
         w = self.weilrep()
-        indices = w.rds(indices=True)
         dsdict = w.ds_dict()
         if verbose:
             print('I am looking for weak Jacobi forms of weight %d.' % weight)
         svn = self._short_vector_norms_by_component()
         N = max(svn)
         if verbose:
-            print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.'% N)
+            print('I will compute nearly-holomorphic modular forms with a pole in infinity of order at most %s.' % N)
             print('-' * 60)
         k = weight - self.nvars() / 2
-        L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose, eta_twist = eta_twist, **kwargs)
+        L = w.nearly_holomorphic_modular_forms_basis(k, N, prec, verbose=verbose, eta_twist=eta_twist, **kwargs)
         if not L:
             return []
-        v_list = w.coefficient_vector_exponents(prec, 1 - (Integer(weight - eta_twist/2) % 2), starting_from = -N, include_vectors = True, eta_twist = eta_twist)
+        v_list = w.coefficient_vector_exponents(prec, 1 - (Integer(weight - eta_twist/2) % 2), starting_from=-N, include_vectors=True, eta_twist=eta_twist)
         n = len(v_list)
-        V = span([x.coefficient_vector(starting_from = -N, ending_with = prec)[:n] for x in L])
-        e = lambda i: vector([0] * i + [1] + [0] * (n - 1 - i))
+        V = span([x.coefficient_vector(starting_from=-N, ending_with=prec)[:n] for x in L])
+
+        def e(i):
+            return vector([0] * i + [1] + [0] * (n - 1 - i))
+
         Z = [e(j) for j, (v, i) in enumerate(v_list) if i + svn[dsdict[tuple(v)]] >= 0]
         V = V.intersection(span(Z)).basis()
-        X = WeilRepModularFormsBasis(k, [w.recover_modular_form_from_coefficient_vector(k, v, prec, starting_from = -N, eta_twist = eta_twist) for v in V], w)
+        X = WeilRepModularFormsBasis(k, [w.recover_modular_form_from_coefficient_vector(k, v, prec, starting_from=-N, eta_twist=eta_twist) for v in V], w)
         X.reverse()
         if not convert_to_Jacobi_forms:
             return X
         if verbose:
             print('-' * 60)
-            print('%d of these nearly-holomorphic forms appear to arise as theta decompositions of Jacobi forms.'% len(X))
+            print('%d of these nearly-holomorphic forms appear to arise as theta decompositions of Jacobi forms.' % len(X))
             print('I am converting these modular forms to Jacobi forms.')
         jf = X.jacobi_forms()
         for y in jf:
@@ -877,7 +877,7 @@ class JacobiForms:
                 pass
         return jf
 
-    ## other:
+    # ## other:
 
     def _short_vector_norms_by_component(self):
         r"""
@@ -907,11 +907,10 @@ class JacobiForms:
         w = self.weilrep()
         ds_dict = w.ds_dict()
         ds = w.ds()
-        rds = w.rds()
         indices = w.rds(indices=True)
         S = w.gram_matrix()
         found_vectors = [g * S * g/2 if (indices[i] is None) else (-indices[i]) for i, g in enumerate(ds)]
-        N_triv = max(found_vectors) #a trivial upper bound for longest_short_vector_norm(). next we'll use PARI qfminim() to lower this
+        N_triv = max(found_vectors)  # a trivial upper bound for longest_short_vector_norm(). next we'll use PARI qfminim() to lower this
         found_vectors[0] = 0
         S_inv = S.inverse()
         try:
@@ -933,7 +932,6 @@ class JacobiForms:
             S_adj = S_inv * lvl
             vs = QuadraticForm(S_adj).short_vector_list_up_to_length(lvl * N_triv + 1)
             for n in range(len(vs)):
-                r_norm = n / lvl
                 for v in vs[n]:
                     r = S_inv * v
                     j = ds_dict[tuple(frac(x) for x in r)]
@@ -995,7 +993,7 @@ class JacobiForm:
         except KeyError:
             pass
         self.__wscale = kwargs.pop('w_scale', 1)
-        if not bool(self.__index_matrix) and self.__index_matrix.nrows() == 1: #elliptic function case?
+        if not bool(self.__index_matrix) and self.__index_matrix.nrows() == 1:  # elliptic function case?
             self.__class__ = EllipticFunction
 
     def __repr__(self):
@@ -1003,9 +1001,10 @@ class JacobiForm:
             return self.__string
         except AttributeError:
             s = str(self.fourier_expansion())
-            if not self._base_ring_is_laurent_polynomial_ring():#represent 'w'-terms as Laurent polynomials if possible
+            if not self._base_ring_is_laurent_polynomial_ring():  # represent 'w'-terms as Laurent polynomials if possible
                 n = self.nvars()
-                r = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(n)))
+                r = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(n)))
+
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
                     j = 1
@@ -1015,7 +1014,7 @@ class JacobiForm:
                     i = obj_s.index(')/')
                     return '('*j + str(r(obj_s[:(i+1)]) / r(obj_s[i+2:])) + ')'*j
                 s = sub(r'\([^()]*?\)\/((\((w_\d*(\^\d*)?\*?)+\))|(w_\d*(\^\d*)?\*?)+)', m, s)
-            if self.scale() == 2: #divide by scale
+            if self.scale() == 2:  # divide by scale
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
                     x = obj_s[0]
@@ -1024,8 +1023,8 @@ class JacobiForm:
                         if u.is_integer():
                             if u == 1:
                                 return ''
-                            return '^%d'%u
-                        return '^(%s)'%u
+                            return '^%d' % u
+                        return '^(%s)' % u
                     return obj_s + '^(1/2)'
                 s = sub(r'((?<!q)\^-?\d+)|w\_\d+(?!\^)', m, s)
             if self.nvars() == 1:
@@ -1038,7 +1037,7 @@ class JacobiForm:
     def _latex_(self):
         return latex(self.fourier_expansion())
 
-    ## basic attributes
+    # ## basic attributes
 
     def base_ring(self):
         r"""
@@ -1061,7 +1060,7 @@ class JacobiForm:
             return self.__brilpr
         except AttributeError:
             r = self.base_ring()
-            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class) #are we missing anything?
+            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class)  # are we missing anything?
             return self.__brilpr
 
     def character(self):
@@ -1083,14 +1082,14 @@ class JacobiForm:
         if starting_from is None and ending_with is None:
             try:
                 return self.__coefficient_vector
-            except:
+            except AttributeError:
                 pass
-        v = self.theta_decomposition(correct = correct, same_precision = correct).coefficient_vector(starting_from=starting_from, ending_with=ending_with)
+        v = self.theta_decomposition(correct=correct, same_precision=correct).coefficient_vector(starting_from=starting_from, ending_with=ending_with)
         if correct and starting_from is None and ending_with is None:
             self.__coefficient_vector = v
         return v
 
-    def development_coefficient(self, lattice_basis, v = []):
+    def development_coefficient(self, lattice_basis, v=[]):
         r"""
         Compute development coefficients.
 
@@ -1153,10 +1152,8 @@ class JacobiForm:
             Sz = S * z_tr
             if matrix(v) * Sz:
                 raise ValueError('The development coefficient must be evaluated along vectors orthogonal to the sublattice.')
-            A = Sz.integer_kernel().basis_matrix()
-            Rb = LaurentPolynomialRing(K,list(var('w_%d' % i) for i in range(ell) ))
+            Rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(ell)))
         else:
-            A = identity_matrix(S.nrows())
             Rb = K
             Sz = matrix([])
         j = JacobiForms(z * Sz)
@@ -1170,35 +1167,38 @@ class JacobiForm:
             P = lambda *_: 1
         if ell == 1:
             w, = Rb.gens()
+
             def m(x):
                 return w ** x[0]
         elif ell > 1:
             def m(x):
                 return Rb.monomial(*x)
         else:
-            m = lambda _:1
+            m = lambda _: 1
+
         def a(n):
             n += qshift
+
             def b(x):
                 if ell:
                     try:
-                        return sum( m(vector(x)*z_tr) * P(*S_inv*vector(x) / wscale, n) * y for x, y in x.dict().items() )
+                        return sum(m(vector(x)*z_tr) * P(*S_inv*vector(x) / wscale, n) * y for x, y in x.dict().items())
                     except AttributeError:
                         return K(x)
                     except TypeError:
-                        return sum( m(vector([x])*z_tr) * P(*S_inv*vector([x]) / wscale, n) * y for x, y in x.dict().items() )
+                        return sum(m(vector([x])*z_tr) * P(*S_inv*vector([x]) / wscale, n) * y for x, y in x.dict().items())
                 else:
                     try:
-                        return sum( P(*S_inv*vector(x) / wscale, n) * y for x, y in x.dict().items() )
+                        return sum(P(*S_inv*vector(x) / wscale, n) * y for x, y in x.dict().items())
                     except AttributeError:
                         return K(x)
                     except TypeError:
-                        return sum( P(*S_inv*vector([x]) / wscale, n) * y for x, y in x.dict().items() )
+                        return sum(P(*S_inv*vector([x]) / wscale, n) * y for x, y in x.dict().items())
             return b
-        f = R( [a(n)(h) for n, h in enumerate(self.q_coefficients())] ).add_bigoh(self.precision())
+        f = R([a(n)(h) for n, h in enumerate(self.q_coefficients())]).add_bigoh(self.precision())
         if qshift:
-            return JacobiFormWithCharacter(k + N, j.index_matrix(), f, jacobiforms = j, character = self.character(), qshift = qshift, w_scale = wscale)
-        return JacobiForm(k + N, j.index_matrix(), f, jacobiforms = j, w_scale = wscale)
+            return JacobiFormWithCharacter(k + N, j.index_matrix(), f, jacobiforms=j, character=self.character(), qshift=qshift, w_scale=wscale)
+        return JacobiForm(k + N, j.index_matrix(), f, jacobiforms=j, w_scale=wscale)
 
     def fourier_expansion(self):
         r"""
@@ -1271,13 +1271,13 @@ class JacobiForm:
 
         WARNING: we only check holomorphy at the cusps! Applying this to Jacobi forms with poles on H x (C \otimes L) itself may still return True
         """
-        X = self.theta_decomposition(same_precision = False).fourier_expansion()
+        X = self.theta_decomposition(same_precision=False).fourier_expansion()
         try:
             return all(x[2].valuation() / max(0, x[2].prec()) > 0 for x in X)
         except ZeroDivisionError:
             if self.precision() > 0:
-                raise ValueError('I am probably a cusp form. However unless my precision is at least %d it is impossible to say for sure.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
-            raise ValueError('My precision must be at least %d to tell whether I am a cusp form.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
+                raise ValueError('I am probably a cusp form. However unless my precision is at least %d it is impossible to say for sure.' % ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
+            raise ValueError('My precision must be at least %d to tell whether I am a cusp form.' % ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
 
     def is_holomorphic(self):
         r"""
@@ -1285,13 +1285,13 @@ class JacobiForm:
 
         WARNING: we only check holomorphy at the cusps! Applying this to Jacobi forms with poles on H x (C \otimes L) itself may still return True
         """
-        X = self.theta_decomposition(same_precision = False).fourier_expansion()
+        X = self.theta_decomposition(same_precision=False).fourier_expansion()
         try:
             return all(x[2].valuation() / max(0, x[2].prec()) >= 0 and (not x[1] or x[2].valuation() / max(0, x[2].prec()) > 0) for x in X)
         except ZeroDivisionError:
             if self.precision() > 0:
-                raise ValueError('I am probably a holomorphic Jacobi form. However unless my precision is at least %d it is impossible to say for sure.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
-            raise ValueError('My precision must be at least %d to tell whether I am holomorphic.'%ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
+                raise ValueError('I am probably a holomorphic Jacobi form. However unless my precision is at least %d it is impossible to say for sure.' % ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
+            raise ValueError('My precision must be at least %d to tell whether I am holomorphic.' % ceil(2 + self.jacobiforms()._longest_short_vector_norm()))
 
     def jacobiforms(self):
         r"""
@@ -1306,7 +1306,7 @@ class JacobiForm:
     def level(self):
         return 1
 
-    def modform(self, error = True):
+    def modform(self, error=True):
         r"""
         Try to return self's theta decomposition. If this is not stored then raises an AttributeError.
         """
@@ -1338,7 +1338,7 @@ class JacobiForm:
         """
         try:
             return self.__precision
-        except:
+        except AttributeError:
             self.__precision = self.fourier_expansion().prec()
             return self.__precision
 
@@ -1365,7 +1365,7 @@ class JacobiForm:
         return 0
 
     def reduce_precision(self, new_prec):
-        return JacobiForm(self.weight(), self.index_matrix(), self.qexp().add_bigoh(new_prec), modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale())
+        return JacobiForm(self.weight(), self.index_matrix(), self.qexp().add_bigoh(new_prec), modform=self.modform(error=False), weilrep=self.weilrep(), w_scale=self.scale())
 
     def _rescale(self, a):
         f = self.qexp()
@@ -1373,7 +1373,7 @@ class JacobiForm:
         rb_w = f.base_ring()
         d = {rb_w('w_%d' % j): rb_w('w_%d' % j)**a for j in range(e)}
         f = f.map_coefficients(lambda x: x.subs(d))
-        return JacobiForm(self.weight(), self.index_matrix(), f, modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale() * a)
+        return JacobiForm(self.weight(), self.index_matrix(), f, modform=self.modform(error=False), weilrep=self.weilrep(), w_scale=self.scale() * a)
 
     def scale(self):
         return self.__wscale
@@ -1411,12 +1411,12 @@ class JacobiForm:
         w = self.weilrep()
         if w is None:
             return self.hecke_U(2).theta_decomposition()
-        if self.scale() == 2: #scale back down to 1. This should be OK now.
+        if self.scale() == 2:  # scale back down to 1. This should be OK now.
             self.__wscale = 1
             f = self.qexp()
             R = self.base_ring()
             if self.nvars() > 1:
-                self.__fourier_expansion = f.map_coefficients(lambda x: R({x.escalar_div(2) : y for x, y in x.dict().items()}))
+                self.__fourier_expansion = f.map_coefficients(lambda x: R({x.escalar_div(2): y for x, y in x.dict().items()}))
             else:
                 self.__fourier_expansion = f.map_coefficients(lambda x: R({x // 2: y for x, y in x.dict().items()}))
         ds_dict = w.ds_dict()
@@ -1434,7 +1434,7 @@ class JacobiForm:
         else:
             norms = [0] * len(ds)
         f, S, e, n_list = self.fourier_expansion(), self.index_matrix(), self.nvars(), w.norm_list()
-        prec, val, S_inv= f.prec(), f.valuation(), S.inverse()
+        prec, val, S_inv = f.prec(), f.valuation(), S.inverse()
         lsr, q = LaurentSeriesRing(QQ, 'q').objgen()
         psr, q = PowerSeriesRing(QQ, 'q').objgen()
         if e == 0:
@@ -1476,7 +1476,7 @@ class JacobiForm:
         """
         try:
             return self.__valuation
-        except:
+        except AttributeError:
             self.__valuation = self.fourier_expansion().valuation()
             return self.__valuation
 
@@ -1526,7 +1526,7 @@ class JacobiForm:
         f = JacobiForm(self.__weight, self.__index_matrix, self.__fourier_expansion.change_ring(K))
         return f
 
-    ## arithmetic operations
+    # ## arithmetic operations
 
     def __add__(self, other):
         r"""
@@ -1553,7 +1553,7 @@ class JacobiForm:
                 sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
             if other.scale() == 1:
                 of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
-        return JacobiForm(self.weight(), self.index_matrix(), sf + of, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = scale)
+        return JacobiForm(self.weight(), self.index_matrix(), sf + of, modform=modform, weilrep=self.weilrep(), jacobiforms=self.jacobiforms(), w_scale=scale)
 
     __radd__ = __add__
 
@@ -1582,7 +1582,7 @@ class JacobiForm:
                 sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
             if other.scale() == 1:
                 of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
-        return JacobiForm(self.weight(), self.index_matrix(), sf - of, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = scale)
+        return JacobiForm(self.weight(), self.index_matrix(), sf - of, modform=modform, weilrep=self.weilrep(), jacobiforms=self.jacobiforms(), w_scale=scale)
 
     def __invert__(self):
         f = self.qexp()
@@ -1592,7 +1592,7 @@ class JacobiForm:
             R = f.parent()
             R_frac = FractionField(R)
             f_inv = ~R_frac(f)
-        return JacobiForm(-self.weight(), -self.index_matrix(), f_inv, w_scale = self.scale())
+        return JacobiForm(-self.weight(), -self.index_matrix(), f_inv, w_scale=self.scale())
 
     def __neg__(self):
         r"""
@@ -1602,7 +1602,7 @@ class JacobiForm:
             modform = -self.modform()
         except (AttributeError, TypeError):
             modform = None
-        return JacobiForm(self.weight(), self.index_matrix(), -self.fourier_expansion(), modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = self.scale())
+        return JacobiForm(self.weight(), self.index_matrix(), -self.fourier_expansion(), modform=modform, weilrep=self.weilrep(), jacobiforms=self.jacobiforms(), w_scale=self.scale())
 
     def __mul__(self, other):
         r"""
@@ -1626,6 +1626,7 @@ class JacobiForm:
             R = f.base_ring()
             if R is not LaurentPolynomialRing:
                 R = LaurentPolynomialRing(QQ, R.gens())
+
                 def a(x):
                     try:
                         u = R(x.numerator()) / R(x.denominator())
@@ -1638,7 +1639,7 @@ class JacobiForm:
                     f = Rq({i: a(f[i]) for i in f.exponents()}).add_bigoh(f.prec())
                 except TypeError:
                     pass
-            return JacobiForm(self.weight() + other.weight(), S1 + S2, f, w_scale = scale)
+            return JacobiForm(self.weight() + other.weight(), S1 + S2, f, w_scale=scale)
         elif isinstance(other, ModularFormElement):
             try:
                 modform = self.modform() * smf(other.weight(), other.qexp())
@@ -1647,7 +1648,7 @@ class JacobiForm:
             sf, of = self.qexp(), other.qexp()
             f = sf * of.change_ring(sf.base_ring())
             if other.level() == 1:
-                return JacobiForm(self.weight() + other.weight(), self.index_matrix(), f, modform=modform, w_scale = self.scale())
+                return JacobiForm(self.weight() + other.weight(), self.index_matrix(), f, modform=modform, w_scale=self.scale())
             from .jacobi_lvl import JacobiFormWithLevel
             return JacobiFormWithLevel(self.weight() + other.weight(), other.level(), self.index_matrix(), f)
         elif isinstance(other, WeilRepModularForm):
@@ -1660,15 +1661,15 @@ class JacobiForm:
                 f = sf * of.change_ring(sf.base_ring())
                 qshift = other.fourier_expansion()[0][1]
                 if qshift:
-                    return JacobiFormWithCharacter(self.weight() + other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale(), character = other.character(), qshift = qshift)
-                return JacobiForm(self.weight() + other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale())
+                    return JacobiFormWithCharacter(self.weight() + other.weight(), self.index_matrix(), f, modform=modform, w_scale=self.scale(), character=other.character(), qshift=qshift)
+                return JacobiForm(self.weight() + other.weight(), self.index_matrix(), f, modform=modform, w_scale=self.scale())
             raise NotImplementedError
         elif other in CC:
             try:
                 modform = self.modform() * other
             except (AttributeError, TypeError):
                 modform = None
-            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() * other, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = self.scale())
+            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() * other, modform=modform, weilrep=self.weilrep(), jacobiforms=self.jacobiforms(), w_scale=self.scale())
         raise NotImplementedError
 
     __rmul__ = __mul__
@@ -1706,6 +1707,7 @@ class JacobiForm:
                     R = LaurentPolynomialRing(QQ, R.gens())
                 except ValueError:
                     R = QQ
+
                 def a(x):
                     try:
                         u = R(x.numerator()) / R(x.denominator())
@@ -1718,7 +1720,7 @@ class JacobiForm:
                     f = Rq({i: a(f[i]) for i in f.exponents()}).add_bigoh(f.prec())
                 except TypeError:
                     pass
-            return JacobiForm(self.weight() - other.weight(), S1 - S2, f, w_scale = scale)
+            return JacobiForm(self.weight() - other.weight(), S1 - S2, f, w_scale=scale)
         elif isinstance(other, WeilRepModularForm):
             if other.weilrep().gram_matrix().nrows() == 0:
                 try:
@@ -1732,21 +1734,21 @@ class JacobiForm:
                     f = f.change_ring(LaurentPolynomialRing(R.base_ring(), R.gens()))
                 qshift = other.fourier_expansion()[0][1]
                 if qshift:
-                    return JacobiFormWithCharacter(self.weight() - other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale(), character = ~other.character(), qshift = -qshift)
-                return JacobiForm(self.weight() - other.weight(), self.index_matrix(), f, modform = modform, w_scale = self.scale())
+                    return JacobiFormWithCharacter(self.weight() - other.weight(), self.index_matrix(), f, modform=modform, w_scale=self.scale(), character=~other.character(), qshift=-qshift)
+                return JacobiForm(self.weight() - other.weight(), self.index_matrix(), f, modform=modform, w_scale=self.scale())
         elif isinstance(other, ModularFormElement):
             try:
                 modform = self.modform() / smf(-other.weight(), ~other.qexp())
             except (AttributeError, TypeError):
                 modform = None
             f = self.fourier_expansion() / other.qexp()
-            return JacobiForm(self.weight() - other.weight(), self.index_matrix(), f, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = self.scale())
+            return JacobiForm(self.weight() - other.weight(), self.index_matrix(), f, modform=modform, weilrep=self.weilrep(), jacobiforms=self.jacobiforms(), w_scale=self.scale())
         elif other in CC:
             try:
                 modform = self.modform() / other
             except (AttributeError, TypeError):
                 modform = None
-            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() / other, modform=modform, weilrep=self.weilrep(), jacobiforms = self.jacobiforms(), w_scale = self.scale())
+            return JacobiForm(self.weight(), self.index_matrix(), self.fourier_expansion() / other, modform=modform, weilrep=self.weilrep(), jacobiforms=self.jacobiforms(), w_scale=self.scale())
         raise NotImplementedError
 
     __div__ = __truediv__
@@ -1759,7 +1761,9 @@ class JacobiForm:
             x = JacobiForm(other.weight(), matrix(N), self.qexp().parent()(other.qexp()))
         elif isinstance(other, WeilRepModularForm):
             if other.weilrep().gram_matrix().nrows() == 0:
-                x = JacobiForm(self.weight() + other.weight(), self.index_matrix(), of/sf, modform = modform, w_scale = self.scale())
+                x = JacobiForm(self.weight() + other.weight(),
+                               self.index_matrix(), of / sf,
+                               modform=modform, w_scale=self.scale())
             raise NotImplementedError
         else:
             x = other
@@ -1767,7 +1771,7 @@ class JacobiForm:
 
     __rdiv__ = __rtruediv__
 
-    def __pow__(self, other):  ## "tensor product" i.e. multiply together with separate abelian variables!
+    def __pow__(self, other):  # "tensor product" i.e. multiply together with separate abelian variables!
         r"""
         Outer product of Jacobi forms.
 
@@ -1790,14 +1794,14 @@ class JacobiForm:
 
         """
         if other in ZZ:
-            return JacobiForm(self.weight() * other, self.index_matrix() * other, self.fourier_expansion()**other, w_scale = self.scale())
+            return JacobiForm(self.weight() * other, self.index_matrix() * other, self.fourier_expansion()**other, w_scale=self.scale())
         elif not isinstance(other, JacobiForm):
             raise ValueError('Cannot multiply these objects')
         S1 = self.index_matrix()
         S2 = other.index_matrix()
         bigS = block_diagonal_matrix([S1, S2])
         K = self.base_ring().base_ring()
-        rb = LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(bigS.nrows())))
+        rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(bigS.nrows())))
         r, q = PowerSeriesRing(rb, 'q').objgen()
         g = rb.gens()
         e1 = S1.nrows()
@@ -1811,9 +1815,9 @@ class JacobiForm:
                 sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r0.gens()}))
             if other.scale() == 1:
                 f = f.map_coefficients(lambda x: x.subs({y: y*y for y in r0.gens()}))
-        #val = other.valuation()
-        jf = [rb(f[i]).subs({g[j]:g[j+e1] for j in range(e2)}) for i in range(f.valuation(), f.prec())]
-        return JacobiForm(self.weight() + other.weight(), bigS, r(sf) * r(jf) + O(q**other.precision()), w_scale = scale)
+        # val = other.valuation()
+        jf = [rb(f[i]).subs({g[j]: g[j+e1] for j in range(e2)}) for i in range(f.valuation(), f.prec())]
+        return JacobiForm(self.weight() + other.weight(), bigS, r(sf) * r(jf) + O(q**other.precision()), w_scale=scale)
 
     def __eq__(self, other):
         sf, of = self.qexp(), other.qexp()
@@ -1833,7 +1837,7 @@ class JacobiForm:
                 of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
         return sf == of
 
-    ## other operations
+    # ## other operations
 
     def borcherds_lift(self, **kwargs):
         return self._borcherds_lift_via_theta(**kwargs)
@@ -1950,11 +1954,11 @@ class JacobiForm:
         return f
 
     def hecke_P(self, N):
-        ##fix this!!
+        # fix this!!
         return self.theta_decomposition().hecke_P().jacobi_form()
 
     def hecke_T(self, N):
-        ##fix this!!
+        # fix this!!
         r"""
         Apply the Nth Hecke T-operator.
 
@@ -1991,7 +1995,7 @@ class JacobiForm:
             return NotImplemented
         scale = self.scale()
         if scale == 2 and not N % 2:
-            return JacobiForm(self.weight(), 4 * self.index_matrix(), self.fourier_expansion(), w_scale = 1).hecke_U(N // 2)
+            return JacobiForm(self.weight(), 4 * self.index_matrix(), self.fourier_expansion(), w_scale=1).hecke_U(N // 2)
         S = self.index_matrix()
         e = S.nrows()
         Rb = self.base_ring()
@@ -1999,7 +2003,7 @@ class JacobiForm:
         R, q = PowerSeriesRing(Rb, 'q').objgen()
         val = self.valuation()
         f = [g.subs({Rb('w_%d' % j): Rb('w_%d' % j)**N for j in range(e)}) for g in F]
-        return JacobiForm(self.weight(), N * N * S, q**val * R(f) + O(q**self.precision()), w_scale = self.scale())
+        return JacobiForm(self.weight(), N * N * S, q**val * R(f) + O(q**self.precision()), w_scale=self.scale())
     U = hecke_U
 
     def hecke_V(self, N):
@@ -2040,8 +2044,7 @@ class JacobiForm:
             d = N // ZZ(a)
             sub_a = {Rb('w_%d' % j): Rb('w_%d' % j)**a for j in range(e)}
             f += sum([a**(k_1) * q**(a * (i + val)) * F[d * (i + val) - val].subs(sub_a) for i in range(max(0, ceil(val * (1 / d - 1))), min(-((len(F) + (1 - d) * val) // -d), max_prec))])
-        return JacobiForm(k_1 + 1, N * S, f, w_scale = self.scale())
-
+        return JacobiForm(k_1 + 1, N * S, f, w_scale=self.scale())
 
     def hecke_V_adj(self, N):
         r"""
@@ -2055,7 +2058,7 @@ class JacobiForm:
         return NotImplemented
         return self.theta_decomposition().hecke_V_adj(N).jacobi_form()
 
-    def pullback(self, A):  #return self evaluated at tau, A*z
+    def pullback(self, A):  # return self evaluated at tau, A*z
         r"""
         Apply a linear map to self's elliptic variables.
 
@@ -2080,8 +2083,8 @@ class JacobiForm:
         f = self.fourier_expansion()
         S = self.index_matrix()
         e = S.nrows()
-        Rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e)))
-        Rb_new = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(new_e)))
+        Rb = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(e)))
+        Rb_new = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(new_e)))
         R, q = PowerSeriesRing(Rb_new, 'q').objgen()
         val = f.valuation()
         prec = f.prec()
@@ -2091,7 +2094,7 @@ class JacobiForm:
             w, = Rb_new.gens()
             sub_R = {Rb('w_%d' % j): w**A[0, j] for j in range(e)}
         jf_new = [f[i].subs(sub_R) for i in range(val, prec)]
-        return JacobiForm(self.weight(), A * S * A.transpose(), q**val * R(jf_new) + O(q**f.prec()), w_scale = self.scale())
+        return JacobiForm(self.weight(), A * S * A.transpose(), q**val * R(jf_new) + O(q**f.prec()), w_scale=self.scale())
 
     substitute = pullback
 
@@ -2101,7 +2104,7 @@ class JacobiForm:
             return self.theta_decomposition().serre_derivative().jacobi_form()
         else:
             h = self.hecke_U(2).serre_derivative()
-            return JacobiForm(self.weight() + 2, self.index_matrix(), h.fourier_expansion(), w_scale = 2)
+            return JacobiForm(self.weight() + 2, self.index_matrix(), h.fourier_expansion(), w_scale=2)
 
     def substitute_zero(self, indices=None):
         r"""
@@ -2129,9 +2132,9 @@ class JacobiForm:
         f = self.fourier_expansion()
         S = self.index_matrix()
         e = S.nrows()
-        Rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e)))
+        Rb = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(e)))
         try:
-            Rb_new = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(e - len(indices))))
+            Rb_new = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(e - len(indices))))
         except ValueError:
             Rb_new = QQ
         R_new, q = PowerSeriesRing(Rb_new, 'q').objgen()
@@ -2146,7 +2149,7 @@ class JacobiForm:
             f = self.modform()
             from .weilrep_modular_forms_class import smf_eta
             if k:
-                f *= smf_eta(prec = f.precision())**(24 - k)
+                f *= smf_eta(prec=f.precision())**(24 - k)
             V = []
             for i in L:
                 v = vector([0] * e)
@@ -2154,19 +2157,20 @@ class JacobiForm:
                 V.append(v)
             f = f.pullback(V)
             if k:
-                f /= smf_eta(prec = f.precision())**(24 - k)
+                f /= smf_eta(prec=f.precision())**(24 - k)
         except AttributeError:
             f = None
-        return JacobiForm(self.weight(), S[L, L], q**val * jf_sub + O(q**prec), modform = f, w_scale = self.scale())
+        return JacobiForm(self.weight(), S[L, L], q**val * jf_sub + O(q**prec), modform=f, w_scale=self.scale())
 
     def derivative_at_zero(self, index):
         y = self.base_ring().gens()[index]
-        f = JacobiForm(self.weight() + 1, self.index_matrix(), self.fourier_expansion().map_coefficients(lambda x: x.derivative(y)), w_scale = self.scale()) / self.scale()
+        f = JacobiForm(self.weight() + 1, self.index_matrix(), self.fourier_expansion().map_coefficients(lambda x: x.derivative(y)), w_scale=self.scale()) / self.scale()
         return f.substitute_zero([index])
 
-#special jacobi forms
+# special jacobi forms
 
-def jacobi_eisenstein_series(k, m, prec = 20, allow_small_weight=False):
+
+def jacobi_eisenstein_series(k, m, prec=20, allow_small_weight=False):
     r"""
     Compute the Jacobi Eisenstein series.
 
@@ -2174,7 +2178,8 @@ def jacobi_eisenstein_series(k, m, prec = 20, allow_small_weight=False):
     """
     return JacobiForms(m).eisenstein_series(k, prec, allow_small_weight=allow_small_weight)
 
-def jacobi_theta_series(prec = 20, s = None):
+
+def jacobi_theta_series(prec=20, s=None):
     if s:
         from .jacobi_lvl import jacobi_theta_00, jacobi_theta_01, jacobi_theta_10
         if s == '00':
@@ -2185,10 +2190,11 @@ def jacobi_theta_series(prec = 20, s = None):
             return jacobi_theta_10(prec)
         elif s == '11':
             return theta_block([1], 0, prec)
-        raise ValueError('Undefined theta characteristic: %s'%s)
+        raise ValueError('Undefined theta characteristic: %s' % s)
     return theta_block([1], 0, prec)
 
-def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to a=[a1,...,ar] and eta^n
+
+def theta_block(a, n, prec, jacobiforms=None):  # theta block corresponding to a=[a1,...,ar] and eta^n
     r"""
     Compute theta blocks.
 
@@ -2229,7 +2235,7 @@ def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to 
     a0_list = list(a0)
     rb, w_0 = LaurentPolynomialRing(QQ, 'w_0').objgen()
     q, = PowerSeriesRing(rb, 'q', prec).gens()
-    thetas = [O(q**prec)] * len(a0_list)  #compute theta functions. we don't generally spend much time on this part so I won't bother caching them
+    thetas = [O(q**prec)] * len(a0_list)  # compute theta functions. we don't generally spend much time on this part so I won't bother caching them
     eta = O(q**prec)
     bound = isqrt(prec + prec + 1 / 4) + 1
     eps = 1 - 2 * (bound % 2)
@@ -2245,8 +2251,9 @@ def theta_block(a, n, prec, jacobiforms = None):  #theta block corresponding to 
         jacobiforms = JacobiForms(S)
     z = prod([theta**a0[a0_list[i]] for i, theta in enumerate(thetas)]) * (eta**n) * q**qval * w_0**wval
     if qshift:
-        return JacobiFormWithCharacter(weight, S, z, jacobiforms = jacobiforms, w_scale = scale, qshift = qshift / 24, character = EtaCharacterPower(qshift))
-    return JacobiForm(weight, S, z, jacobiforms = jacobiforms, w_scale = scale)
+        return JacobiFormWithCharacter(weight, S, z, jacobiforms=jacobiforms, w_scale=scale, qshift=qshift / 24, character=EtaCharacterPower(qshift))
+    return JacobiForm(weight, S, z, jacobiforms=jacobiforms, w_scale=scale)
+
 
 def root_lattice_theta_block(root_system, prec):
     r"""
@@ -2273,6 +2280,7 @@ def root_lattice_theta_block(root_system, prec):
     theta = jacobi_theta_series(prec)
     eta = smf_eta(prec)
     return eta ** (R.rank() - len(P)) * prod(theta.pullback(x) for x in coords)
+
 
 class JacobiFormWithCharacter(JacobiForm):
     r"""
@@ -2302,13 +2310,13 @@ class JacobiFormWithCharacter(JacobiForm):
             e = self.nvars()
             if super().__bool__():
                 if e:
-                    s = ' + '.join('(%s)*q^(%s)'%(str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))'%(self.precision() + x)
+                    s = ' + '.join('(%s)*q^(%s)' % (str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))' % (self.precision() + x)
                 else:
-                    s = ' + '.join('%s*q^(%s)'%(str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))'%(self.precision() + x)
+                    s = ' + '.join('%s*q^(%s)' % (str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))' % (self.precision() + x)
                     s = s.replace('1*', '')
                     s = s.replace('+ -', '- ')
             else:
-                s = 'O(q^(%s))'%(self.precision() + x)
+                s = 'O(q^(%s))' % (self.precision() + x)
             if self.scale() == 2:
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
@@ -2318,9 +2326,9 @@ class JacobiFormWithCharacter(JacobiForm):
                         if u.is_integer():
                             if u == 1:
                                 return ''
-                            return '^%d'%u
-                        return '^(%s)'%u
-                    return obj_s + '^(%s)'%sage_one_half
+                            return '^%d' % u
+                        return '^(%s)' % u
+                    return obj_s + '^(1/2)'
                 s = sub(r'((?<!q)\^-?\d+)|w\_\d+(?!\^)', m, s)
             if self.nvars() == 1:
                 s = s.replace('w_0', 'w')
@@ -2337,13 +2345,13 @@ class JacobiFormWithCharacter(JacobiForm):
         if self.character() != other.character():
             return NotImplemented
         f = super().__add__(other)
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character(), qshift=self._qshift(), w_scale=f.scale())
 
     def __sub__(self, other):
         if self.character() != other.character():
             return NotImplemented
         f = super().__sub__(other)
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character(), qshift=self._qshift(), w_scale=f.scale())
 
     def __mul__(self, other):
         try:
@@ -2362,7 +2370,7 @@ class JacobiFormWithCharacter(JacobiForm):
             x *= f.character()
         except AttributeError:
             pass
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = x, qshift = qshift, w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=x, qshift=qshift, w_scale=f.scale())
 
     __rmul__ = __mul__
 
@@ -2385,18 +2393,18 @@ class JacobiFormWithCharacter(JacobiForm):
             f.__qshift = 0
             f.__class__ = JacobiForm
             return f
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = x, qshift = qshift, w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=x, qshift=qshift, w_scale=f.scale())
 
     __truediv__ = __div__
 
     def __pow__(self, N):
         f = super().__pow__(N)
         qshift = self._qshift() * N
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character()**N, qshift = qshift, w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character()**N, qshift=qshift, w_scale=f.scale())
 
     def __neg__(self):
         f = super().__neg__()
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character(), qshift=self._qshift(), w_scale=f.scale())
 
     def __rdiv__(self, other):
         return (~self).__mul__(other)
@@ -2405,17 +2413,17 @@ class JacobiFormWithCharacter(JacobiForm):
 
     def __invert__(self):
         f = super().__invert__()
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = ~self.character(), qshift = -self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=~self.character(), qshift=-self._qshift(), w_scale=f.scale())
 
     def substitute_zero(self, *args):
         f = super().substitute_zero(*args)
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character(), qshift=self._qshift(), w_scale=f.scale())
 
     def pullback(self, *args):
         f = super().pullback(*args)
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character(), qshift=self._qshift(), w_scale=f.scale())
 
-    def theta_decomposition(self, **kwargs): #dumb
+    def theta_decomposition(self, **kwargs):  # dumb
         try:
             return self._JacobiForm__theta
         except AttributeError:
@@ -2432,7 +2440,7 @@ class JacobiFormWithCharacter(JacobiForm):
 
     def hecke_U(self, N):
         f = super().hecke_U(N)
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character(), qshift=self._qshift(), w_scale=f.scale())
 
     def hecke_V(self, N):
         r"""
@@ -2449,7 +2457,7 @@ class JacobiFormWithCharacter(JacobiForm):
         wt = self.weight()
         chi = self.character()
         k = chi._k()
-        if 24 % k :
+        if 24 % k:
             return NotImplemented
         Q = 24 // k
         if Q > 2:
@@ -2492,10 +2500,10 @@ class JacobiFormWithCharacter(JacobiForm):
                     s += q ** u * F[n].subs(sub_a)
             if wt in ZZ or is_square(a):
                 h += a**wt_1 * multiplier * s
-        return JacobiFormWithCharacter(wt, N * S, h, w_scale = self.scale(), character = chi**x, qshift = new_shift)
+        return JacobiFormWithCharacter(wt, N * S, h, w_scale=self.scale(), character=chi**x, qshift=new_shift)
 
     def reduce_precision(self, new_prec):
-        return JacobiFormWithCharacter(self.weight(), self.index_matrix(), self.qexp().add_bigoh(new_prec), modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale(), character = self.character(), qshift = self._qshift())
+        return JacobiFormWithCharacter(self.weight(), self.index_matrix(), self.qexp().add_bigoh(new_prec), modform=self.modform(error=False), weilrep=self.weilrep(), w_scale=self.scale(), character=self.character(), qshift=self._qshift())
 
     def _rescale(self, a):
         f = self.qexp()
@@ -2503,13 +2511,13 @@ class JacobiFormWithCharacter(JacobiForm):
         rb_w = f.base_ring()
         d = {rb_w('w_%d' % j): rb_w('w_%d' % j)**a for j in range(e)}
         f = f.map_coefficients(lambda x: x.subs(d))
-        return JacobiFormWithCharacter(self.weight(), self.index_matrix(), f, modform = self.modform(error = False), weilrep = self.weilrep(), w_scale = self.scale() * a, character = self.character(), qshift = self._qshift())
+        return JacobiFormWithCharacter(self.weight(), self.index_matrix(), f, modform=self.modform(error=False), weilrep=self.weilrep(), w_scale=self.scale() * a, character=self.character(), qshift=self._qshift())
 
     def serre_derivative(self):
         f = super().serre_derivative()
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform = f.modform(error=False), weilrep = f.weilrep(), character = self.character(), qshift = self._qshift(), w_scale = f.scale())
+        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character(), qshift=self._qshift(), w_scale=f.scale())
 
-    ## lift
+    # ## lift
 
     def gritsenko_lift(self, prec=None):
         from .lifts import OrthogonalModularForms
@@ -2541,9 +2549,9 @@ class JacobiFormWithCharacter(JacobiForm):
         return OrthogonalModularForms(self.index_matrix() / qshift).modular_form_from_fourier_jacobi_expansion(fj)
 
 
-## Extra functions
+# ## Extra functions
 
-def jf_rankin_cohen(N, f1, f2, direct = False):
+def jf_rankin_cohen(N, f1, f2, direct=False):
     r"""
     Compute the Nth Rankin--Cohen bracket of two Jacobi forms.
 
@@ -2573,6 +2581,7 @@ def jf_rankin_cohen(N, f1, f2, direct = False):
         F = F.theta_contraction()
     return F.jacobi_form()
 
+
 def _jf_relations(X):
     r"""
     Compute all relations among a set of Jacobi forms.
@@ -2591,15 +2600,14 @@ def _jf_relations(X):
         X = [x.theta_decomposition() for x in X]
         val = min(x.valuation() for x in X)
         prec = min(x.precision() for x in X)
-        M = matrix([x.coefficient_vector(starting_from = val, ending_with = prec) for x in X])
+        M = matrix([x.coefficient_vector(starting_from=val, ending_with=prec) for x in X])
         return M.kernel()
     except ZeroDivisionError:
         def V(n):
             p = [x.qexp()[n] for x in X]
             q = lcm([x.denominator() for x in p])
             p = [p*q for p in p]
-            p_ref = p[0]
-            r = LaurentPolynomialRing(QQ, ['w_%s'%j for j in range(N)])
+            r = LaurentPolynomialRing(QQ, ['w_%s' % j for j in range(N)])
             p = [defaultdict(lambda: 0, r(p).dict()) for p in p]
             p_keys = [set(x.keys()) for x in p]
             p_keys = list(p_keys[0].union(*p_keys[1:]))
@@ -2620,7 +2628,7 @@ def weierstrass_p(prec):
     r, w = LaurentPolynomialRing(QQ, 'w_0').objgen()
     q = PowerSeriesRing(FractionField(r), 'q').gen()
     f = (w * w + 10 * w + 1) / (12 * (w - 1) * (w - 1))
-    return JacobiForm(2, matrix([[0]]), f + sum( n * (w**n + w**(-n) - 2) * sum( q ** (m * n) for m in range(1, (prec // n) + 1) ) for n in range(1, prec)).add_bigoh(prec))
+    return JacobiForm(2, matrix([[0]]), f + sum(n * (w**n + w**(-n) - 2) * sum(q ** (m * n) for m in range(1, (prec // n) + 1)) for n in range(1, prec)).add_bigoh(prec))
 
 
 class EllipticFunction(JacobiForm):

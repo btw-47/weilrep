@@ -18,12 +18,11 @@ from inspect import isfunction
 from itertools import chain
 
 from sage.functions.other import frac
-from sage.matrix.constructor import matrix
 from sage.modules.free_module_element import vector
 from sage.rings.integer_ring import ZZ
-from sage.rings.rational_field import QQ
 
 from .weilrep_modular_forms_class import WeilRepModularForm
+
 
 class WeilRepMorphism:
     r"""
@@ -40,15 +39,17 @@ class WeilRepMorphism:
     f is meant to be an morphism, i.e. f(x+y) = f(x) + f(y) and  Q2(f(x)) = Q1(x) for all x, y if Q1 is the quadratic form of w1 and Q2 of w2.
     """
 
-    def __init__(self, w1, w2, f, check = True):
+    def __init__(self, w1, w2, f, check=True):
         if not isfunction(f):
             A = f
-            f = lambda x: vector(map(frac, A * x))
+
+            def f(x):
+                return vector(map(frac, A * x))
+
         self.__input_weilrep = w1
         self.__output_weilrep = w2
         self.__f = f
         if check:
-            dsdict = w2.ds_dict()
             dsgens = w1.ds_gens()
             s1 = w1.gram_matrix()
             s2 = w2.gram_matrix()
@@ -66,12 +67,12 @@ class WeilRepMorphism:
         if w1 == w2:
             self.__class__ = WeilRepAutomorphism
 
-    def __repr__(self, gens = None):
+    def __repr__(self, gens=None):
         w = self.input_weilrep()
         f = self.__f
         if gens is None:
             gens = w.ds_gens()
-        return 'Morphism from %s to %s\nmapping %s'%(w, self.output_weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in gens]))
+        return 'Morphism from %s to %s\nmapping %s' % (w, self.output_weilrep(), ', '.join(['%s->%s' % (x, f(x)) for x in gens]))
 
     def f(self):
         r"""
@@ -130,7 +131,7 @@ class WeilRepMorphism:
                 Z = self.__indices
             f = self.f()
             w = self.output_weilrep()
-            return WeilRepModularForm(X.weight(), w.gram_matrix(), [(f(Xf[i][0]), Xf[i][1], Xf[z][2]) for i,z in enumerate(Z)], weilrep = w)
+            return WeilRepModularForm(X.weight(), w.gram_matrix(), [(f(Xf[i][0]), Xf[i][1], Xf[z][2]) for i, z in enumerate(Z)], weilrep=w)
         except AttributeError:
             return self.f()(X)
 
@@ -155,19 +156,19 @@ class WeilRepMorphism:
 
     def matrix(self):
         raise NotImplementedError
-        #try:
+        # try:
         #    return self.__matrix
-        #except AttributeError:
+        # except AttributeError:
         #    raise NotImplementedError('This morphism was not constructed as a matrix') from None
-        #L = []
-        #w = self.input_weilrep()
-        #ds = w.ds()
-        #i = 0
-        #S = w.gram_matrix()
-        #n = S.nrows()
-        #A = matrix(L)
-        #r = A.rank()
-        #while r < n:
+        # L = []
+        # w = self.input_weilrep()
+        # ds = w.ds()
+        # i = 0
+        # S = w.gram_matrix()
+        # n = S.nrows()
+        # A = matrix(L)
+        # r = A.rank()
+        # while r < n:
         #    v = ds[i]
         #    B = matrix(L + [v])
         #    if B.rank() > r:
@@ -175,7 +176,7 @@ class WeilRepMorphism:
         #        r = A.rank()
         #        L = L + [v]
         #    i += 1
-        #return (A.inverse() * matrix([self(a) for a in A])).transpose()
+        # return (A.inverse() * matrix([self(a) for a in A])).transpose()
 
     def __mul__(self, other):
         r"""
@@ -213,7 +214,7 @@ class WeilRepAutomorphism(WeilRepMorphism):
     def weilrep(self):
         return self.input_weilrep()
 
-    def __repr__(self, gens = None):
+    def __repr__(self, gens=None):
         w = self.weilrep()
         f = self.f()
         if gens is None:
@@ -222,9 +223,9 @@ class WeilRepAutomorphism(WeilRepMorphism):
             d = w._unitary_ds_to_ds()
             d2 = w._ds_to_unitary_ds()
             uds = self.weilrep().unitary_ds()
-            return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, d2[tuple(f(d[tuple(x)]))]) for x in uds]))
+            return 'Automorphism of %s\nmapping %s' % (self.weilrep(), ', '.join(['%s->%s' % (x, d2[tuple(f(d[tuple(x)]))]) for x in uds]))
         except AttributeError:
-            return 'Automorphism of %s\nmapping %s'%(self.weilrep(), ', '.join(['%s->%s'%(x, f(x)) for x in gens]))
+            return 'Automorphism of %s\nmapping %s' % (self.weilrep(), ', '.join(['%s->%s' % (x, f(x)) for x in gens]))
 
     def __pow__(self, n):
         r"""
@@ -239,9 +240,10 @@ class WeilRepAutomorphism(WeilRepMorphism):
         nhalf = n // 2
         return self.__pow__(nhalf).__mul__(self.__pow__(n - nhalf))
 
+
 class WeilRepAutomorphismGroup:
 
-    def __init__(self, weilrep, G, group, name = None):
+    def __init__(self, weilrep, G, group, name=None):
         self.__weilrep = weilrep
         self.__G = G
         self.__group = group
@@ -263,21 +265,20 @@ class WeilRepAutomorphismGroup:
 
     def __repr__(self):
         if self.__name:
-            return '%s of %s'%(self.__name, self.weilrep())
-        return 'Automorphism group of %s'%self.weilrep()
+            return '%s of %s' % (self.__name, self.weilrep())
+        return 'Automorphism group of %s' % self.weilrep()
 
     def weilrep(self):
         return self.__weilrep
 
-    def display(self, gens = None):
-        h = '\n' + '-'*80 + '\n'
-        print(h.join(x.__repr__(gens = gens) for x in self.__G))
+    def display(self, gens=None):
+        h = '\n' + '-' * 80 + '\n'
+        print(h.join(x.__repr__(gens=gens) for x in self.__G))
 
     def gens(self):
         r"""
         Compute a list of automorphisms that generate this group.
         """
-        gens = []
         G = self.group()
         LG = list(G)
         return [self.__G[LG.index(x)] for x in G.gens()]
@@ -293,8 +294,9 @@ class WeilRepAutomorphismGroup:
         X = G.character_table()
         X = [x for x in X.rows() if x[0] == 1]
         Y = G.conjugacy_classes()
-        Z = [list(chain.from_iterable([[ZZ(x)]*len(Y[i]) for i, x in enumerate(x)])) for x in X]
-        Z = [[1]*len(G)] + [z for z in Z if any(x != 1 for x in z)]
+        Z = [list(chain.from_iterable([[ZZ(x)] * len(Y[i]) for i, x in enumerate(x)]))
+             for x in X]
+        Z = [[1] * len(G)] + [z for z in Z if any(x != 1 for x in z)]
         if self.__name:
             return [[z[i] for i in self.__indices] for z in Z]
         return Z
