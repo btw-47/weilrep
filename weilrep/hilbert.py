@@ -659,7 +659,7 @@ class HilbertHeckeOperator:
                 if n % 2 == i % 2:
                     N = (i + n/sqrtD)/(d + d)
                     try:
-                        L1 = [x for x in L]
+                        L1 = list(L)
                         L1.append([self._get_coefficient(f, N) for f in X])
                         M = matrix(L1)
                         rank1 = M.rank()

@@ -1962,7 +1962,7 @@ class WeilRep(object):
                 k0 = -1
             dk = Integer(2 - 2*k)
             u = (-1) * (4 * pi) ** (k - 1) * gamma(2 - k)
-            X = [x for x in (u * X).fourier_expansion()]
+            X = list((u * X).fourier_expansion())
             constant_term_factor = k0 * 2**k * pi * zeta(dk) / (sqrt(d) * zeta(dk + 1))
             multiplier = Integer(1)
             for i, x in enumerate(X):
@@ -1988,7 +1988,7 @@ class WeilRep(object):
             if (2 * k - self.signature()) % 8:
                 k0 = -1
             u = QQ((-1) * 4 ** (k - 1) * gamma(2 - k))
-            X = [x for x in (u * X).fourier_expansion()]
+            X = list((u * X).fourier_expansion())
             D = ZZ(d * (-1) ** k)
             constant_term_factor = k0 * ZZ(2)**k * (pi ** (2 - k)) * L(1 - k, D) / (sqrt(d) * L(2 - k, D))
             multiplier = pi ** (k - 1)
@@ -3703,7 +3703,7 @@ class WeilRep(object):
         E.reverse()
         for f in E:
             if dim is None or len(Y) < dim:
-                temp = [y for y in Y]
+                temp = list(Y)
                 Y = WeilRepModularFormsBasis(f.weight(), [f] + [x.serre_derivative(normalize_constant_term = True) for x in Y] + [e4 * z for z in Z], self)
                 Z = temp
             else:
@@ -4103,9 +4103,9 @@ class WeilRep(object):
                     return L
                 else:
                     if funct is None:
-                        X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])], self)
+                        X = WeilRepModularFormsBasis(weight, list(self.cusp_forms_basis(weight, prec, verbose = verbose, E = L[0])), self)
                     else:
-                        X = WeilRepModularFormsBasis(weight, [x for x in self.cusp_forms_basis(weight, prec, verbose = verbose)], self)
+                        X = WeilRepModularFormsBasis(weight, list(self.cusp_forms_basis(weight, prec, verbose = verbose)), self)
                     X.extend(L)
                     try:
                         X.echelonize()
@@ -4304,7 +4304,7 @@ class WeilRep(object):
             for n in range(j_order):
                 jl[n] = j0
                 j0 *= j
-            Y = WeilRepModularFormsBasis(k, [x for x in X] + [x * y for y in jl for x in X], self, symmetry_data = symmetry_data)
+            Y = WeilRepModularFormsBasis(k, list(X) + [x * y for y in jl for x in X], self, symmetry_data = symmetry_data)
             if reduce_prec:
                 for y in Y:
                     y.reduce_precision(prec)
