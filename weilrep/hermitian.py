@@ -18,14 +18,11 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
-import math
-
-from sage.arith.misc import gcd, next_prime, xgcd
+from sage.arith.misc import next_prime
 from sage.arith.srange import srange
-from sage.functions.other import ceil, floor
+from sage.functions.other import floor
 from sage.matrix.constructor import matrix
-from sage.misc.functional import denominator, isqrt
-from sage.modular.arithgroup.congroup_gamma0 import is_Gamma0
+from sage.misc.functional import isqrt
 from sage.modules.free_module_element import vector
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
@@ -34,13 +31,12 @@ from sage.rings.polynomial.polydict import ETuple
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.rational_field import QQ
 
-from .lifts import OrthogonalModularForm, OrthogonalModularForms
-from .lorentz import II, OrthogonalModularFormLorentzian, OrthogonalModularFormsLorentzian
-from .positive_definite import OrthogonalModularFormPositiveDefinite, OrthogonalModularFormsPositiveDefinite
+from .lifts import OrthogonalModularForm
+from .lorentz import II
+from .positive_definite import (OrthogonalModularFormPositiveDefinite,
+                                OrthogonalModularFormsPositiveDefinite)
 from .weilrep import WeilRep
-from .weilrep_misc import relations
-
-sage_one_half = Integer(1) / Integer(2)
+# from somewhere import HermitianModularFormsWithLevel
 
 
 class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
@@ -64,7 +60,7 @@ class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
         w.lift_qexp_representation = 'hermite', K, level
 
     def __repr__(self):
-        return 'Hermitian modular forms of degree two over %s'%str(self.__base_field)
+        return 'Hermitian modular forms of degree two over %s' % str(self.__base_field)
 
     def base_field(self):
         return self.__base_field
@@ -75,7 +71,7 @@ class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
     def hecke_operator(self, p):
         return HermitianHeckeOperator(self, p)
 
-    def eigenforms(self, X, _p = 2, _name = '', _final_recursion = True, _K_list = []):
+    def eigenforms(self, X, _p=2, _name='', _final_recursion=True, _K_list=[]):
         r"""
         Decompose a space X into common eigenforms of the Hecke operators.
 
@@ -100,7 +96,7 @@ class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
         chi_list = []
         for x, n in F:
             if x.degree() > 1:
-                name = 'a_%s%s'%(_name, i)
+                name = 'a_%s%s' % (_name, i)
                 K = NumberField(x, name)
                 i += 1
             else:
@@ -111,7 +107,7 @@ class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
             if n == 1:
                 if len(V_rows) > 1:
                     P = matrix(K, [V.solve_left(M_K * v) for v in V_rows])
-                    for p in P.eigenvectors_left(extend = False):
+                    for p in P.eigenvectors_left(extend=False):
                         c = p[0].charpoly()
                         if c not in chi_list:
                             L.append(vector(p[1][0]) * V)
@@ -121,8 +117,8 @@ class HermitianModularForms(OrthogonalModularFormsPositiveDefinite):
                     L.append(V_rows[0])
                     K_list.append(K)
             else:
-                _name = _name + '%s_'%i
-                K_list_2, eigenvectors = self.eigenforms(V_rows, _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
+                _name = _name + '%s_' % i
+                K_list_2, eigenvectors = self.eigenforms(V_rows, _p=next_prime(_p), _name=_name, _final_recursion=False, _K_list=K_list)
                 K_list.extend(K_list_2)
                 L.extend(eigenvectors)
         L = [sum(X[i] * y for i, y in enumerate(x)) for x in L]
@@ -152,7 +148,7 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
     - ``level`` -- level (default 1)
     """
 
-    def __init__(self, base_field, level = 1):
+    def __init__(self, base_field, level=1):
         self.__base_field = base_field
 
     def __repr__(self):
@@ -185,9 +181,9 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                 if a:
                     if a != 1:
                         if a.is_integer():
-                            q_power = 'q^%s'%a
+                            q_power = 'q^%s' % a
                         else:
-                            q_power = 'q^(%s)'%a
+                            q_power = 'q^(%s)' % a
                     else:
                         q_power = 'q'
                 else:
@@ -195,9 +191,9 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                 if c:
                     if c != 1:
                         if c.is_integer():
-                            s_power = 's^%s'%c
+                            s_power = 's^%s' % c
                         else:
-                            s_power = 's^(%s)'%c
+                            s_power = 's^(%s)' % c
                     else:
                         s_power = 's'
                 else:
@@ -211,9 +207,9 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                             r2exp = v[0] + v[1] * omega_c
                             coef = True
                             if sign:
-                                if C > 0 and C!= 1:
+                                if C > 0 and C != 1:
                                     s += ' + ' + str(C)
-                                elif C + 1 and C!= 1:
+                                elif C + 1 and C != 1:
                                     s += ' - ' + str(-C)
                                 elif C + 1:
                                     s += ' + '
@@ -231,13 +227,13 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                                 sign = True
                             if r1exp:
                                 if coef:
-                                      s += '*'
+                                    s += '*'
                                 if r1exp != r2exp or not r1exp.is_integer():
-                                      s += q_power+'*r1^(%s)*r2^(%s)*'%(r1exp, r2exp)+s_power
+                                    s += q_power+'*r1^(%s)*r2^(%s)*' % (r1exp, r2exp)+s_power
                                 elif r1exp != 1:
-                                      s += q_power+'*r1^%s*r2^%s*'%(r1exp, r2exp)+s_power
+                                    s += q_power+'*r1^%s*r2^%s*' % (r1exp, r2exp)+s_power
                                 else:
-                                      s += q_power+'*r1*r2*'+s_power
+                                    s += q_power+'*r1*r2*'+s_power
                             else:
                                 if coef and z:
                                     s += '*'
@@ -249,6 +245,7 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                 except AttributeError:
                     p_num = p.numerator()
                     p_denom = p.denominator()
+
                     def Y(_dict):
                         t = ''
                         t_sign = False
@@ -259,9 +256,9 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                                 r2exp = v[0] + v[1] * omega_c
                                 coef = True
                                 if t_sign:
-                                    if C > 0 and C!= 1:
+                                    if C > 0 and C != 1:
                                         t += ' + ' + str(C)
-                                    elif C + 1 and C!= 1:
+                                    elif C + 1 and C != 1:
                                         t += ' - ' + str(-C)
                                     elif C + 1:
                                         t += ' + '
@@ -278,13 +275,13 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                                             t += '-'
                                 if r1exp:
                                     if coef:
-                                          t += '*'
+                                        t += '*'
                                     if r1exp != r2exp or not r1exp.is_integer():
-                                          t += 'r1^(%s)*r2^(%s)'%(r1exp, r2exp)
+                                        t += 'r1^(%s)*r2^(%s)' % (r1exp, r2exp)
                                     elif r1exp != 1:
-                                          t += 'r1^%s*r2^%s'%(r1exp, r2exp)
+                                        t += 'r1^%s*r2^%s' % (r1exp, r2exp)
                                     else:
-                                          t += 'r1*r2'
+                                        t += 'r1*r2'
                                 else:
                                     t += '1'
                             t_sign = True
@@ -297,25 +294,25 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                         sign = True
                     if q_power:
                         if s_power:
-                            s += '((%s)/(%s))*%s*%s'%(t_num, t_dict, q_power, s_power)
+                            s += '((%s)/(%s))*%s*%s' % (t_num, t_dict, q_power, s_power)
                         else:
-                            s += '((%s)/(%s))*%s'%(t_num, t_dict, q_power)
+                            s += '((%s)/(%s))*%s' % (t_num, t_dict, q_power)
                     elif s_power:
-                        s += '((%s)/(%s))*%s'%(t_num, t_dict, s_power)
+                        s += '((%s)/(%s))*%s' % (t_num, t_dict, s_power)
                     else:
-                        s += '(%s)/(%s)'%(t_num, t_dict)
+                        s += '(%s)/(%s)' % (t_num, t_dict)
             if hprec not in ZZ:
-                self.__string = s + ' + O(q, s)^(%s)'%(hprec)
+                self.__string = s + ' + O(q, s)^(%s)' % (hprec)
             else:
-                self.__string = s + ' + O(q, s)^%s'%(hprec)
+                self.__string = s + ' + O(q, s)^%s' % (hprec)
         else:
             if hprec not in ZZ:
-                self.__string = 'O(q, s)^(%s)'%(hprec)
+                self.__string = 'O(q, s)^(%s)' % (hprec)
             else:
-                self.__string = 'O(q, s)^%s'%(hprec)
+                self.__string = 'O(q, s)^%s' % (hprec)
         return self.__string
 
-    ## basic attributes
+    # ## basic attributes
 
     def base_field(self):
         return self.__base_field
@@ -329,7 +326,7 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
     def nvars(self):
         return 4
 
-    ## get coefficients
+    # ## get coefficients
 
     def __getitem__(self, a):
         r"""
@@ -373,26 +370,30 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
 
     def restrict_to_siegel(self):
         r"""
-        Restrict the Hermitian modular form to the Siegel upper half-space. The result is a Siegel modular form.
+        Restrict the Hermitian modular form to the Siegel upper half-space.
+        The result is a Siegel modular form.
         """
         f = self.pullback(vector([1, 0]))
-        return OrthogonalModularForm(self.weight(), f.weilrep(), f.true_fourier_expansion(), f.scale(), f.weyl_vector(), qexp_representation = 'siegel')
+        return OrthogonalModularForm(self.weight(), f.weilrep(), f.true_fourier_expansion(), f.scale(), f.weyl_vector(), qexp_representation='siegel')
 
-    ## hecke operators
+    # ## Hecke operators
 
     def hecke_operator(self, p):
         K = self.base_field()
         prec = self.precision()
         if p not in ZZ:
-            coefficient = lambda A: hecke_coeff_split(self, p, A)
+            def coefficient(A):
+                return hecke_coeff_split(self, p, A)
             bd = p.norm()
         else:
             p = ZZ(p)
             bd = p
             if p.is_prime():
-                coefficient = lambda A: hecke_coeff(self, p, A)
+                def coefficient(A):
+                    return hecke_coeff(self, p, A)
             else:
-                coefficient = lambda A: hecke_coeff_inert(self, isqrt(p), A)
+                def coefficient(A):
+                    return hecke_coeff_inert(self, isqrt(p), A)
         bd = floor(prec / bd)
         f = self.true_fourier_expansion()
         r, t = f.parent().objgen()
@@ -406,6 +407,7 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                 return b / 2 + sqrtD * (b - 2*c) / (4 * S[1, 1] - 2), b / 2 - sqrtD * (b - 2*c) / (4 * S[1, 1] - 2)
         else:
             sqrtD /= 2
+
             def convert_exponent(b, c):
                 return b / 2 + sqrtD * c / S[1, 1], b / 2 - sqrtD * c / S[1, 1]
         f_img = r(0).add_bigoh(bd)
@@ -424,8 +426,9 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
                     except IndexError:
                         bd = a
                         f_img = f_img.add_bigoh(a)
-                        return OrthogonalModularForm(self.weight(), self.weilrep(), f_img, self.scale(), self.weyl_vector(), qexp_representation = self.qexp_representation())
-        return OrthogonalModularForm(self.weight(), self.weilrep(), f_img, self.scale(), self.weyl_vector(), qexp_representation = self.qexp_representation())
+                        return OrthogonalModularForm(self.weight(), self.weilrep(), f_img, self.scale(), self.weyl_vector(), qexp_representation=self.qexp_representation())
+        return OrthogonalModularForm(self.weight(), self.weilrep(), f_img, self.scale(), self.weyl_vector(), qexp_representation=self.qexp_representation())
+
 
 class HermitianEigenform(HermitianModularForm):
 
@@ -473,7 +476,7 @@ class HermitianEigenform(HermitianModularForm):
         L = K.ideal(p).factor()
         X, = PolynomialRing(self.hecke_field(), 'X').gens()
         k = self.weight()
-        if len(L) == 2: #split case
+        if len(L) == 2:  # split case
             (pi_1, _), (pi_2, _) = L
             try:
                 pi_1, = pi_1.gens_reduced()
@@ -484,7 +487,7 @@ class HermitianEigenform(HermitianModularForm):
                 f = 1 - e*X + (p**(1 - k) * e1 * e2 - p**(4 - (k+k))) * X**2 - (p**(3 - 2*k) * (e1*e1 + e2*e2) - 2 * e * p**(4 - (k+k))) * X**3 + p**(4 - (k+k)) * (p**(1 - k) * e1 * e2 - p**(4 - (k+k))) * X**4 - p**(8 - 4*k) * e * X**5 + p**(12 - 6*k) * X**6
                 return f(p**(2 * k - 4) * X)
             except ValueError:
-                raise ValueError('%s splits into non-principal ideals in %s'%(p, K)) from None
+                raise ValueError('%s splits into non-principal ideals in %s' % (p, K)) from None
         else:
             _, n = L[0]
             if n > 1:
@@ -493,6 +496,7 @@ class HermitianEigenform(HermitianModularForm):
         e2 = p**(4 - 3*k) * self.eigenvalue(p * p)
         f = (1 - p**(4 - 2*k) * X**2) * (1 - e1 * X + (p * e2 + p**(1 - (k + k)) * (p**3 + p**2 - p + 1)) * X**2 - p**(4 - (k + k)) * e1 * X**3 + p**(8 - 4*k) * X**4)
         return f(p**(2 * k - 4) * X)
+
 
 class HermitianHeckeOperator:
     r"""
@@ -504,7 +508,7 @@ class HermitianHeckeOperator:
         self.__index = p
 
     def __repr__(self):
-        return 'Hecke operator of index %s acting on Hermitian modular forms over %s'%(self.index(), self.hmf().base_field())
+        return 'Hecke operator of index %s acting on Hermitian modular forms over %s' % (self.index(), self.hmf().base_field())
 
     def hmf(self):
         return self.__hmf
@@ -543,14 +547,17 @@ class HermitianHeckeOperator:
         if D % 4:
             omega = (1 + sqrtD) / 2
             omega_c = (1 - sqrtD) / 2
+
             def convert_exponent(b, c):
                 return b / 2 + sqrtD * (b - 2*c) / (4 * S[1, 1] - 2), b / 2 - sqrtD * (b - 2*c) / (4 * S[1, 1] - 2)
         else:
             sqrtD /= 2
             omega = sqrtD
             omega_c = -omega
+
             def convert_exponent(b, c):
                 return b / 2 + sqrtD * c / S[1, 1], b / 2 - sqrtD * c / S[1, 1]
+
         for a in srange(prec):
             for b in srange(-a - 1, a + 1):
                 if a % 2 == b % 2:
@@ -575,10 +582,10 @@ class HermitianHeckeOperator:
                                 return matrix(R).solve_right(matrix(L))
                         except (IndexError, ValueError):
                             pass
-        raise ValueError('Insufficient precision') from None
+        raise ValueError('Insufficient precision')
 
 
-## formulas for Hecke operators on U(2, 2)
+# ## formulas for Hecke operators on U(2, 2)
 
 def hecke_coeff(f, p, A):
     r"""
@@ -640,6 +647,7 @@ def hecke_coeff(f, p, A):
                         s = s + (p**(k - 3)) * f[A3]
     return s
 
+
 def hecke_coeff_inert(f, p, A):
     r"""
     Compute the coefficient of A in the image of f under the Hecke operator T_{p^2},
@@ -696,6 +704,7 @@ def hecke_coeff_inert(f, p, A):
             h = h + f[M2]
     return h + p**(k - 4) * s * f[A]
 
+
 def hecke_coeff_split(f, pi, A):
     r"""
     Compute the coefficient of A in the image of f under the Hecke operator T_{pi},
@@ -714,9 +723,8 @@ def hecke_coeff_split(f, pi, A):
     d = K.discriminant()
     O = K.maximal_order()
     isqrtd = K(d).sqrt()
-    r1 = 1
     if d % 4:
-        r2 = (-1 + isqrtd)/2
+        r2 = (-1 + isqrtd) / 2
     else:
         r2 = isqrtd
     fl = floor(p / 2)
