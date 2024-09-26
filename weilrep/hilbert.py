@@ -20,12 +20,12 @@ AUTHORS:
 
 import math
 
-from sage.arith.functions import lcm
+from sage.all import next_prime
 from sage.arith.misc import bernoulli
 from sage.arith.srange import srange
-from sage.functions.other import ceil, floor, frac, sqrt
+from sage.functions.other import ceil, floor, sqrt
 from sage.matrix.constructor import matrix
-from sage.misc.functional import denominator, isqrt
+from sage.misc.functional import isqrt
 from sage.modules.free_module_element import vector
 from sage.rings.big_oh import O
 from sage.rings.infinity import Infinity
@@ -42,13 +42,14 @@ from sage.rings.rational_field import QQ
 from .lifts import OrthogonalModularForm
 from .lorentz import II, OrthogonalModularFormLorentzian, OrthogonalModularFormsLorentzian
 from .weilrep import WeilRep
-from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
+# from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
+
 
 class HMFCharacter:
     r"""
     This class represents characters of Hilbert modular forms. These are not meant to be constructed directly.
     """
-    def __init__(self, K, sl2_val, t_val, omega = None):
+    def __init__(self, K, sl2_val, t_val, omega=None):
         self.base_field = K
         self.sl2_val = sl2_val % 24
         self.t_val = t_val % 24
@@ -66,26 +67,27 @@ class HMFCharacter:
         if self.sl2_val or self.t_val:
             prefix = ('th', 'st', 'nd', 'rd', 'th')[min(self.sl2_val, 4)]
             if self.t_val % 12:
-                t_val_str = 'e^(2*pi*i*(%s))'%(self.t_val/24)
+                t_val_str = 'e^(2*pi*i*(%s))' % (self.t_val/24)
             elif self.t_val % 24:
                 t_val_str = '-1'
             else:
                 t_val_str = '1'
             if self.sl2_val % 24:
-                s = ('Character', 'Multiplier system')[self.sl2_val%2]
-                return '%s acting on SL_2(Z) as the %d%s power of the eta multiplier and by %s on translation by %s'%(s, self.sl2_val, prefix, t_val_str, self.omega)
-            return 'Character acting trivially on SL_2(Z) and by %s on translation by %s'%(t_val_str, self.omega)
+                s = ('Character', 'Multiplier system')[self.sl2_val % 2]
+                return '%s acting on SL_2(Z) as the %d%s power of the eta multiplier and by %s on translation by %s' % (s, self.sl2_val, prefix, t_val_str, self.omega)
+            return 'Character acting trivially on SL_2(Z) and by %s on translation by %s' % (t_val_str, self.omega)
         return 'Trivial character'
 
-    def __mul__(self,other):
+    def __mul__(self, other):
         if self.base_field != other.base_field:
             raise ValueError('Incompatible base fields')
         return HMFCharacter(self.base_field, self.sl2_val + other.sl2_val, self.t_val + other.t_val)
 
-    def __pow__(self,n):
+    def __pow__(self, n):
         return HMFCharacter(self.base_field, n * self.sl2_val, n * self.t_val)
 
-def hmf_inputs(K, level = 1):
+
+def hmf_inputs(K, level=1):
     r"""
     Constructs a WeilRep instance whose lifts are Hilbert modular forms.
 
@@ -123,9 +125,9 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
 
     - ``level`` -- positive integer (default 1); this represents Hilbert modular forms for the subgroup \Gamma_1(N)
     """
-    def __init__(self, K, level = 1):
+    def __init__(self, K, level=1):
         self.__base_field = K
-        w = hmf_inputs(K, level = level)
+        w = hmf_inputs(K, level=level)
         self._OrthogonalModularForms__weilrep = w
         self._OrthogonalModularForms__gram_matrix = w.gram_matrix()
         d = K.discriminant()
@@ -137,7 +139,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         self.__sqrtd = sqrtd
 
     def __repr__(self):
-        return 'Hilbert modular forms over %s'%str(self.__base_field)
+        return 'Hilbert modular forms over %s' % str(self.__base_field)
 
     def base_field(self):
         r"""
@@ -218,7 +220,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
     def hecke_operator(self, p):
         return HilbertHeckeOperator(self, p)
 
-    def eigenforms(self, X, _p = 2, _name = '', _final_recursion = True, _K_list = []):
+    def eigenforms(self, X, _p=2, _name='', _final_recursion=True, _K_list=[]):
         r"""
         Decompose a space X into common eigenforms of the Hecke operators.
 
@@ -244,7 +246,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         chi_list = []
         for x, n in F:
             if x.degree() > 1:
-                name = 'a_%s%s'%(_name, i)
+                name = 'a_%s%s' % (_name, i)
                 K = NumberField(x, name)
                 i += 1
             else:
@@ -255,7 +257,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
             if n == 1:
                 if len(V_rows) > 1:
                     P = matrix(K, [V.solve_left(M_K * v) for v in V_rows])
-                    for p in P.eigenvectors_left(extend = False):
+                    for p in P.eigenvectors_left(extend=False):
                         c = p[0].charpoly()
                         if c not in chi_list:
                             L.append(vector(p[1][0]) * V)
@@ -265,8 +267,8 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
                     L.append(V_rows[0])
                     K_list.append(K)
             else:
-                _name = _name + '%s_'%i
-                K_list_2, eigenvectors = self.eigenforms(V_rows, _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
+                _name = _name + '%s_' % i
+                K_list_2, eigenvectors = self.eigenforms(V_rows, _p=next_prime(_p), _name=_name, _final_recursion=False, _K_list=K_list)
                 K_list.extend(K_list_2)
                 L.extend(eigenvectors)
         L = [sum(X[i] * y for i, y in enumerate(x)) for x in L]
@@ -325,7 +327,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                         q1exp = i / d - q2exp
                         coef = True
                         if sign:
-                            if c > 0 and c!= 1:
+                            if c > 0 and c != 1:
                                 s += ' + ' + str(c)
                             elif c + 1 and c != 1:
                                 s += ' - ' + str(-c)
@@ -347,21 +349,21 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                             if coef:
                                 s += '*'
                             if q1exp != q2exp or q1exp not in ZZ:
-                                s += 'q1^(%s)*q2^(%s)'%(q1exp, q2exp)
+                                s += 'q1^(%s)*q2^(%s)' % (q1exp, q2exp)
                             elif q1exp != 1:
-                                s += 'q1^%s*q2^%s'%(q1exp, q2exp)
+                                s += 'q1^%s*q2^%s' % (q1exp, q2exp)
                             else:
                                 s += 'q1*q2'
                         sign = True
             if hprec % d:
-                self.__string = s + ' + O(q1, q2)^(%s)'%(hprec/d)
+                self.__string = s + ' + O(q1, q2)^(%s)' % (hprec/d)
             else:
-                self.__string = s + ' + O(q1, q2)^%s'%(hprec/d)
+                self.__string = s + ' + O(q1, q2)^%s' % (hprec/d)
         else:
             if hprec % d:
-                self.__string = 'O(q1, q2)^(%s)'%(hprec/d)
+                self.__string = 'O(q1, q2)^(%s)' % (hprec/d)
             else:
-                self.__string = 'O(q1, q2)^%s'%(hprec/d)
+                self.__string = 'O(q1, q2)^%s' % (hprec/d)
         return self.__string
 
     def base_field(self):
@@ -393,7 +395,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             self.__hmf = HilbertModularForms(self.base_field())
             return self.__hmf
 
-    #get Fourier coefficients
+    # get Fourier coefficients
 
     def coefficients(self, prec=+Infinity):
         r"""
@@ -406,9 +408,9 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         sqrtD = K(D).sqrt()
         if not D % 4:
             sqrtD /= 2
-        X = {}
         h = self.fourier_expansion()
-        return {(i + n/sqrtD)/(d + d):p[n] for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
+        return {(i + n/sqrtD)/(d + d): p[n]
+                for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
 
     def __getitem__(self, a):
         r"""
@@ -440,7 +442,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                 sqrtD = K(D).sqrt() / 2
             n = ZZ(scale * (2 * a - tt) * sqrtD)
             return self.fourier_expansion()[i][n]
-        #except TypeError:
+        # except TypeError:
         #    return 0
         except IndexError:
             u = self.hmf().fundamental_unit()
@@ -453,7 +455,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                 return (-1)**k * self.__getitem__(au)
             raise IndexError('coefficient not known') from None
 
-    #other methods
+    # other methods
 
     def hecke_operator(self, p):
         r"""
@@ -461,7 +463,6 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
 
         p should be a prime element of K.
         """
-
 
     def hz_pullback(self, mu):
         r"""
@@ -498,7 +499,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             f = sum([p[n] * t ** ((i*tt + n * a)/2) for i, p in enumerate(h.list()) for n in p.exponents()]) + O(t**prec)
         else:
             f = sum([p[n] * t ** ((i*tt + 2 * n * a)/2) for i, p in enumerate(h.list()) for n in p.exponents()]) + O(t**prec)
-        return OrthogonalModularFormLorentzian(self.weight(), WeilRep(matrix([[-2 * nn]])), f, scale = self.scale(), weylvec = vector([0]), qexp_representation = 'shimura')
+        return OrthogonalModularFormLorentzian(self.weight(), WeilRep(matrix([[-2 * nn]])), f, scale=self.scale(), weylvec=vector([0]), qexp_representation='shimura')
 
 
 class HilbertEigenform(HilbertModularForm):
@@ -548,7 +549,7 @@ class HilbertEigenform(HilbertModularForm):
                 e2 = self.eigenvalue(pi_2)
                 return (1 - e1 * X + p**(k - 1) * X * X) * (1 - e2 * X + p**(k - 1) * X * X)
             except ValueError:
-                raise ValueError('%s splits into non-principal ideals in %s'%(p, K)) from None
+                raise ValueError('%s splits into non-principal ideals in %s' % (p, K))
         e = self.eigenvalue(p)
         return 1 - e * X * X + p**(2 * k - 2) * X**4
 
@@ -559,7 +560,6 @@ class HilbertEigenform(HilbertModularForm):
         L = K.ideal(p).factor()
         k = self.weight()
         eps = h.fundamental_unit()
-        eps_norm = eps.norm()
         if len(L) == 2:
             (pi_1, _), (pi_2, _) = L
             try:
@@ -577,7 +577,7 @@ class HilbertEigenform(HilbertModularForm):
                 e2 = self.eigenvalue(pi_2)
                 return 1 - e1 * e2 * X + p**(k - 1) * (e1**2 + e2**2 - 2 * p**(k - 1)) * X * X - p**(k + k - 2) * e1 * e2 * X**3 + p**(4 * k - 4) * X**4
             except ValueError:
-                raise ValueError('%s splits into non-principal ideals in %s'%(p, K)) from None
+                raise ValueError('%s splits into non-principal ideals in %s' % (p, K)) from None
         e = self.eigenvalue(p)
         return (1 - e * X + p**(2 * k - 2) * X**2) * (1 - (p**(k - 1) * X)**2)
 
@@ -588,7 +588,7 @@ class HilbertHeckeOperator:
         self.__index = p
 
     def __repr__(self):
-        return 'Hecke operator of index %s acting on Hilbert modular forms over %s'%(self.__index, self.__hmf.base_field())
+        return 'Hecke operator of index %s acting on Hilbert modular forms over %s' % (self.__index, self.__hmf.base_field())
 
     def hmf(self):
         return self.__hmf
@@ -620,7 +620,6 @@ class HilbertHeckeOperator:
         O = K.maximal_order()
         p = K(self.index())
         norm = p.norm()
-        prec = f.precision()
         k = f.weight()
         d = f.scale()
         g = f.fourier_expansion()
@@ -640,7 +639,10 @@ class HilbertHeckeOperator:
                             c += f.__getitem__(N / p) * norm**(k - 1)
                         h += c * t**i * x**n
                     except IndexError:
-                        return OrthogonalModularForm(k, f.weilrep(), h.add_bigoh(i - 1), d, f.weyl_vector(), qexp_representation = f.qexp_representation())
+                        return OrthogonalModularForm(k, f.weilrep(),
+                                                     h.add_bigoh(i - 1),
+                                                     d, f.weyl_vector(),
+                                                     qexp_representation=f.qexp_representation())
 
     def matrix(self, X):
         L = []
@@ -669,6 +671,6 @@ class HilbertHeckeOperator:
                             R.append([f[N] for f in X])
                         if rank == target_rank:
                             return matrix(R).solve_right(matrix(L))
-                    except NotImplementedError:#(IndexError, ValueError):
+                    except NotImplementedError:  # (IndexError, ValueError):
                         pass
         raise ValueError('Insufficient precision') from None

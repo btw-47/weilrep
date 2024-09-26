@@ -18,32 +18,21 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
-from copy import copy, deepcopy
+from copy import copy
 
 import cypari2
-pari = cypari2.Pari()
-PariError = cypari2.PariError
-
-import math
-
-from re import sub
 
 from sage.arith.functions import lcm
-from sage.arith.misc import bernoulli, divisors, GCD
+from sage.arith.misc import bernoulli, GCD
 from sage.arith.srange import srange
 from sage.calculus.var import var
-from sage.functions.log import exp, log
-from sage.functions.other import ceil, factorial, floor, frac, sqrt
+from sage.functions.other import ceil, factorial, frac, sqrt
 from sage.geometry.cone import Cone
 from sage.geometry.polyhedron.constructor import Polyhedron
-from sage.geometry.polyhedron.ppl_lattice_polytope import LatticePolytope_PPL
 from sage.matrix.constructor import matrix
-from sage.matrix.special import block_diagonal_matrix, block_matrix
 from sage.misc.functional import denominator, isqrt
 from sage.misc.misc_c import prod
-from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modules.free_module_element import vector
-from sage.rings.big_oh import O
 from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
@@ -54,9 +43,8 @@ from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing,
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
-from sage.rings.real_mpfr import RealField_class, RR
+from sage.rings.real_mpfr import RealField_class
 
-from .jacobi_forms_class import JacobiForm, JacobiForms
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
 
@@ -65,6 +53,10 @@ try:
     from sage.rings.complex_mpfr import ComplexField_class
 except ModuleNotFoundError:
     from sage.rings.complex_field import ComplexField_class
+
+pari = cypari2.Pari()
+PariError = cypari2.PariError
+
 
 class OrthogonalModularForms(object):
     r"""
@@ -104,7 +96,7 @@ class OrthogonalModularForms(object):
 
     def __repr__(self):
         w = self.weilrep()
-        s = 'Orthogonal modular forms associated to the Gram matrix\n%s'%self.__gram_matrix
+        s = 'Orthogonal modular forms associated to the Gram matrix\n%s' % self.__gram_matrix
         if w.is_positive_definite():
             return s + ' + 2U'
         elif w.is_lorentzian():
@@ -137,8 +129,8 @@ class OrthogonalModularForms(object):
         """
         return self.__weilrep
 
-    ## constructors of modular forms
-    def eisenstein_series(self, k, prec, allow_small_weight = False):
+    # ## constructors of modular forms
+    def eisenstein_series(self, k, prec, allow_small_weight=False):
         r"""
         Compute the Eisenstein series. (i.e. the theta lift of a vector-valued Eisenstein series)
 
@@ -156,11 +148,11 @@ class OrthogonalModularForms(object):
         """
         w = self.__weilrep
         try:
-            return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k + self.input_wt(), ceil(prec * prec / 4) + 1, allow_small_weight = allow_small_weight)).theta_lift(prec)
+            return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k + self.input_wt(), ceil(prec * prec / 4) + 1, allow_small_weight=allow_small_weight)).theta_lift(prec)
         except (TypeError, ValueError, ZeroDivisionError):
             raise ValueError('Invalid weight') from None
 
-    def lifts_basis(self, k, prec, cusp_forms = True):
+    def lifts_basis(self, k, prec, cusp_forms=True):
         r"""
         Compute a basis of the Maass Spezialschar of weight ``k`` up to precision ``prec``.
 
@@ -186,7 +178,7 @@ class OrthogonalModularForms(object):
         else:
             X = w.modular_forms_basis(k + self.input_wt(), ceil(prec * prec / 4) + 1)
         try:
-            return X[0].theta_lift(prec, _L = X)
+            return X[0].theta_lift(prec, _L=X)
         except TypeError:
             return [x.theta_lift(prec) for x in X]
         except IndexError:
@@ -198,11 +190,13 @@ class OrthogonalModularForms(object):
         return Spezialschar(self)
     maass_space = spezialschar
 
-    ## methods for borcherds products
+    # ## methods for Borcherds products
 
-    def _borcherds_product_polyhedron(self, pole_order, prec, verbose = False):
+    def _borcherds_product_polyhedron(self, pole_order, prec, verbose=False):
         r"""
-        Construct a polyhedron representing a cone of Heegner divisors. For internal use in the methods borcherds_input_basis() and borcherds_input_Qbasis().
+        Construct a polyhedron representing a cone of Heegner divisors.
+
+        For internal use in the methods borcherds_input_basis() and borcherds_input_Qbasis().
 
         INPUT:
         - ``pole_order`` -- pole order
@@ -222,18 +216,18 @@ class OrthogonalModularForms(object):
         w = self.weilrep()
         rds = w.rds()
         norm_dict = w.norm_dict()
-        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec, verbose = verbose)
+        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec, verbose=verbose)
         N = len([g for g in rds if not norm_dict[tuple(g)]])
-        v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
+        v_list = w.coefficient_vector_exponents(0, 1, starting_from=-pole_order, include_vectors=True)
         exp_list = [v[1] for v in v_list]
         v_list = [vector(v[0]) for v in v_list]
-        positive = [None]*len(exp_list)
+        positive = [None] * len(exp_list)
         zero = vector([0] * (len(exp_list) + 1))
-        M = matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
+        M = matrix([x.coefficient_vector(starting_from=-pole_order, ending_with=0)[:-N] for x in X])
         vs = M.transpose().kernel().basis()
         for i, n in enumerate(exp_list):
             ieq = copy(zero)
-            ieq[i+1] = 1
+            ieq[i + 1] = 1
             for j, m in enumerate(exp_list[:i]):
                 N = sqrt(m / n)
                 if N in ZZ:
@@ -241,10 +235,10 @@ class OrthogonalModularForms(object):
                     v2 = v_list[j]
                     ieq[j + 1] = denominator(v1 * N - v2) == 1 or denominator(v1 * N + v2) == 1
             positive[i] = ieq
-        p = Polyhedron(ieqs = positive, eqns = [vector([0] + list(v)) for v in vs])
+        p = Polyhedron(ieqs=positive, eqns=[vector([0] + list(v)) for v in vs])
         return M, p, X
 
-    def borcherds_input_basis(self, pole_order, prec, verbose = False):
+    def borcherds_input_basis(self, pole_order, prec, verbose=False):
         r"""
         Compute a basis of input functions into the Borcherds lift with pole up to pole_order.
 
@@ -310,7 +304,7 @@ class OrthogonalModularForms(object):
         S = self.gram_matrix()
         w = self.weilrep()
         wt = self.input_wt()
-        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
+        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose=verbose)
         if verbose:
             print('I will now try to find a Hilbert basis.')
         try:
@@ -318,7 +312,7 @@ class OrthogonalModularForms(object):
             try:
                 u = M.solve_left(b)
                 Y = [v * X for v in u.rows()]
-                Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
+                Y.sort(key=lambda x: x.fourier_expansion()[0][2][0])
                 Y = WeilRepModularFormsBasis(wt, Y, w)
             except ValueError:
                 Y = WeilRepModularFormsBasis(wt, [], w)
@@ -332,7 +326,7 @@ class OrthogonalModularForms(object):
                 return X
         return Y
 
-    def borcherds_input_Qbasis(self, pole_order, prec, verbose = False):
+    def borcherds_input_Qbasis(self, pole_order, prec, verbose=False):
         r"""
         Compute a Q-basis of input functions into the Borcherds lift with pole order in infinity up to pole_order.
 
@@ -374,7 +368,7 @@ class OrthogonalModularForms(object):
         S = self.gram_matrix()
         w = self.weilrep()
         wt = self.input_wt()
-        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
+        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose=verbose)
         try:
             b = matrix(Cone(p).rays())
             if verbose:
@@ -382,7 +376,7 @@ class OrthogonalModularForms(object):
             try:
                 u = M.solve_left(b)
                 Y = [v * X for v in u.rows()]
-                Y.sort(key = lambda x: x.fourier_expansion()[0][2][0])
+                Y.sort(key=lambda x: x.fourier_expansion()[0][2][0])
                 Y = WeilRepModularFormsBasis(wt, Y, w)
             except ValueError:
                 Y = WeilRepModularFormsBasis(wt, [], w)
@@ -396,6 +390,7 @@ class OrthogonalModularForms(object):
                 return X
         return Y
 
+
 class Spezialschar(object):
     r"""
     The Spezialschar of theta lifts.
@@ -405,10 +400,10 @@ class Spezialschar(object):
         self.__m = m
 
     def __repr__(self):
-        return 'Spezialschar in '+str(self.__m)
+        return 'Spezialschar in ' + str(self.__m)
 
     def basis(self, k, prec):
-        return self.__m.lifts_basis(k, prec, cusp_forms = False)
+        return self.__m.lifts_basis(k, prec, cusp_forms=False)
 
     modular_forms_basis = basis
 
@@ -419,6 +414,7 @@ class Spezialschar(object):
         if f.weilrep() != self.__m.weilrep():
             return False
         return f.is_lift()
+
 
 class OrthogonalModularForm(object):
     r"""
@@ -431,7 +427,7 @@ class OrthogonalModularForm(object):
     - ``scale`` -- a natural number. If scale != 1 then all exponents in the Fourier expansion should be divided by `scale`. (This is done in the __repr__ method)
     - ``weylvec`` -- a ``Weyl vector``. For modular forms that are not constructed as Borcherds products this vector should be zero.
     """
-    def __init__(self, k, w, f, scale, weylvec, pullback_function = NotImplemented, qexp_representation = None, ppcoeffs = None):
+    def __init__(self, k, w, f, scale, weylvec, pullback_function=NotImplemented, qexp_representation=None, ppcoeffs=None):
         s = qexp_representation
         self.__fourier_expansion = f
         self.__qexp_representation = s
@@ -443,7 +439,7 @@ class OrthogonalModularForm(object):
         self.__pullback = pullback_function
         if ppcoeffs:
             self.__ppcoeffs = ppcoeffs
-        ## change class
+        # change class
         if w.is_lorentzian() or w.is_lorentzian_plus_II():
             from .lorentz import OrthogonalModularFormLorentzian
             self.__class__ = OrthogonalModularFormLorentzian
@@ -467,11 +463,10 @@ class OrthogonalModularForm(object):
                 self.__class__ = ParamodularForm
             elif s == 'unitary':
                 pass
-                #from .unitary import UnitaryModularForm
-                #self.__class__ = UnitaryModularForm
+                # from .unitary import UnitaryModularForm
+                # self.__class__ = UnitaryModularForm
 
-
-    ## basic attributes
+    # ## basic attributes
 
     def base_ring(self):
         r"""
@@ -489,7 +484,7 @@ class OrthogonalModularForm(object):
             return self.__brilpr
         except AttributeError:
             r = self.base_ring()
-            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class) #are we missing anything?
+            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class)  # are we missing anything?
             return self.__brilpr
 
     def __bool__(self):
@@ -505,10 +500,11 @@ class OrthogonalModularForm(object):
             d = self._principal_part_coefficients()
             S = self.gram_matrix()
             m = QQ(-min(x[-1] for x in d.keys()))
+
             def a(v):
                 Sv = S * v
                 n = GCD(Sv)
-                v, Sv = v/n, Sv/n
+                v, Sv = v / n, Sv / n
                 x = v * Sv / 2
                 if x <= 0:
                     raise ValueError('Not a positive norm vector.')
@@ -529,7 +525,7 @@ class OrthogonalModularForm(object):
             g = ~f
         except ValueError:
             g = ~self._laurent_to_fraction().true_fourier_expansion()
-        return OrthogonalModularForm(-self.__weight, self.__weilrep, g, self.__scale, -self.__weylvec, qexp_representation = self.__qexp_representation)
+        return OrthogonalModularForm(-self.__weight, self.__weilrep, g, self.__scale, -self.__weylvec, qexp_representation=self.__qexp_representation)
     __invert__ = inverse
 
     def _laurent_to_fraction(self):
@@ -540,7 +536,7 @@ class OrthogonalModularForm(object):
         if self._base_ring_is_laurent_polynomial_ring():
             s = FractionField(PolynomialRing(QQ, list(var('r_%d' % i) for i in range(r.ngens()))))
             rx = LaurentPolynomialRing(s, 'x')
-            rx.inject_variables(verbose = False)
+            rx.inject_variables(verbose=False)
             rt = PowerSeriesRing(rx, 't')
             f = self.true_fourier_expansion()
             f = rt([x.map_coefficients(lambda y: y, s) for x in f.padded_list()]).add_bigoh(f.prec())
@@ -548,7 +544,7 @@ class OrthogonalModularForm(object):
                 ppcoeffs = self.__ppcoeffs
             except AttributeError:
                 ppcoeffs = None
-            return OrthogonalModularForm(self.__weight, self.__weilrep, f, self.__scale, self.__weylvec, qexp_representation = self.__qexp_representation, ppcoeffs = ppcoeffs)
+            return OrthogonalModularForm(self.__weight, self.__weilrep, f, self.__scale, self.__weylvec, qexp_representation=self.__qexp_representation, ppcoeffs=ppcoeffs)
         return self
 
     def precision(self):
@@ -575,7 +571,7 @@ class OrthogonalModularForm(object):
             ppcoeffs = self.__ppcoeffs
         except AttributeError:
             ppcoeffs = None
-        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion().add_bigoh(new_prec), self.__scale, self.__weylvec, qexp_representation = self.__qexp_representation, ppcoeffs = ppcoeffs)
+        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion().add_bigoh(new_prec), self.__scale, self.__weylvec, qexp_representation=self.__qexp_representation, ppcoeffs=ppcoeffs)
 
     def rescale(self, d):
         r"""
@@ -586,14 +582,14 @@ class OrthogonalModularForm(object):
         f = self.true_fourier_expansion()
         if nrows > 1:
             rb_x = f.base_ring()
-            rb_x.inject_variables(verbose = False)
+            rb_x.inject_variables(verbose=False)
             x = rb_x.gens()[0]
             if nrows > 2:
                 rbgens = rb_x.base_ring().gens()
-                rescale_dict = {a : a ** d for a in rbgens}
-                return OrthogonalModularForm(self.weight(), w, (f.map_coefficients(lambda y: (x ** (d * y.polynomial_construction()[1])) * rb_x([y.polynomial_construction()[0][i // d].subs(rescale_dict) if i % d == 0 else 0 for i in range(d * len(list(y)))]))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
-            return OrthogonalModularForm(self.weight(), w, (f.map_coefficients(lambda p: p.subs({x : x ** d}))).V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
-        return OrthogonalModularForm(self.weight(), w, f.V(d), scale = self.scale() * d, weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+                rescale_dict = {a: a ** d for a in rbgens}
+                return OrthogonalModularForm(self.weight(), w, (f.map_coefficients(lambda y: (x ** (d * y.polynomial_construction()[1])) * rb_x([y.polynomial_construction()[0][i // d].subs(rescale_dict) if i % d == 0 else 0 for i in range(d * len(list(y)))]))).V(d), scale=self.scale() * d, weylvec=self.weyl_vector(), qexp_representation=self.qexp_representation())
+            return OrthogonalModularForm(self.weight(), w, (f.map_coefficients(lambda p: p.subs({x: x ** d}))).V(d), scale=self.scale() * d, weylvec=self.weyl_vector(), qexp_representation=self.qexp_representation())
+        return OrthogonalModularForm(self.weight(), w, f.V(d), scale=self.scale() * d, weylvec=self.weyl_vector(), qexp_representation=self.qexp_representation())
 
     def scale(self):
         r"""
@@ -625,9 +621,9 @@ class OrthogonalModularForm(object):
         """
         return self.__weylvec
 
-    ## methods to extract Fourier coefficients
+    # ## methods to extract Fourier coefficients
 
-    def coefficients(self, prec = +Infinity):
+    def coefficients(self, prec=+Infinity):
         r"""
         Return a dictionary of self's known Fourier coefficients.
 
@@ -646,7 +642,7 @@ class OrthogonalModularForm(object):
             D = f.dict()
         except AttributeError:
             v = f.valuation()
-            D = {(x+v) : y for x, y in f.valuation_zero_part().dict().items()}
+            D = {(x + v): y for x, y in f.valuation_zero_part().dict().items()}
         for j_t, p in D.items():
             if j_t < d_prec:
                 j_t = Integer(j_t)
@@ -656,7 +652,7 @@ class OrthogonalModularForm(object):
                     except AttributeError:
                         p = LaurentSeriesRing(p.base_ring(), 'x')(p)
                         v = p.valuation()
-                        p_dict = {(x+v) : y for x, y in p.valuation_zero_part().dict().items()}
+                        p_dict = {(x + v): y for x, y in p.valuation_zero_part().dict().items()}
                     for j_x, h in p_dict.items():
                         j_x = Integer(j_x)
                         if nrows > 2:
@@ -669,7 +665,7 @@ class OrthogonalModularForm(object):
                                     hn, hd = h.numerator(), h.denominator()
                                     r = hd.parent()
                                     if hd.constant_coefficient():
-                                        s = PowerSeriesRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)), default_prec = constant_prec)
+                                        s = PowerSeriesRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)), default_prec=constant_prec)
                                         h = s(h).add_bigoh(constant_prec)
                                     else:
                                         s = LaurentPolynomialRing(r.base_ring(), list(var('r_%d' % i) for i in range(nrows - 2)))
@@ -686,7 +682,7 @@ class OrthogonalModularForm(object):
                                     hn, hd = h.numerator(), h.denominator()
                                     r = hd.parent()
                                     if hd.constant_coefficient():
-                                        s = PowerSeriesRing(r.base_ring(), 'r_0', default_prec = constant_prec)
+                                        s = PowerSeriesRing(r.base_ring(), 'r_0', default_prec=constant_prec)
                                         h = s(h).add_bigoh(constant_prec)
                                         try:
                                             for j_r, y in h.dict().items():
@@ -780,8 +776,7 @@ class OrthogonalModularForm(object):
         """
         return self.__fourier_expansion
 
-
-    ## arithmetic operations
+    # ## arithmetic operations
 
     def __add__(self, other):
         r"""
@@ -802,14 +797,15 @@ class OrthogonalModularForm(object):
                 raise ValueError('Incompatible characters')
         self_scale = self.scale()
         other_scale = other.scale()
+
         def p(*args, **kwargs):
             return self.pullback(*args, **kwargs) + other.pullback(*args, **kwargs)
         if not self_scale == other_scale:
             new_scale = lcm(self_scale, other_scale)
             X1 = self.rescale(new_scale // self_scale)
             X2 = other.rescale(new_scale // other_scale)
-            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() + X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
-        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() + other.true_fourier_expansion(), scale = self_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() + X2.true_fourier_expansion(), scale=new_scale, weylvec=self_v, pullback_function=p, qexp_representation=self.qexp_representation())
+        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() + other.true_fourier_expansion(), scale=self_scale, weylvec=self_v, pullback_function=p, qexp_representation=self.qexp_representation())
 
     __radd__ = __add__
 
@@ -832,19 +828,20 @@ class OrthogonalModularForm(object):
                 raise ValueError('Incompatible characters')
         self_scale = self.scale()
         other_scale = other.scale()
+
         def p(*args, **kwargs):
             return self.pullback(*args, **kwargs) - other.pullback(*args, **kwargs)
         if not self_scale == other_scale:
             new_scale = lcm(self_scale, other_scale)
             X1 = self.rescale(new_scale // self_scale)
             X2 = other.rescale(new_scale // other_scale)
-            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() - X2.true_fourier_expansion(), scale = new_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
-        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() - other.true_fourier_expansion(), scale = self_scale, weylvec = self_v, pullback_function = p, qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.__weight, self.__weilrep, X1.true_fourier_expansion() - X2.true_fourier_expansion(), scale=new_scale, weylvec=self_v, pullback_function=p, qexp_representation=self.qexp_representation())
+        return OrthogonalModularForm(self.__weight, self.__weilrep, self.true_fourier_expansion() - other.true_fourier_expansion(), scale=self_scale, weylvec=self_v, pullback_function=p, qexp_representation=self.qexp_representation())
 
     def __neg__(self):
         def p(*args, **kwargs):
             return -self.pullback(*args, **kwargs)
-        return OrthogonalModularForm(self.__weight, self.__weilrep, -self.true_fourier_expansion(), scale = self.scale(), weylvec = self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
+        return OrthogonalModularForm(self.__weight, self.__weilrep, -self.true_fourier_expansion(), scale=self.scale(), weylvec=self.weyl_vector(), pullback_function=p, qexp_representation=self.qexp_representation())
 
     def __mul__(self, other):
         r"""
@@ -871,13 +868,14 @@ class OrthogonalModularForm(object):
             if f1.valuation() < 0 or f2.valuation() < 0 and f.valuation() >= 0:
                 r = PowerSeriesRing(f.base_ring(), 't')
                 f = r(f)
+
             def p(*args, **kwargs):
                 return self.pullback(*args, **kwargs) * other.pullback(*args, **kwargs)
-            return OrthogonalModularForm(self.__weight + other.weight(), self.__weilrep, f, scale = new_scale, weylvec = self.weyl_vector() + other.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.__weight + other.weight(), self.__weilrep, f, scale=new_scale, weylvec=self.weyl_vector() + other.weyl_vector(), pullback_function=p, qexp_representation=self.qexp_representation())
         else:
             def p(*args, **kwargs):
                 return other * self.pullback(*args, **kwargs)
-            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() * other, scale = self.scale(), weylvec = self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() * other, scale=self.scale(), weylvec=self.weyl_vector(), pullback_function=p, qexp_representation=self.qexp_representation())
 
     __rmul__ = __mul__
 
@@ -890,7 +888,7 @@ class OrthogonalModularForm(object):
         else:
             def p(*args, **kwargs):
                 return self.pullback(*args, **kwargs) / other
-            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() / other, scale = self.scale(), weylvec = self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
+            return OrthogonalModularForm(self.weight(), self.__weilrep, self.true_fourier_expansion() / other, scale=self.scale(), weylvec=self.weyl_vector(), pullback_function=p, qexp_representation=self.qexp_representation())
 
     __truediv__ = __div__
 
@@ -915,9 +913,15 @@ class OrthogonalModularForm(object):
     def __pow__(self, other):
         if other not in ZZ:
             raise ValueError('Not a valid exponent')
+
         def p(*args, **kwargs):
             return self.pullback(*args, **kwargs) ** other
-        return OrthogonalModularForm(other * self.weight(), self.__weilrep, self.true_fourier_expansion() ** other, scale=self.scale(), weylvec = other * self.weyl_vector(), pullback_function = p, qexp_representation = self.qexp_representation())
+        return OrthogonalModularForm(other * self.weight(), self.__weilrep,
+                                     self.true_fourier_expansion() ** other,
+                                     scale=self.scale(),
+                                     weylvec=other * self.weyl_vector(),
+                                     pullback_function=p,
+                                     qexp_representation=self.qexp_representation())
 
     def n(self):
         d = self.true_coefficients()
@@ -933,10 +937,10 @@ class OrthogonalModularForm(object):
                 f = sum(a.n() * x**g[1] * t**g[0] for g, a in d.items()).add_bigoh(f.prec())
         else:
             f = sum(a.n() * t**g[0] for g, a in d.items()).add_bigoh(f.prec())
-        return OrthogonalModularForm(self.weight(), self.__weilrep, f, scale = self.scale(), weylvec = self.weyl_vector(), qexp_representation = self.qexp_representation())
+        return OrthogonalModularForm(self.weight(), self.__weilrep, f, scale=self.scale(), weylvec=self.weyl_vector(), qexp_representation=self.qexp_representation())
 
 
-def orthogonal_eisenstein_series(k, S, prec, w = None):
+def orthogonal_eisenstein_series(k, S, prec, w=None):
     r"""
     Computes the "orthogonal Eisenstein series" as the theta-lift of the vector-valued Eisenstein series E_{k, 0} (if it exists). We renormalize such that the constant term is 1.
 
@@ -958,7 +962,6 @@ def orthogonal_eisenstein_series(k, S, prec, w = None):
     if w:
         return OrthogonalModularForms(w).eisenstein_series(k, prec)
     return OrthogonalModularForms(S).eisenstein_series(k, prec)
-
 
 
 def jacobian(*X):
@@ -993,7 +996,7 @@ def jacobian(*X):
     x, = rb_x.gens()
     r_list = rb_x.base_ring().gens()
     if N != nvars + 1:
-        raise ValueError('The Jacobian requires %d modular forms.'%(nvars + 1))
+        raise ValueError('The Jacobian requires %d modular forms.' % (nvars + 1))
     k = N - 1
     v = vector([0] * nvars)
     r_deriv = [[] for _ in r_list]
@@ -1011,7 +1014,7 @@ def jacobian(*X):
             x_deriv.append(f.map_coefficients(lambda a: x * a.derivative()))
             if nvars > 2:
                 for i, r in enumerate(r_list):
-                    r_deriv[i].append(f.map_coefficients(lambda a: rb_x([r * y.derivative(r) for y in list(a)]) * (x ** (a.polynomial_construction()[1]) )))
+                    r_deriv[i].append(f.map_coefficients(lambda a: rb_x([r * y.derivative(r) for y in list(a)]) * (x ** (a.polynomial_construction()[1]))))
         y_k = y.weight()
         k += y_k
         v += y.weyl_vector()
@@ -1021,7 +1024,8 @@ def jacobian(*X):
         L.append(x_deriv)
         if nvars > 2:
             L.extend(r_deriv)
-    return OrthogonalModularForm(k, Xref.weilrep(), matrix(L).determinant(), scale = new_scale, weylvec = v, qexp_representation = Xref.qexp_representation())
+    return OrthogonalModularForm(k, Xref.weilrep(), matrix(L).determinant(), scale=new_scale, weylvec=v, qexp_representation=Xref.qexp_representation())
+
 
 def omf_matrix(*X):
     r"""
@@ -1041,10 +1045,9 @@ def omf_matrix(*X):
             Xref = X[0]
     else:
         Xref = X[0]
-    nrows = Xref.nvars()
     k = Xref.weight()
     prec = min(x.precision() for x in X)
-    Xcoeffs = [x.true_coefficients(prec = prec) for x in X]
+    Xcoeffs = [x.true_coefficients(prec=prec) for x in X]
     Xitems = [set(xcoeffs.keys()) for xcoeffs in Xcoeffs]
     Xitems = list(Xitems[0].union(*Xitems[1:]))
     lenXitems = len(Xitems)
@@ -1052,9 +1055,10 @@ def omf_matrix(*X):
     check_wt = True
     for i, x in enumerate(X):
         if check_wt and x.weight() != k:
-            print('Warning: these forms do not have the same weight!') #in this case the result is probably meaningless, but we'll do it anyway
+            print('Warning: these forms do not have the same weight!')
+            # in this case the result is probably meaningless, but we'll do it anyway
             check_wt = False
-        L = [0]*lenXitems
+        L = [0] * lenXitems
         for j, g in enumerate(Xitems):
             try:
                 L[j] = Xcoeffs[i][g]
@@ -1063,11 +1067,13 @@ def omf_matrix(*X):
         M.append(L)
     return matrix(M)
 
+
 def omf_pivots(*X):
     r"""
     Compute a set of pivot indices in the list of orthogonal modular forms X.
     """
     return list(omf_matrix(*X).transpose().pivots())
+
 
 def omf_rank(*X):
     r"""
@@ -1077,6 +1083,7 @@ def omf_rank(*X):
     """
     return omf_matrix(*X).rank()
 
+
 def _omf_relations(*X):
     r"""
     Compute all linear relations among the list of orthogonal modular forms X.
@@ -1085,6 +1092,7 @@ def _omf_relations(*X):
     WARNING: we only check the relations up to the *minimal precision of all elements of X*. For best results let X be a list of forms with the same (sufficiently high) precision!
     """
     return omf_matrix(*X).kernel()
+
 
 def _laplacian(f):
     r"""
@@ -1098,6 +1106,7 @@ def _laplacian(f):
     if s == 'PD+II' or s == 'siegel' or s == 'hermite':
         return _pos_def_laplacian(f)
     return _lorentz_laplacian(f)
+
 
 def _omf_rankin_cohen(n, *x):
     r"""
@@ -1121,23 +1130,26 @@ def _omf_rankin_cohen(n, *x):
     except TypeError:
         raise ValueError('The Rankin--Cohen bracket requires at least 2 modular forms') from None
     xlen = len(x)
+
     def list_sums_to(N, list_len):
-        #lists of nonnegative integers of length list_len whose sum is N
+        # lists of nonnegative integers of length list_len whose sum is N
         if list_len == 1:
             return [[N]]
-        a = [[[i] + y for y in list_sums_to(N - i, list_len - 1)] for i in range(N+1)]
+        a = [[[i] + y for y in list_sums_to(N - i, list_len - 1)] for i in range(N + 1)]
         return [a for b in a for a in b]
     l = xref.nvars()
     k = [f.weight() for f in x]
-    beta = sum(k) + 1 - l/2
+    beta = sum(k) + 1 - l / 2
+
     def local_factorial(n):
         if n in ZZ:
             return factorial(n)
         return ZZ(2 * n).multifactorial(2)
+
     def A(u):
         p = u[-1]
-        c = (-1)**p * local_factorial(beta + 2*n - p - 2) / (factorial(p) * local_factorial(beta + 2*n - 2))
-        return QQ(c / prod(local_factorial(h) * local_factorial(h + k[i] - l/2) for i, h in enumerate(u[:-1])))
+        c = (-1)**p * local_factorial(beta + 2 * n - p - 2) / (factorial(p) * local_factorial(beta + 2 * n - 2))
+        return QQ(c / prod(local_factorial(h) * local_factorial(h + k[i] - l / 2) for i, h in enumerate(u[:-1])))
     lap = [[f] for f in x]
     for i in range(n):
         for y in lap:
