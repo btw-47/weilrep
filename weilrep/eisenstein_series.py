@@ -17,29 +17,21 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
-from sage.all import cached_function
-from sage.arith.misc import factor, fundamental_discriminant, GCD, is_prime, kronecker_symbol, valuation
-from sage.functions.other import frac
-from sage.functions.transcendental import zeta
+from sage.all import cached_function, denominator
+from sage.arith.misc import fundamental_discriminant, GCD, kronecker_symbol, valuation
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
-from sage.misc.functional import denominator, isqrt, log
 from sage.misc.misc_c import prod
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm, DiagonalQuadraticForm
 from sage.quadratic_forms.special_values import quadratic_L_function__exact
-from sage.rings.big_oh import O
-from sage.rings.fast_arith import prime_range
 from sage.rings.infinity import Infinity
-from sage.rings.integer_ring import IntegerRing, ZZ
-from sage.rings.monomials import monomials
+from sage.rings.integer_ring import ZZ
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
-from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 
 
-
-## odd primes ##
+# ## odd primes ##
 
 @cached_function
 def iard(a, r, d, p, t, m):
@@ -77,7 +69,7 @@ def iard(a, r, d, p, t, m):
     return iard
 
 
-def igusa_zetas(Q,L,c,p,t):
+def igusa_zetas(Q, L, c, p, t):
     r"""
     Compute values of the Igusa (local) zeta function for quadratic polynomials over Z_p.
 
@@ -106,14 +98,10 @@ def igusa_zetas(Q,L,c,p,t):
     """
     quads, lins_gcd, const = isospectral_normal_form(Q, L, p)
     c = vector((const + cj/2) for cj in c)
-    try:
-        c_max_val = max([cj.valuation(p) for cj in c if cj])
-    except:
-        c_max_val = 0
-    u = denominator(c/2)
+    c_max_val = max([cj.valuation(p) for cj in c if cj], default=0)
+    u = denominator(c / 2)
     c *= u
     lins_gcd *= u
-    Z = vector([0]*len(c))
     d_old = [1]
     r_old = [0]
     for i, a in enumerate(quads):
@@ -122,7 +110,7 @@ def igusa_zetas(Q,L,c,p,t):
         try:
             d_old[p_i] *= a / (p ** p_i)
             r_old[p_i] += 1
-        except:
+        except Exception:
             d_old.extend([1] * (p_i + 1 - len(r_old)))
             r_old.extend([0] * (p_i + 1 - len(r_old)))
             d_old[p_i] = a // (p ** p_i)
@@ -149,7 +137,7 @@ def igusa_zetas(Q,L,c,p,t):
             if ell != k:
                 p_power[ell] /= (p ** r[k])
     Z_vec = []
-    m = [1 if x % 2 else (p ** QQ(-x//2)) * kronecker_symbol((-1)**(x//2) * d[i],p) for i, x in enumerate(r)]
+    m = [1 if x % 2 else (p ** QQ(-x//2)) * kronecker_symbol((-1)**(x//2) * d[i], p) for i, x in enumerate(r)]
     if lins_gcd:
         lamda = lins_gcd.valuation(p)
         f0 = sum((t ** i) * iard(0, r[i], d[i], p, t, m[i]) * p_power[i] for i in range(lamda)) + ((t ** lamda) * p_power[lamda]) * (1 - 1 / p)
@@ -171,10 +159,10 @@ def igusa_zetas(Q,L,c,p,t):
         r_old_sum = QQ(sum(r_old))
         f0 = sum((t ** i) * iard(0, r[i], d[i], p, t, m[i]) * p_power[i] for i in range(w-1))
         try:
-            f0 = f0 + 1/(1 - (t * t) / (p ** r_old_sum)) * (t ** (w-1)) * ( iard(0, r[w-1], d[w-1], p, t, m[w-1]) * p_power[w-1] + t * iard(0, r[w], d[w], p, t, m[w]) * p_power[w] )
+            f0 = f0 + 1/(1 - (t * t) / (p ** r_old_sum)) * (t ** (w-1)) * (iard(0, r[w-1], d[w-1], p, t, m[w-1]) * p_power[w-1] + t * iard(0, r[w], d[w], p, t, m[w]) * p_power[w])
         except ZeroDivisionError:
             t0, = PolynomialRing(QQ, 't0').gens()
-            f1 = ~(1 - (t0 ** 2) / (p ** r_old_sum)) * (t0 ** (w-1)) * ( iard(0, r[w-1], d[w-1], p, t0, m[w-1]) * p_power[w-1] + t0 * iard(0, r[w], d[w], p, t0, m[w]) * p_power[w] )
+            f1 = ~(1 - (t0 ** 2) / (p ** r_old_sum)) * (t0 ** (w-1)) * (iard(0, r[w-1], d[w-1], p, t0, m[w-1]) * p_power[w-1] + t0 * iard(0, r[w], d[w], p, t0, m[w]) * p_power[w])
             f0 = f0 + f1(t)
         for cj in c:
             if cj:
@@ -189,6 +177,7 @@ def igusa_zetas(Q,L,c,p,t):
             else:
                 Z_vec.append(f0)
         return vector(Z_vec)
+
 
 def isospectral_normal_form(Q, L, p):
     r"""
@@ -225,7 +214,7 @@ def isospectral_normal_form(Q, L, p):
         ([1, 3], 0, -1/4)
 
     """
-    D, P = local_normal_form_with_change_vars(Q.matrix(),p)
+    D, P = local_normal_form_with_change_vars(Q.matrix(), p)
     L = P * L
     linear_gcd = 0
     const = 0
@@ -240,8 +229,9 @@ def isospectral_normal_form(Q, L, p):
             const = const - b * b / (4 * a)
     return quads, linear_gcd, const
 
+
 @cached_function
-def local_normal_form_with_change_vars(S,p):
+def local_normal_form_with_change_vars(S, p):
     r"""
     Diagonalize the quadratic form with Gram matrix S over Q_p, p != 2.
 
@@ -272,30 +262,30 @@ def local_normal_form_with_change_vars(S,p):
     #
     Q = QuadraticForm(S)
     I = list(range(Q.dim()))
-    M = identity_matrix(QQ,Q.dim())
-    Q_Jordan = DiagonalQuadraticForm(ZZ,[])
+    M = identity_matrix(QQ, Q.dim())
+    Q_Jordan = DiagonalQuadraticForm(ZZ, [])
     while Q.dim() > 0:
         n = Q.dim()
         (min_i, min_j) = Q.find_entry_with_minimal_scale_at_prime(p)
         if min_i == min_j:
-            Q.swap_variables(0, min_i, in_place = True)
-            M.swap_rows(I[0],I[min_i])
+            Q.swap_variables(0, min_i, in_place=True)
+            M.swap_rows(I[0], I[min_i])
         else:
             min_val = valuation(Q[min_i, min_j], p)
-            Q.swap_variables(0, min_i, in_place = True)
-            Q.swap_variables(1, min_j, in_place = True)
-            M.swap_rows(I[0],I[min_i])
-            M.swap_rows(I[1],I[min_j])
-            Q.add_symmetric(1, 0, 1, in_place = True)
-            M.add_multiple_of_row(I[0],I[1],1)
-        a = 2 * Q[0,0]
+            Q.swap_variables(0, min_i, in_place=True)
+            Q.swap_variables(1, min_j, in_place=True)
+            M.swap_rows(I[0], I[min_i])
+            M.swap_rows(I[1], I[min_j])
+            Q.add_symmetric(1, 0, 1, in_place=True)
+            M.add_multiple_of_row(I[0], I[1], 1)
+        a = 2 * Q[0, 0]
         for j in range(1, n):
             b = Q[0, j]
             g = GCD(a, b)
-            Q.multiply_variable(a//g, j, in_place = True)
-            Q.add_symmetric(-b//g, j, 0, in_place = True)
-            M.rescale_row(I[j],a/g)
-            M.add_multiple_of_row(I[j],I[0],-b//g)
+            Q.multiply_variable(a//g, j, in_place=True)
+            Q.add_symmetric(-b//g, j, 0, in_place=True)
+            M.rescale_row(I[j], a/g)
+            M.add_multiple_of_row(I[j], I[0], -b//g)
         Q_Jordan = Q_Jordan + Q.extract_variables(range(1))
         I.remove(I[0])
         Q = Q.extract_variables(range(1, n))
@@ -333,64 +323,64 @@ def twonf_with_change_vars(Q):
         [ 1 -2  3]
         )
     """
-
-    #basically copied from the built-in function local_normal_form(), specialized to p=2, but it also computes a change-of-variables to the local normal form. it skips the "Cassels' proof" step. this is accounted for later.
+    # basically copied from the built-in function local_normal_form(), specialized to p=2, but it also computes a change-of-variables to the local normal form. it skips the "Cassels' proof" step. this is accounted for later.
     Q = QuadraticForm(Q)
     I = list(range(Q.dim()))
-    P = identity_matrix(QQ,Q.dim())
-    Q_Jordan = DiagonalQuadraticForm(ZZ,[])
+    P = identity_matrix(QQ, Q.dim())
+    Q_Jordan = DiagonalQuadraticForm(ZZ, [])
     while Q.dim() > 0:
         n = Q.dim()
-        (min_i,min_j) = Q.find_entry_with_minimal_scale_at_prime(2)
+        min_i, min_j = Q.find_entry_with_minimal_scale_at_prime(2)
         if min_i == min_j:
-            min_val = valuation(2 * Q[min_i,min_j],2)
+            min_val = valuation(2 * Q[min_i, min_j], 2)
         else:
-            min_val = valuation(Q[min_i, min_j],2)
-        if (min_i == min_j):
+            min_val = valuation(Q[min_i, min_j], 2)
+        if min_i == min_j:
             block_size = 1
-            Q.swap_variables(0,min_i,in_place = True)
-            P.swap_rows(I[0],I[min_i])
+            Q.swap_variables(0, min_i, in_place=True)
+            P.swap_rows(I[0], I[min_i])
         else:
-            Q.swap_variables(0, min_i, in_place = True)
-            Q.swap_variables(1, min_j, in_place = True)
-            P.swap_rows(I[0],I[min_i])
-            P.swap_rows(I[1],I[min_j])
+            Q.swap_variables(0, min_i, in_place=True)
+            Q.swap_variables(1, min_j, in_place=True)
+            P.swap_rows(I[0], I[min_i])
+            P.swap_rows(I[1], I[min_j])
             block_size = 2
         min_scale = 2 ** (min_val)
         if (block_size == 1):
-            a = 2 * Q[0,0]
+            a = 2 * Q[0, 0]
             for j in range(block_size, n):
                 b = Q[0, j]
                 g = GCD(a, b)
-                Q.multiply_variable(ZZ(a/g), j, in_place = True)
-                Q.add_symmetric(ZZ(-b/g), j, 0, in_place = True)
-                P.rescale_row(I[j],a/g)
-                P.add_multiple_of_row(I[j],I[0],-b/g)
+                Q.multiply_variable(ZZ(a/g), j, in_place=True)
+                Q.add_symmetric(ZZ(-b/g), j, 0, in_place=True)
+                P.rescale_row(I[j], a/g)
+                P.add_multiple_of_row(I[j], I[0], -b/g)
             NewQ = QuadraticForm(matrix([a]))
         else:
-            a1 = 2*Q[0,0]
-            a2 = Q[0,1]
-            b2 = 2*Q[1,1]
+            a1 = 2*Q[0, 0]
+            a2 = Q[0, 1]
+            b2 = 2*Q[1, 1]
             big_det = (a1*b2 - a2*a2)
-            two_scale= ZZ(min_scale * min_scale)
-            for j in range(block_size,n):
-                a = Q[0,j]
-                b = Q[1,j]
-                Q.multiply_variable(big_det,j,in_place = True)
-                Q.add_symmetric(ZZ(-(a*b2 - b*a2)),j,0,in_place = True)
-                Q.add_symmetric(ZZ(-(-a*a2 + b*a1)),j,1,in_place = True)
-                Q.divide_variable(two_scale,j,in_place = True)
-                P.rescale_row(I[j],big_det)
-                P.add_multiple_of_row(I[j],I[0],-a*b2+b*a2)
-                P.add_multiple_of_row(I[j],I[1],a*a2-b*a1)
-                P.rescale_row(I[j],~two_scale)
+            two_scale = ZZ(min_scale * min_scale)
+            for j in range(block_size, n):
+                a = Q[0, j]
+                b = Q[1, j]
+                Q.multiply_variable(big_det, j, in_place=True)
+                Q.add_symmetric(ZZ(-(a*b2 - b*a2)), j, 0, in_place=True)
+                Q.add_symmetric(ZZ(-(-a*a2 + b*a1)), j, 1, in_place=True)
+                Q.divide_variable(two_scale, j, in_place=True)
+                P.rescale_row(I[j], big_det)
+                P.add_multiple_of_row(I[j], I[0], -a*b2+b*a2)
+                P.add_multiple_of_row(I[j], I[1], a*a2-b*a1)
+                P.rescale_row(I[j], ~two_scale)
         Q_Jordan = Q_Jordan + Q.extract_variables(range(block_size))
         for j in range(block_size):
             I.remove(I[0])
         Q = Q.extract_variables(range(block_size, n))
     return Q_Jordan, P
 
-def twoadic_isospectral_normal_form(Q,L):
+
+def twoadic_isospectral_normal_form(Q, L):
     r"""
     Computes an isospectral normal form of the quadratic polynomial Q + L modulo the  pime p=2, where Q is a quadratic form and L is a linear form.
 
@@ -437,14 +427,14 @@ def twoadic_isospectral_normal_form(Q,L):
             a = 2*D[j, j]
             b = 2*D[j, j + 1]
             c = 2*D[j + 1, j + 1]
-            if min(ell.valuation(2),m.valuation(2)) >= b.valuation(2):
-                NewQ += D.extract_variables([j,j+1])
-                const = const + (c * ell * ell - b * ell * m + a * m * m) / (b * b - 4 * a * c) #complete the square
+            if min(ell.valuation(2), m.valuation(2)) >= b.valuation(2):
+                NewQ += D.extract_variables([j, j+1])
+                const = const + (c * ell * ell - b * ell * m + a * m * m) / (b * b - 4 * a * c)  # complete the square
             else:
                 linear_term_gcd = GCD(linear_term_gcd, GCD(ell, m))
             j += 2
         else:
-            a = 2 * D[j,j]
+            a = 2 * D[j, j]
             b = L[j]
             a_val = a.valuation(2)
             b_val = b.valuation(2)
@@ -457,6 +447,7 @@ def twoadic_isospectral_normal_form(Q,L):
                 const = const - b * b / (4 * a)
             j += 1
     return NewQ, linear_term_gcd, const
+
 
 @cached_function
 def twoadic_classify(Q):
@@ -500,17 +491,17 @@ def twoadic_classify(Q):
     k = 0
     while k < J.nrows():
         try:
-            if J[k,k+1]:
+            if J[k, k+1]:
                 if J[k, k] * J[k+1, k+1] % 8:
                     ell += 1
                 else:
                     hyp += 1
                 k += 2
             else:
-                squares.extend([(J[k,k] % 16) / 2, (J[k+1,k+1] % 16) / 2])
+                squares.extend([(J[k, k] % 16) / 2, (J[k+1, k+1] % 16) / 2])
                 k += 2
-        except:
-            squares.append((J[k,k] % 16) / 2)
+        except Exception:
+            squares.append((J[k, k] % 16) / 2)
             k += 1
     while len(squares) > 2:
         x = squares[:3]
@@ -525,6 +516,7 @@ def twoadic_classify(Q):
     hyp += ell
     ell %= 2
     return squares, ell, hyp-ell
+
 
 @cached_function
 def twoadic_jordan_blocks(Q):
@@ -558,9 +550,9 @@ def twoadic_jordan_blocks(Q):
     i = 0
     n = Q1.dim()
     while i < n:
-        if (i == n-1) or (not Q1[i,i+1]):
-            scale = valuation(Q1[i,i], 2) + 1
-            Q_i = QuadraticForm(ZZ,Q1.extract_variables([i]).matrix() / 2 ** (scale - 1))
+        if (i == n-1) or (not Q1[i, i+1]):
+            scale = valuation(Q1[i, i], 2) + 1
+            Q_i = QuadraticForm(ZZ, Q1.extract_variables([i]).matrix() / 2 ** (scale - 1))
             if valuations and scale == valuations[-1]:
                 jordans[-1] += Q_i
             else:
@@ -568,8 +560,8 @@ def twoadic_jordan_blocks(Q):
                 jordans.append(Q_i)
             i += 1
         else:
-            scale = valuation(Q1[i,i+1], 2)
-            Q_i = QuadraticForm(ZZ,Q1.extract_variables([i,i+1]).matrix() / 2 ** (scale))
+            scale = valuation(Q1[i, i+1], 2)
+            Q_i = QuadraticForm(ZZ, Q1.extract_variables([i, i+1]).matrix() / 2 ** (scale))
             if valuations and scale == valuations[-1]:
                 jordans[-1] += Q_i
             else:
@@ -578,7 +570,8 @@ def twoadic_jordan_blocks(Q):
             i += 2
     return list(zip(valuations, jordans))
 
-def ig_v(a,u,j,t):
+
+def ig_v(a, u, j, t):
     r"""
     Convert p-adic generating functions to Igusa (local) zeta functions.
 
@@ -599,14 +592,15 @@ def ig_v(a,u,j,t):
         (1/1024, 15/16, 15/128, 15/16, 15/1024)
 
     """
-    #evaluate the map Ig() of [CKW] on the p-adic generating functions z^(a_j + 2^(min(u,j)) * Z_2) for several values at once. Input a = [a_1,a_2,...]
+    # evaluate the map Ig() of [CKW] on the p-adic generating functions z^(a_j + 2^(min(u,j)) * Z_2) for several values at once. Input a = [a_1,a_2,...]
     a_vals = [x.valuation(2) for x in a]
-    j = min(u,j)
+    j = min(u, j)
     f0 = (t ** j) / 2
     f = tuple((t ** i) * (1 - t/2) for i in range(j))
-    return vector(0 if i<0 else f[i] if i < j else f0 for i in a_vals)
+    return vector(0 if i < 0 else f[i] if i < j else f0 for i in a_vals)
 
-def ig_v_from_valuations(a_vals,u,j,t):
+
+def ig_v_from_valuations(a_vals, u, j, t):
     r"""
     Convert p-adic generating functions to Igusa (local) zeta functions.
 
@@ -626,14 +620,14 @@ def ig_v_from_valuations(a_vals,u,j,t):
         (1/1024, 15/16, 15/128, 15/16, 15/1024)
 
     """
-    #same as ig_v, but the values a = [a_1,a_2,...] have already been converted to their 2adic valuations: a_vals = [v_2(a_1),v_2(a_2),...]
-    j = min(u,j)
+    # same as ig_v, but the values a = [a_1,a_2,...] have already been converted to their 2adic valuations: a_vals = [v_2(a_1),v_2(a_2),...]
+    j = min(u, j)
     f0 = (t ** j) / 2
     f = tuple((t ** i) * (1 - t/2) for i in range(j))
-    return vector(0 if i<0 else f[i] if i < j else f0 for i in a_vals)
+    return vector(0 if i < 0 else f[i] if i < j else f0 for i in a_vals)
 
 
-def hat_hq_v(a,u,Q0,t): #Helper function labeled H_1(a,u,Q0) in section 12 of [W]
+def hat_hq_v(a, u, Q0, t):  # Helper function labeled H_1(a,u,Q0) in section 12 of [W]
     r"""
     Compute the helper functions H_1 from section 12 of [W] (denoted hat HQ in Appendix B of [CKW]).
 
@@ -655,11 +649,12 @@ def hat_hq_v(a,u,Q0,t): #Helper function labeled H_1(a,u,Q0) in section 12 of [W
     two_r = 2 ** QQ(-r)
     a_vals = [QQ(valuation(x, 2)) if x else +Infinity for x in a]
     if Q0[0]:
-        return ig_v_from_valuations(a_vals, u, 0,t) - two_r * ig_v_from_valuations(a_vals, u, 1,t)
+        return ig_v_from_valuations(a_vals, u, 0, t) - two_r * ig_v_from_valuations(a_vals, u, 1, t)
     else:
-        return (1 - two_r) * ig_v_from_valuations(a_vals,u,1,t)
+        return (1 - two_r) * ig_v_from_valuations(a_vals, u, 1, t)
 
-def tilde_hq_v(a,u,Q0,t): #Helper function labeled H_2(a,u,Q0) in section 12 of [W]
+
+def tilde_hq_v(a, u, Q0, t):  # Helper function labeled H_2(a,u,Q0) in section 12 of [W]
     r"""
     Compute the helper functions H_2 from section 12 of [W] (denoted tilde HQ in Appendix B of [CKW])
 
@@ -683,21 +678,22 @@ def tilde_hq_v(a,u,Q0,t): #Helper function labeled H_2(a,u,Q0) in section 12 of 
     a_vals = [QQ(valuation(x, 2)) if x else +Infinity for x in a]
     eps_two_r = eps * (2 ** QQ((-r) // 2))
     if not j:
-        return (1 - eps_two_r) * (ig_v_from_valuations(a_vals,u,1,t) + eps_two_r * ig_v_from_valuations(a_vals,u,2,t))
+        return (1 - eps_two_r) * (ig_v_from_valuations(a_vals, u, 1, t) + eps_two_r * ig_v_from_valuations(a_vals, u, 2, t))
     elif j == 1:
         b = Q0[0][0]
         b = vector([b]*len(a))
-        return (1 - 2*eps_two_r)*ig_v_from_valuations(a_vals,u,0,t) - (2 ** QQ(-r)) * ig_v_from_valuations(a_vals,u,2,t) + eps_two_r * (ig_v_from_valuations(a_vals,u,2,t) + ig_v(a+b,u,2,t))
+        return (1 - 2*eps_two_r)*ig_v_from_valuations(a_vals, u, 0, t) - (2 ** QQ(-r)) * ig_v_from_valuations(a_vals, u, 2, t) + eps_two_r * (ig_v_from_valuations(a_vals, u, 2, t) + ig_v(a+b, u, 2, t))
     else:
         b = Q0[0][0]
         c = Q0[0][1]
-        if (b+c)%4:
+        if (b+c) % 4:
             b = vector([b]*len(a))
-            return (1 - 2*eps_two_r)*ig_v_from_valuations(a_vals,u,0,t) + eps_two_r * ig_v_from_valuations(a_vals,u,1,t) + eps_two_r * ig_v(a+b,u,2,t) - (2 ** QQ(-r)) * ig_v_from_valuations(a_vals,u,2,t)
+            return (1 - 2*eps_two_r)*ig_v_from_valuations(a_vals, u, 0, t) + eps_two_r * ig_v_from_valuations(a_vals, u, 1, t) + eps_two_r * ig_v(a+b, u, 2, t) - (2 ** QQ(-r)) * ig_v_from_valuations(a_vals, u, 2, t)
         else:
-            return ig_v_from_valuations(a_vals,u,0,t) - eps_two_r * ig_v_from_valuations(a_vals,u,1,t) + (eps_two_r - (2 ** QQ(-r))) * ig_v_from_valuations(a_vals,u,2,t)
+            return ig_v_from_valuations(a_vals, u, 0, t) - eps_two_r * ig_v_from_valuations(a_vals, u, 1, t) + (eps_two_r - (2 ** QQ(-r))) * ig_v_from_valuations(a_vals, u, 2, t)
 
-def tilde_hq_diff_v(a,u,Q0,t): #Helper function labeled H_3(a,u,Q0) in section 12 of [W]
+
+def tilde_hq_diff_v(a, u, Q0, t): #Helper function labeled H_3(a,u,Q0) in section 12 of [W]
     r"""
     Compute the helper functions H_3 from section 12 of [W] (denoted (HQ-tilde HQ) in Appendix B of [CKW])
 
@@ -723,18 +719,19 @@ def tilde_hq_diff_v(a,u,Q0,t): #Helper function labeled H_3(a,u,Q0) in section 1
         b = Q0[0][0]
         b = vector([b]*len(a))
         ab_vals = [QQ(valuation(x, 2)) if x else +Infinity for x in a+b]
-        return two_r* (ig_v_from_valuations(ab_vals, u, 3,t) - ig_v_from_valuations(ab_vals, u, 2,t))
+        return two_r * (ig_v_from_valuations(ab_vals, u, 3, t) - ig_v_from_valuations(ab_vals, u, 2, t))
     else:
-        [b,c] = Q0[0]
+        [b, c] = Q0[0]
         a_vals = [QQ(valuation(x, 2)) if x else +Infinity for x in a]
-        if (b+c)%4:
+        if (b+c) % 4:
             bc = vector([b+c]*len(a))
-            return -2*two_r * ig_v_from_valuations(a_vals, u, 1,t) + two_r * (ig_v_from_valuations(a_vals, u, 2,t) + ig_v(a+bc, u, 3,t))
+            return -2*two_r * ig_v_from_valuations(a_vals, u, 1, t) + two_r * (ig_v_from_valuations(a_vals, u, 2, t) + ig_v(a+bc, u, 3, t))
         else:
             eps = (-1) ** ((b+c)/4)
-            return eps * two_r * (ig_v_from_valuations(a_vals, u, 3,t) - ig_v_from_valuations(a_vals, u, 2,t))
+            return eps * two_r * (ig_v_from_valuations(a_vals, u, 3, t) - ig_v_from_valuations(a_vals, u, 2, t))
 
-def iaqqq_v(a,u,U0,U1,U2,t):
+
+def iaqqq_v(a, u, U0, U1, U2, t):
     r"""
     Compute the helper functions I_a^u(U0,U1,U2) from section 12 of [W].
 
@@ -779,7 +776,8 @@ def iaqqq_v(a,u,U0,U1,U2,t):
         else:
             return hat_hq_v(a, u, Q0, t) + two_r * tilde_hq_diff_v(a, u, Q0, t)
 
-def ig(a,u,j,t):
+
+def ig(a, u, j, t):
     r"""
     Convert p-adic generating functions to Igusa (local) zeta functions.
 
@@ -800,14 +798,15 @@ def ig(a,u,j,t):
         1/128
 
     """
-    j = min(u,j)
+    j = min(u, j)
     if a:
         aval = QQ(valuation(a, 2))
         if aval < j:
             return (t ** aval) * (1 - t/2)
     return (t ** j) / 2
 
-def hat_hq(a,u,Q0,t): #H1
+
+def hat_hq(a, u, Q0, t): #H1
     r"""
     Compute the helper function H_1 from section 12 of [W] (denoted hat HQ in Appendix B of [CKW]).
 
@@ -834,7 +833,8 @@ def hat_hq(a,u,Q0,t): #H1
     else:
         return (1 - two_r)*ig(a, u, 1, t)
 
-def tilde_hq(a,u,Q0,t): #H2
+
+def tilde_hq(a, u, Q0, t): #H2
     r"""
     Compute the helper function H_2 from section 12 of [W] (denoted tilde HQ in Appendix B of [CKW])
 
@@ -859,18 +859,19 @@ def tilde_hq(a,u,Q0,t): #H2
     r = j + 2 * (Q0[1] + Q0[2])
     two_r = eps * (2 ** QQ((-r) // 2))
     if not j:
-        return (1 - two_r)*(ig(a,u,1,t) + two_r*ig(a,u,2,t))
+        return (1 - two_r)*(ig(a, u, 1, t) + two_r*ig(a, u, 2, t))
     elif j == 1:
         b = Q0[0][0]
-        return (1 - 2 * two_r)*ig(a,u,0,t) - (2 ** QQ(-r)) * ig(a,u,2,t) + two_r * (ig(a,u,2,t) + ig(a+b,u,2,t))
+        return (1 - 2 * two_r)*ig(a, u, 0, t) - (2 ** QQ(-r)) * ig(a, u, 2, t) + two_r * (ig(a, u, 2, t) + ig(a+b, u, 2, t))
     else:
         b, c = Q0[0]
-        if (b+c)%4:
-            return (1 - 2 * two_r)*ig(a,u,0,t) + two_r * (ig(a,u,1,t) + ig(a+b,u,2,t)) - (2 ** QQ(-r)) * ig(a,u,2,t)
+        if (b+c) % 4:
+            return (1 - 2 * two_r)*ig(a, u, 0, t) + two_r * (ig(a, u, 1, t) + ig(a+b, u, 2, t)) - (2 ** QQ(-r)) * ig(a, u, 2, t)
         else:
-            return ig(a,u,0,t) - two_r * ig(a,u,1,t) + (two_r - (2 ** QQ(-r))) * ig(a,u,2,t)
+            return ig(a, u, 0, t) - two_r * ig(a, u, 1, t) + (two_r - (2 ** QQ(-r))) * ig(a, u, 2, t)
 
-def tilde_hq_diff(a,u,Q0,t): #H3
+
+def tilde_hq_diff(a, u, Q0, t):  # H3
     r"""
     Compute the helper function H_3 from section 12 of [W] (denoted (HQ-tilde HQ) in Appendix B of [CKW])
 
@@ -892,13 +893,13 @@ def tilde_hq_diff(a,u,Q0,t): #H3
     """
     if not Q0[0]:
         return 0
-    eps = (-1) ** Q0[1]%2
+    eps = (-1) ** Q0[1] % 2
     j = len(Q0[0])
     r = QQ(j + 2*(Q0[1] + Q0[2]))
     two_r = 2 ** (-r)
     if j == 1:
         b = Q0[0][0]
-        return two_r*(ig(a+b,u,3,t) - ig(a+b,u,2,t))
+        return two_r*(ig(a+b, u, 3, t) - ig(a+b, u, 2, t))
     else:
         b, c = Q0[0]
         if (b + c) % 4:
@@ -906,8 +907,9 @@ def tilde_hq_diff(a,u,Q0,t): #H3
         else:
             return ((-1) ** ((b+c)/4)) * two_r * (ig(a, u, 3, t) - ig(a, u, 2, t))
 
+
 @cached_function
-def iaqqq(a,u,U0,U1,U2,t):
+def iaqqq(a, u, U0, U1, U2, t):
     r"""
     Compute the helper functions I_a^u(U0,U1,U2) from section 12 of [W].
 
@@ -932,27 +934,28 @@ def iaqqq(a,u,U0,U1,U2,t):
     Q1 = twoadic_classify(U1)
     Q2 = twoadic_classify(U2)
     if Q1[0] and Q2[0]:
-        return hat_hq(a,u,Q0,t)
+        return hat_hq(a, u, Q0, t)
     elif Q2[0]:
-        return tilde_hq(a,u,Q0,t)
+        return tilde_hq(a, u, Q0, t)
     eps1 = (-1) ** Q1[1]
     j = len(Q1[0])
     r1 = (j + 2*(Q1[1] + Q1[2]))
     two_r1 = eps1 * (2 ** QQ((-r1) // 2))
     if not j:
-        return tilde_hq(a,u,Q0,t) + two_r1 * tilde_hq_diff(a,u,Q0,t)
+        return tilde_hq(a, u, Q0, t) + two_r1 * tilde_hq_diff(a, u, Q0, t)
     elif j == 1:
         c = Q1[0][0]
-        return hat_hq(a,u,Q0,t) + two_r1 * (tilde_hq_diff(a,u,Q0,t) + tilde_hq_diff(a+2*c,u,Q0,t))
+        return hat_hq(a, u, Q0, t) + two_r1 * (tilde_hq_diff(a, u, Q0, t) + tilde_hq_diff(a+2*c, u, Q0, t))
     else:
         c = Q1[0][0]
         d = Q1[0][1]
-        if (c+d)%4:
-            return hat_hq(a,u,Q0,t) + two_r1 * tilde_hq_diff(a+2*c,u,Q0,t)
+        if (c+d) % 4:
+            return hat_hq(a, u, Q0, t) + two_r1 * tilde_hq_diff(a+2*c, u, Q0, t)
         else:
-            return hat_hq(a,u,Q0,t) + two_r1 * tilde_hq_diff(a,u,Q0,t)
+            return hat_hq(a, u, Q0, t) + two_r1 * tilde_hq_diff(a, u, Q0, t)
 
-def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at the same time
+
+def twoadic_igusa_zetas(Q, L, c_list, t): #compute several igusa zeta functions at the same time
     r"""
     Compute special values of Igusa (local) zeta functions of quadratic polynomials at the prime p=2.
 
@@ -978,17 +981,14 @@ def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at
 
     """
     big_r = Q.dim()
-    new_Q, lins_gcd, const = twoadic_isospectral_normal_form(Q,L)
+    new_Q, lins_gcd, const = twoadic_isospectral_normal_form(Q, L)
     c = vector(QQ(const + n) for n in c_list)
     Z = vector([0] * len(c))
     jordan_blocks = twoadic_jordan_blocks(new_Q)
     Qs = []
     vb = ZZ(lins_gcd).valuation(2)
     vc_s = tuple(valuation(n, 2) for n in c)
-    try:
-        vc_nonzero = max(cval for cval in vc_s if cval != +Infinity)
-    except:
-        vc_nonzero = 0
+    vc_nonzero = max((cval for cval in vc_s if cval != +Infinity), default=0)
     vc = vc_nonzero if (0 not in c) else +Infinity
     vc_min = min(vc_s)
     if jordan_blocks:
@@ -996,17 +996,17 @@ def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at
     else:
         maxrange = 2
     if lins_gcd:
-        maxrange = max(maxrange,vb+1)
+        maxrange = max(maxrange, vb+1)
     maxrange = max(2, maxrange, vc_nonzero+3)
-    jordans = [DiagonalQuadraticForm(ZZ,[])] * maxrange
+    jordans = [DiagonalQuadraticForm(ZZ, [])] * maxrange
     for k in range(len(jordan_blocks)):
         jordans[jordan_blocks[k][0]] += jordan_blocks[k][1]
     rs = [0] * maxrange
-    zero_form = DiagonalQuadraticForm(ZZ,[])
-    sq_form = DiagonalQuadraticForm(ZZ,[1])
+    zero_form = DiagonalQuadraticForm(ZZ, [])
+    sq_form = DiagonalQuadraticForm(ZZ, [1])
     q_powers = []
     for k in range(maxrange):
-        Qs.append(DiagonalQuadraticForm(ZZ,[]))
+        Qs.append(DiagonalQuadraticForm(ZZ, []))
         ell = k
         while ell >= 0:
             Qs[k] += jordans[ell]
@@ -1017,7 +1017,7 @@ def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at
         else:
             q_powers.append(1)
     if vb == Infinity:
-        w = max(len(Qs)-1,1)
+        w = max(len(Qs)-1, 1)
         bound = min(w, vc_nonzero + 1)
         Z = sum((t ** i) * iaqqq_v(c / (2 ** i), Infinity, Qs[i], Qs[i+1], jordans[i+2], t)/q_powers[i] for i in range(bound))
         u = []
@@ -1026,23 +1026,24 @@ def twoadic_igusa_zetas(Q,L,c_list, t): #compute several igusa zeta functions at
             if cj:
                 u.append((t ** bound) * sum((t ** i) * iaqqq((cj >> i), Infinity, Qs[i], Qs[i+1], jordans[i+2], t) / q_powers[i] for i in range(bound, cj_val+1)) + (1 - t/2) * (t ** cj_val) / q_powers[cj_val + 1])
             else:
-                u.append(((t ** (w-1)) * iaqqq(0, Infinity, Qs[w-1], Qs[w], zero_form ,t) / q_powers[w-1] + (t ** w) * iaqqq(0, Infinity, Qs[w], Qs[w-1], zero_form,t) / q_powers[w]) / (1 - t * t * (2 ** QQ(-big_r))))
+                u.append(((t ** (w-1)) * iaqqq(0, Infinity, Qs[w-1], Qs[w], zero_form, t) / q_powers[w-1] + (t ** w) * iaqqq(0, Infinity, Qs[w], Qs[w-1], zero_form, t) / q_powers[w]) / (1 - t * t * (2 ** QQ(-big_r))))
         return Z + vector(u)
     else:
-        Z = sum((t ** i) * iaqqq_v(c/(2 ** i), Infinity, Qs[i], Qs[i+1], jordans[i+2],t) / q_powers[i] for i in range(vb-2))
+        Z = sum((t ** i) * iaqqq_v(c/(2 ** i), Infinity, Qs[i], Qs[i+1], jordans[i+2], t) / q_powers[i] for i in range(vb-2))
         if vb >= 1:
-            Z += (t ** (vb-1)) * iaqqq_v(c/(2 ** (vb-1)),2,Qs[vb-1],sq_form,sq_form,t) / q_powers[vb-1]
+            Z += (t ** (vb-1)) * iaqqq_v(c/(2 ** (vb-1)), 2, Qs[vb-1], sq_form, sq_form, t) / q_powers[vb-1]
             if vb >= 2:
-                Z += (t ** (vb-2)) * iaqqq_v(c/(2 ** (vb-2)),2,Qs[vb-2],Qs[vb-1],sq_form,t) / q_powers[vb-2]
+                Z += (t ** (vb-2)) * iaqqq_v(c/(2 ** (vb-2)), 2, Qs[vb-2], Qs[vb-1], sq_form, t) / q_powers[vb-2]
         u = []
         for c, val_cj in enumerate(vc_s):
             if val_cj >= vb:
                 u.append((t ** vb) / (2 * q_powers[vb]))
             else:
-                u.append((t ** val_cj) * (1 - t/2) / q_powers[val_cj+1])
+                u.append((t ** val_cj) * (1 - t / 2) / q_powers[val_cj+1])
         return Z + vector(u)
 
-def L_values(L, c, S, p, k, t = None): #the Euler factors in the Eisenstein series, vector version
+
+def L_values(L, c, S, p, k, t=None): #the Euler factors in the Eisenstein series, vector version
     r"""
     Compute the Euler factors in the Eisenstein series.
 
@@ -1077,33 +1078,34 @@ def L_values(L, c, S, p, k, t = None): #the Euler factors in the Eisenstein seri
         return []
     if t is None:
         t = p ** (1 + ZZ(S.nrows())/2 - k)
-    if t == 1:#kluge. can it be fixed??
+    if t == 1: #kluge. can it be fixed??
         t = p
-        S = block_diagonal_matrix([S, matrix([[0,1],[1,0]])])
-        L = vector(list(L) + [0,0])
+        S = block_diagonal_matrix([S, matrix([[0, 1], [1, 0]])])
+        L = vector(list(L) + [0, 0])
     Q = QuadraticForm(S)
     one_v = vector([1 - t/p]*len(c))
     if p == 2:
         try:
-            return (one_v - twoadic_igusa_zetas(Q,L,c,t)) / (1 - t)
-        except ZeroDivisionError:#should only happen in weight one
+            return (one_v - twoadic_igusa_zetas(Q, L, c, t)) / (1 - t)
+        except ZeroDivisionError: #should only happen in weight one
             t0, = PolynomialRing(QQ, 't0').gens()
-            fv = (one_v - twoadic_igusa_zetas(Q,L,c,t0)) / (1 - t0)
+            fv = (one_v - twoadic_igusa_zetas(Q, L, c, t0)) / (1 - t0)
             return vector(f(t) for f in fv)
     else:
         try:
-            return (one_v - t*igusa_zetas(Q,L,c,p,t)) / (1 - t) #for technical reasons the igusa zetas here are multiplied by 't' and the igusa zetas at p=2 are not!
-        except ZeroDivisionError:#should only happen in weight one
+            return (one_v - t*igusa_zetas(Q, L, c, p, t)) / (1 - t) #for technical reasons the igusa zetas here are multiplied by 't' and the igusa zetas at p=2 are not!
+        except ZeroDivisionError: #should only happen in weight one
             t0, = PolynomialRing(QQ, 't0').gens()
-            fv = (one_v - t0*igusa_zetas(Q,L,c,p,t0)) / (1 - t0)
+            fv = (one_v - t0*igusa_zetas(Q, L, c, p, t0)) / (1 - t0)
             return vector(f(t) for f in fv)
 
-def L_value_deriv(L, c, S, p, k, t = None):
+
+def L_value_deriv(L, c, S, p, k, t=None):
     r"""
     ...
     """
     r, y = PolynomialRing(QQ, 't').objgen()
-    x = L_values(L, c, S, p, k, t = y)
+    x = L_values(L, c, S, p, k, t=y)
     N = ZZ(S.nrows())
     x = [-y * x.derivative() for x in x]
     if t is None:
@@ -1111,14 +1113,19 @@ def L_value_deriv(L, c, S, p, k, t = None):
         x = [x(t) for x in x]
     return x
 
-@cached_function
-def quadratic_L_function__cached(k,D):
-    return quadratic_L_function__exact(k,D)
 
 @cached_function
-def quadratic_L_function__corrector(k,D): #quadratic_L_function__exact() includes the Euler factors for primes dividing D.
+def quadratic_L_function__cached(k, D):
+    return quadratic_L_function__exact(k, D)
+
+
+@cached_function
+def quadratic_L_function__corrector(k, D):
+    # quadratic_L_function__exact() includes the Euler factors for primes dividing D.
     d = fundamental_discriminant(D)
-    return prod((1 - kronecker_symbol(d,p)*(p**(-k))) for p in ZZ(D).prime_factors() if d%p)
+    return prod((1 - kronecker_symbol(d, p) * (p**(-k)))
+                for p in ZZ(D).prime_factors() if d % p)
 
-def quadratic_L_function__correct(k,D): #fix quadratic_L_function
-    return quadratic_L_function__cached(k,D)*quadratic_L_function__corrector(k,D)
+
+def quadratic_L_function__correct(k, D): #fix quadratic_L_function
+    return quadratic_L_function__cached(k, D) * quadratic_L_function__corrector(k, D)
