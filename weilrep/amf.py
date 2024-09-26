@@ -911,9 +911,10 @@ class AlgebraicModularFormHeckeOperator(object):
             m = [[y for v in w for u in self._evaluate_at_point(f, v) for y in u] for f in X]
             return matrix(x).solve_right(matrix(m).transpose())
         else:
-            x = [[f._f()[i].base_ring()(f._f()[i]) for f in X] for i in range(N)]
+            I = [i for i in range(N) if any(f._f()[i] for f in X)]
+            x = [[f._f()[i].base_ring()(f._f()[i]) for f in X] for i in I]
             Y = [self.__call__(f) for f in X]
-            m = [[y._f()[i].base_ring()(y._f()[i]) for y in Y] for i in range(N)]
+            m = [[y._f()[i].base_ring()(y._f()[i]) for y in Y] for i in I]
         return matrix(x).solve_left(matrix(m))
 
 
