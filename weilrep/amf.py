@@ -310,38 +310,6 @@ class AlgebraicModularForms(object):
     def quadratic_form(self):
         return self.__qf
 
-    def _spin_numbers(self):
-        r"""
-        Let D be self's discriminant. For a divisor d | D we compute the numbers s_d defined as follows:
-
-        s_d = -1 if there exists a self-isometry whose spinor norm is nontrivial mod d
-        s_d = +1 otherwise.
-
-        s_1 is always +1.
-
-        NOTE: I do not know what the proper name for these numbers are.
-        """
-        try:
-            return self.__spin
-        except AttributeError:
-            l = self.level()
-            S = self.gram_matrix()
-            n = S.nrows()
-            spin = {(d, 1):1 for d in l.divisors() if d.is_squarefree()}
-            spin.update({(d, -1):1 for d in l.divisors() if d.is_squarefree()})
-            g = self.automorphism_group()
-            for x in g.gens():
-                x = matrix(n, n, x)
-                N = spinor_norm(S, x)
-                xdet = x.determinant()
-                for d in l.divisors():
-                    if d.is_squarefree():
-                        chi = (-1)**sum(N.valuation(p) for p in d.prime_divisors())
-                        if chi != 1 or xdet != 1:
-                            spin[(d, xdet)] = -1
-            self.__spin = spin
-            return spin
-
     def weilrep(self):
         return self.__weilrep
 
@@ -384,7 +352,7 @@ class AlgebraicModularForms(object):
             if k:
                 y = invariant_weight_k_polynomials_with_dim_bound(x.gram_matrix(), x.automorphism_group(), k, dim[i], spin = spin, det = det, verbose = verbose, reynolds = reynolds)
                 y = [b / b.content() for b in y]
-            elif x._spin_numbers()[(spin, det)]:
+            elif self._AlgebraicModularForms__molien_spin[(spin, det)][i].numerator()[0] == 1:
                 y = [R(1)]
             else:
                 y = []
