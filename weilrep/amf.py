@@ -28,6 +28,7 @@ import random
 
 from sage.arith.misc import kronecker_symbol, next_prime
 from sage.arith.srange import srange
+from sage.combinat.subset import powerset
 from sage.functions.generalized import sgn
 from sage.functions.other import binomial, ceil, floor
 from sage.graphs.graph import Graph
@@ -102,6 +103,16 @@ class AlgebraicModularForms(object):
             g = q.automorphism_group()
             self.__aut = g
             return g
+
+    def _small_automorphism_group(self):
+        try:
+            return self.__aut_small
+        except AttributeError:
+            g = self.automorphism_group()
+            g_gens = g.gens()
+            X = [g.subgroup(x) for x in powerset(g_gens)]
+            self.__aut_small = max(X, key = lambda x: len(x) if len(x) < 10000 else 0)
+            return self.__aut_small
 
     def _base_ring(self):
         S = self.__gram_matrix
@@ -253,7 +264,7 @@ class AlgebraicModularForms(object):
             for i, x in enumerate(classes):
                 u = [[] for _ in classes]
                 S = x.gram_matrix()
-                G = x.automorphism_group()
+                G = x._small_automorphism_group()
                 L = pk_neighbors(S, G, p, k)
                 for y, a, n in L:
                     j, b = isometry(y, a, i)
@@ -276,7 +287,7 @@ class AlgebraicModularForms(object):
                     if i > len(old_classes):
                         u = [[] for _ in classes]
                         S = x.gram_matrix()
-                        G = x.automorphism_group()
+                        G = x._small_automorphism_group()
                         L = pk_neighbors(S, G, p, k)
                         for y, a, n in L:
                             j, b = isometry(y)
@@ -943,18 +954,19 @@ class AlgebraicModularFormEigenform(AlgebraicModularForm):
 
     def eigenvalue(self, p, d=1):
         K = self.base_field()
-        #if not self.amf().level() % p:
-        #    raise ValueError('The prime %s divides the lattice level %s.'%(p, self.amf().level()))
+        if not self.amf().level() % p:
+            raise ValueError('The prime %s divides the lattice level %s.'%(p, self.amf().level()))
         T = self.amf().hecke_operator(p, d=d)
         n = self.amf().gram_matrix().nrows()
         denominator = 10 * n
         while 1:
             v = vector(RR(random.random()).nearby_rational(max_denominator = denominator) for _ in range(n))
             f = T._evaluate_at_point(self, v)
+            g = self._f()
             try:
-                x = next(x for x in enumerate(f) if x[1])
-                g = self._f()[x[0]]
-                return K(x[1] / g(*v))
+                xv = [x(*v) for x in g]
+                i = next(i for i, x in enumerate(xv) if x)
+                return K(f[i] / xv[i])
             except StopIteration:
                 pass
 

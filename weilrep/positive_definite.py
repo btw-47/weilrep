@@ -346,6 +346,8 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
                 qd = self.qexp().dict()
 
                 def c(x, a, b):
+                    if not (a or b):
+                        return str(x)
                     t = ''
                     u = ''
                     if x == -1:
@@ -427,15 +429,16 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
             qsval = ZZ(self.valuation()) / 2
             v = ZZ(min(0, self.valuation()))
+            u = 0
             if isinstance(h.parent(), LaurentSeriesRing):
                 u = ZZ(max(0, self.valuation()))
                 h = h.valuation_zero_part()
-                m = ZZ(max(h[0].degree(), -h[0].valuation()))
-                if m:
-                    h = h.shift(m)
-                    qsval -= m / 2
+            m = ZZ(max(max(x.degree(), -x.valuation()) - i for i, x in enumerate(h.list())))
+            if m:
+                h = h.shift(m)
+                qsval -= m / 2
             else:
-                u = 0
+                m = 0
                 qsval = 0
             self.__qexp = O(q ** (h.prec() - v)) + sum([(q ** ((i + u - n) // 2)) * (s ** ((i + u + n) // 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents())])
             self.__qsval = qsval

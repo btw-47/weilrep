@@ -132,6 +132,8 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 if v:
                     qd = f.dict()
                     def c(x, a, b):
+                        if not (a or b):
+                            return str(x)
                         t = ''
                         u = ''
                         if x == -1:
@@ -430,22 +432,22 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             if isinstance(h.parent(), LaurentSeriesRing):
                 v = ZZ(max(h.valuation(), 0))
                 h = h.valuation_zero_part()
-                m = ZZ(max(h[0].degree(), -h[0].valuation()))
-                if m:
-                    h = h.shift(m)
-                    qsval -= m / 2
+            m = ZZ(max(max(x.degree(), -x.valuation()) - i for i, x in enumerate(h.list())))
+            if m:
+                h = h.shift(m)
+                qsval -= m / 2
             else:
                 m = 0
                 qsval = 0
             self.__qs_valuation = qsval
             try:
                 q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-                self.__q_s_exp = sum((q ** (ZZ(i + v - n) / 2)) * (s ** (ZZ(i + v + n) / 2)) * p[n] for i, p in enumerate(h.list()) for n in p.exponents() ).O(hprec + m)
+                self.__q_s_exp = sum((q ** (ZZ(i + v - n) / 2)) * (s ** (ZZ(i + v + n) / 2)) * p[n] for i, p in enumerate(h.list()) for n in p.exponents() ).O(h.prec() + v)
             except ValueError:
                 mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
                 hprec += hprec
                 d += d
-                self.__q_s_exp = sum((q ** ((i - n))) * (s ** ((i + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ).O(hprec - hval)
+                self.__q_s_exp = sum((q ** ((i + v - n))) * (s ** ((i + v + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ).O(hprec)
             self.__q_s_scale = d
             self.__q_s_prec = hprec
             return self.__q_s_exp
@@ -1359,12 +1361,12 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             K = CyclotomicField(N, var('mu%d'%N))
             zeta, = K.gens()
         try:
-            k = coeffs[tuple([0] * (nrows + 1))] / 2
+            k = Integer(coeffs[tuple([0] * (nrows + 1))]) / 2
         except KeyError:
             try:
-                k = coeffs[tuple([0] * (nrows + 3))] / 2
+                k = Integer(coeffs[tuple([0] * (nrows + 3))]) / 2
             except KeyError:
-                k = 0
+                k = Integer(0)
         if nrows > 1:
             if nrows > 2:
                 rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows - 2)))
@@ -1417,8 +1419,6 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             sv = s_0inv * v
             vnorm = v * sv / 2
             j_bound = 1
-            #if val + vnorm > 0:
-            #    j_bound = max(j_bound, isqrt(-2 * b_norm * (val + vnorm)))
             if j_bound < prec:
                 v *= d
                 m = x**v[0]
