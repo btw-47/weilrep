@@ -307,39 +307,7 @@ class AlgebraicModularForms(object):
 
     def quadratic_form(self):
         return self.__qf
-
-    def _spin_numbers(self):
-        r"""
-        Let D be self's discriminant. For a divisor d | D we compute the numbers s_d defined as follows:
-
-        s_d = -1 if there exists a self-isometry whose spinor norm is nontrivial mod d
-        s_d = +1 otherwise.
-
-        s_1 is always +1.
-
-        NOTE: I do not know what the proper name for these numbers are.
-        """
-        try:
-            return self.__spin
-        except AttributeError:
-            l = self.level()
-            S = self.gram_matrix()
-            n = S.nrows()
-            spin = {(d, 1): 1 for d in l.divisors() if d.is_squarefree()}
-            spin.update({(d, -1): 1 for d in l.divisors() if d.is_squarefree()})
-            g = self.automorphism_group()
-            for x in g.gens():
-                x = matrix(n, n, x)
-                N = spinor_norm(S, x)
-                xdet = x.determinant()
-                for d in l.divisors():
-                    if d.is_squarefree():
-                        chi = (-1)**sum(N.valuation(p) for p in d.prime_divisors())
-                        if chi != 1 or xdet != 1:
-                            spin[(d, xdet)] = -1
-            self.__spin = spin
-            return spin
-
+ 
     def weilrep(self):
         return self.__weilrep
 
@@ -382,7 +350,7 @@ class AlgebraicModularForms(object):
             if k:
                 y = invariant_weight_k_polynomials_with_dim_bound(x.gram_matrix(), x.automorphism_group(), k, dim[i], spin=spin, det=det, verbose=verbose, reynolds=reynolds)
                 y = [b / b.content() for b in y]
-            elif x._spin_numbers()[(spin, det)]:
+            elif self._AlgebraicModularForms__molien_spin[(spin, det)][i].numerator()[0]:
                 y = [R(1)]
             else:
                 y = []
@@ -475,9 +443,8 @@ class AlgebraicModularForms(object):
             if spin == 1 and det == 1:
                 self.__hs = s
                 self.__molien = molien_series
-            else:
-                self.__hs_spin[(spin, det)] = s
-                self.__molien_spin[(spin, det)] = molien_series
+            self.__hs_spin[(spin, det)] = s
+            self.__molien_spin[(spin, det)] = molien_series
             return s
 
     def dimension(self, k, spin=1, det=1, separate_classes=False):
@@ -935,9 +902,10 @@ class AlgebraicModularFormHeckeOperator(object):
             m = [[y for v in w for u in self._evaluate_at_point(f, v) for y in u] for f in X]
             return matrix(x).solve_right(matrix(m).transpose())
         else:
-            x = [[f._f()[i].base_ring()(f._f()[i]) for f in X] for i in range(N)]
+            I = [i for i in range(N) if any(f._f()[i] for f in X)]
+            x = [[f._f()[i].base_ring()(f._f()[i]) for f in X] for i in I]
             Y = [self.__call__(f) for f in X]
-            m = [[y._f()[i].base_ring()(y._f()[i]) for y in Y] for i in range(N)]
+            m = [[y._f()[i].base_ring()(y._f()[i]) for y in Y] for i in I]
         return matrix(x).solve_left(matrix(m))
 
 
