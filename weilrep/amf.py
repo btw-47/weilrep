@@ -352,7 +352,7 @@ class AlgebraicModularForms(object):
             if k:
                 y = invariant_weight_k_polynomials_with_dim_bound(x.gram_matrix(), x.automorphism_group(), k, dim[i], spin = spin, det = det, verbose = verbose, reynolds = reynolds)
                 y = [b / b.content() for b in y]
-            elif self._AlgebraicModularForms__molien_spin[(spin, det)][i].numerator()[0] == 1:
+            elif self._AlgebraicModularForms__molien_spin[(spin, det)][i].numerator()[0]:
                 y = [R(1)]
             else:
                 y = []
@@ -445,9 +445,8 @@ class AlgebraicModularForms(object):
             if spin == 1 and det == 1:
                 self.__hs = s
                 self.__molien = molien_series
-            else:
-                self.__hs_spin[(spin, det)] = s
-                self.__molien_spin[(spin, det)] = molien_series
+            self.__hs_spin[(spin, det)] = s
+            self.__molien_spin[(spin, det)] = molien_series
             return s
 
     def dimension(self, k, spin = 1, det = 1, separate_classes = False):
