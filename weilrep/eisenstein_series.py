@@ -98,7 +98,7 @@ def igusa_zetas(Q, L, c, p, t):
     """
     quads, lins_gcd, const = isospectral_normal_form(Q, L, p)
     c = vector((const + cj/2) for cj in c)
-    c_max_val = max([cj.valuation(p) for cj in c if cj], default=0)
+    c_max_val = max((cj.valuation(p) for cj in c if cj), default=0)
     u = denominator(c / 2)
     c *= u
     lins_gcd *= u

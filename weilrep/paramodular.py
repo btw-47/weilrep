@@ -44,7 +44,6 @@ from .weilrep_misc import relations
 sage_one_half = Integer(1) / Integer(2)
 
 
-
 class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
 
     r"""
@@ -62,7 +61,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
         self.__class__ = ParamodularForms
 
     def __repr__(self):
-        return 'Paramodular forms of level %d'%self.level()
+        return 'Paramodular forms of level %d' % self.level()
 
     def level(self):
         return self.gram_matrix()[0, 0] / 2
@@ -70,7 +69,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
     def hecke_operator(self, p, d=1):
         return ParamodularHeckeOperator(self, p, d)
 
-    def eigenforms(self, X, _p = 2, _name = '', _final_recursion = True, _K_list = []):
+    def eigenforms(self, X, _p=2, _name='', _final_recursion=True, _K_list=[]):
         r"""
         Decompose a space X into common eigenforms of the Hecke operators.
 
@@ -88,7 +87,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
         chi_list = []
         for x, n in F:
             if x.degree() > 1:
-                name = 'a_%s%s'%(_name, i)
+                name = 'a_%s%s' % (_name, i)
                 K = NumberField(x, name)
                 i += 1
             else:
@@ -99,7 +98,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
             if n == 1:
                 if len(V_rows) > 1:
                     P = matrix(K, [V.solve_left(M_K * v) for v in V_rows])
-                    for p in P.eigenvectors_left(extend = False):
+                    for p in P.eigenvectors_left(extend=False):
                         c = p[0].charpoly()
                         if c not in chi_list:
                             L.append(vector(p[1][0]) * V)
@@ -109,8 +108,8 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
                     L.append(V_rows[0])
                     K_list.append(K)
             else:
-                _name = _name + '%s_'%i
-                K_list_2, eigenvectors = self.eigenforms(V_rows, _p = next_prime(_p), _name = _name, _final_recursion = False, _K_list = K_list)
+                _name = _name + '%s_' % i
+                K_list_2, eigenvectors = self.eigenforms(V_rows, _p=next_prime(_p), _name=_name, _final_recursion=False, _K_list=K_list)
                 K_list.extend(K_list_2)
                 L.extend(eigenvectors)
         L = [sum(X[i] * y for i, y in enumerate(x)) for x in L]
@@ -208,6 +207,7 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
             lower_bd = ceil(-p / 2)
             upper_bd = ceil(p / 2)
             U = [matrix([[p, 0], [0, 1]])] + [matrix([[1, 0], [N * j, p]]) for j in srange(lower_bd, upper_bd)]
+
             def hecke_operator_coefficient(a, b, c):
                 nonlocal bound
                 M = matrix([[N * (a - b) / 2, c / 2], [c / 2, (a + b) / 2]])
@@ -244,6 +244,7 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
                         _, a, b = xgcd(p * j1, N)
                         U_i.append(matrix([[p * j1, b], [N, a]]))
                 U.append(U_i)
+
             def hecke_operator_coefficient(a, b, c):
                 nonlocal bound
                 M = matrix([[N * (a - b) / 2, c / 2], [c / 2, (a + b) / 2]])
@@ -279,7 +280,7 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
                             bound = a
                             break
         h = h.add_bigoh(bound)
-        return OrthogonalModularForm(k, self.weilrep(), h, 1, vector([0] * 3), qexp_representation = 'siegel')
+        return OrthogonalModularForm(k, self.weilrep(), h, 1, vector([0] * 3), qexp_representation='siegel')
 
     def level(self):
         return self.gram_matrix()[0, 0] / 2
@@ -398,7 +399,7 @@ class ParamodularHeckeOperator:
         self.__level = m.level()
 
     def __repr__(self):
-        return "Hecke operator of index %s acting on paramodular forms of level %s"%(self.__index, self.__level)
+        return "Hecke operator of index %s acting on paramodular forms of level %s" % (self.__index, self.__level)
 
     def degree(self):
         return self.__degree

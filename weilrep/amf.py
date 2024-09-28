@@ -307,7 +307,7 @@ class AlgebraicModularForms(object):
 
     def quadratic_form(self):
         return self.__qf
- 
+
     def weilrep(self):
         return self.__weilrep
 
