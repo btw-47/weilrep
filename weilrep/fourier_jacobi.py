@@ -8,6 +8,7 @@ from sage.rings.integer_ring import ZZ
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import smf_eisenstein_series, WeilRepModularFormsBasis
 
+
 class FourierJacobiSeries:
     r"""
     Formal Fourier-Jacobi series.
@@ -25,7 +26,7 @@ class FourierJacobiSeries:
             self.__coefficients[i + 1] = f
 
     def __repr__(self):
-        return 'Formal Fourier-Jacobi series with coefficients\n%s'%('\n%s\n'%('-' * 80)).join(map(str, self.fourier_jacobi()))
+        return 'Formal Fourier-Jacobi series with coefficients\n%s' % ('\n%s\n' % ('-' * 80)).join(map(str, self.fourier_jacobi()))
 
     def fourier_jacobi(self):
         return self.__coefficients
@@ -89,6 +90,7 @@ class FourierJacobiSeries:
         except NotImplementedError:
             return False
 
+
 def formal_lift(f, prec):
     r"""
     Gritsenko lift.
@@ -114,6 +116,7 @@ def formal_lift(f, prec):
     for i in range(2, prec):
         X.append(f.hecke_V(i))
     return FourierJacobiSeries(X)
+
 
 def _fj_relations(*X):
     r"""
