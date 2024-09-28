@@ -63,7 +63,7 @@ from .weilrep import WeilRep
 from .weilrep_modular_forms_class import (EtaCharacterPower, smf,
                                           WeilRepModularForm, WeilRepModularFormsBasis)
 
-sage_three_half = Integer(3) / 2
+three_half = Integer(3) / 2
 
 pari = cypari2.Pari()
 PariError = cypari2.PariError
@@ -81,7 +81,8 @@ class JacobiForms:
     INPUT:
 
     A JacobiForms instance is constructed by calling JacobiForms(m), where:
-    - ``m`` -- a positive-definite Gram matrix (symmetric, integral, even diagonal); OR:
+    - ``m`` -- a positive-definite Gram matrix (symmetric, integral,
+      even diagonal); OR:
     - ``m`` -- a natural number (not 0)
 
     """
@@ -131,6 +132,7 @@ class JacobiForms:
         Rescale the index by N.
 
         INPUT:
+
         - ``N`` -- a natural number
 
         OUTPUT: a JacobiForms
@@ -212,7 +214,10 @@ class JacobiForms:
         r"""
         Auxiliary function for positive semidefinite indices.
 
-        OUTPUT: a tuple p, d for which 'd' is positive definite and for which self's index matrix factors in the form
+        OUTPUT:
+
+        a tuple p, d for which 'd' is positive definite and
+        for which self's index matrix factors in the form
         p.transpose() * d * p
         """
         m = self.index_matrix()
@@ -249,6 +254,7 @@ class JacobiForms:
         Compute the Jacobi Eisenstein series of weight k.
 
         INPUT:
+
         - ``k`` -- the weight
         - ``prec`` -- the precision of the Fourier expansion
 
@@ -260,7 +266,8 @@ class JacobiForms:
 
         """
 
-        return self.weilrep().eisenstein_series(k - self.nvars() / 2, prec, allow_small_weight=allow_small_weight).jacobi_form()
+        return self.weilrep().eisenstein_series(k - self.nvars() / 2, prec,
+                                                allow_small_weight=allow_small_weight).jacobi_form()
 
     def eisenstein_newform(self, k, b, prec, allow_small_weight=False):
         r"""
@@ -269,6 +276,7 @@ class JacobiForms:
         WARNING: this is experimental and also slow!!
 
         INPUT:
+
         - ``k`` -- the weight
         - ``b`` -- a vector, or possibly (if self's index is an integer) an integer
         - ``prec`` -- the precision of the Fourier expansion
@@ -292,6 +300,7 @@ class JacobiForms:
         Compute certain oldform Jacobi Eisenstein series of weight k.
 
         INPUT:
+
         - ``k`` -- the weight
         - ``b`` -- a vector, or possibly (if self's index is an integer) an integer
         - ``prec`` -- the precision of the Fourier expansion
@@ -317,6 +326,7 @@ class JacobiForms:
         This is (up to a constant multiple) the Jacobi form that extracts the Fourier coefficient of e^(2*pi*i * (n * \tau + r * z)) with respect to the Petersson inner product.
 
         INPUT:
+
         - ``k`` -- the weight
         - ``n`` -- an integer
         - ``r`` -- an integral vector of length equal to self's number of elliptic variables. (If that number is 1 then r may be given as an integer.)
@@ -351,7 +361,7 @@ class JacobiForms:
         eta_twist = kwargs.pop('eta_twist', 0)
         if not eta_twist:
             if self.nvars() == 1 and weight == 2:
-                dim = self.weilrep().cusp_forms_dimension(sage_three_half, force_Riemann_Roch=True)
+                dim = self.weilrep().cusp_forms_dimension(three_half, force_Riemann_Roch=True)
                 N = self.index()
                 return dim + Integer(len(divisors(N)) + N.is_square()) / 2
             if weight <= 1:
@@ -385,7 +395,7 @@ class JacobiForms:
         eta_twist = kwargs.pop('eta_twist', 0)
         if not eta_twist:
             if self.nvars() == 1 and weight == 2:
-                dim = self.weilrep().modular_forms_dimension(sage_three_half, force_Riemann_Roch=True)
+                dim = self.weilrep().modular_forms_dimension(three_half, force_Riemann_Roch=True)
                 N = self.index()
                 sqrtN = isqrt(N)
                 return dim + len([d for d in divisors(N) if d <= sqrtN and N % (d * d)])
@@ -408,6 +418,7 @@ class JacobiForms:
         Compute the dimension of the space of weak Jacobi forms of weight k.
 
         INPUT:
+
         - ``k`` -- weight
 
         EXAMPLES::
@@ -669,6 +680,7 @@ class JacobiForms:
         NOTE: can also be called simply with "basis()"
 
         INPUT:
+
          - ``weight`` -- the weight
          - ``prec`` -- the precision of the Fourier expansions (with respect to the variable 'q')
          - ``try_theta_blocks`` -- if True then in weight 2 or 3 we first try to find theta blocks which span the space.
@@ -1054,13 +1066,18 @@ class JacobiForm:
     def _base_ring_is_laurent_polynomial_ring(self):
         r"""
         Is self's base ring actually a Laurent polynomial ring?
+
         This should return False if it is a FractionField.
         """
         try:
             return self.__brilpr
         except AttributeError:
             r = self.base_ring()
-            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class)  # are we missing anything?
+            self.__brilpr = isinstance(r, (LaurentPolynomialRing_generic,
+                                           NumberField,
+                                           ComplexField_class,
+                                           RealField_class))
+                                       # are we missing anything?
             return self.__brilpr
 
     def character(self):

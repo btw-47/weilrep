@@ -1025,7 +1025,9 @@ class WeilRepModularForm(object):
         """
         from .jacobi_forms_class import JacobiForm
         from .mock import WeilRepAlmostHolomorphicModularForm, WeilRepQuasiModularForm
-        if isinstance(other, WeilRepQuasiModularForm) or isinstance(other, WeilRepAlmostHolomorphicModularForm) or isinstance(other, JacobiForm):
+        if isinstance(other, (WeilRepQuasiModularForm,
+                              WeilRepAlmostHolomorphicModularForm,
+                              JacobiForm)):
             return other.__rmul__(self)
         elif isinstance(other, WeilRepModularFormWithCharacter) and not isinstance(self, WeilRepModularFormWithCharacter):
             return other.__rmul__(self)

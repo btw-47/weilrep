@@ -785,13 +785,18 @@ class JacobiFormWithLevel:
     def _base_ring_is_laurent_polynomial_ring(self):
         r"""
         Is self's base ring actually a Laurent polynomial ring?
+
         This should return False if it is a FractionField.
         """
         try:
             return self.__brilpr
         except AttributeError:
             r = self.base_ring()
-            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class)  # are we missing anything?
+            self.__brilpr = isinstance(r, (LaurentPolynomialRing_generic,
+                                           NumberField,
+                                           ComplexField_class,
+                                           RealField_class))
+            # are we missing anything?
             return self.__brilpr
 
     def __bool__(self):
@@ -914,7 +919,7 @@ class JacobiFormWithLevel:
         """
         if not other:
             return self
-        if not isinstance(other, JacobiForm) and not isinstance(other, JacobiFormWithLevel):
+        if not isinstance(other, (JacobiForm, JacobiFormWithLevel)):
             raise TypeError('Cannot add these objects')
         if not self.weight() == other.weight():
             raise ValueError('Incompatible weights')
@@ -959,7 +964,7 @@ class JacobiFormWithLevel:
         """
         if not other:
             return self
-        if not isinstance(other, JacobiForm) and not isinstance(other, JacobiFormWithLevel):
+        if not isinstance(other, (JacobiForm, JacobiFormWithLevel)):
             raise TypeError('Cannot subtract these objects')
         if not self.weight() == other.weight():
             raise ValueError('Incompatible weights')
@@ -1007,7 +1012,7 @@ class JacobiFormWithLevel:
         return JacobiFormWithLevel(-self.weight(), self.level(), -self.index_matrix(), f_inv, w_scale=self.scale(), q_scale=self.q_scale())
 
     def __mul__(self, other):
-        if isinstance(other, JacobiForm) or isinstance(other, JacobiFormWithLevel):
+        if isinstance(other, (JacobiForm, JacobiFormWithLevel)):
             scale = 1
             h = other._qshift()
             try:
@@ -1126,7 +1131,7 @@ class JacobiFormWithLevel:
                 of = of.V(q_scale)
             f = self.fourier_expansion() / of
             return JacobiFormWithLevel(self.weight() - other.weight(), level, self.index_matrix(), f, w_scale=scale, q_scale=q_scale)
-        elif isinstance(other, JacobiForm) or isinstance(other, JacobiFormWithLevel):
+        elif isinstance(other, (JacobiForm, JacobiFormWithLevel)):
             try:
                 d = other._qshift().denom()
             except AttributeError:
