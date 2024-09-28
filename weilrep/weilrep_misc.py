@@ -54,7 +54,7 @@ def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound)
 
     OUTPUT: an updated tuple (basis, basis_vectors, pivots, rank)
     """
-    v = X.coefficient_vector(starting_from = 0, ending_with = sturm_bound, correct = False)
+    v = X.coefficient_vector(starting_from=0, ending_with=sturm_bound, correct=False)
     for j, vec in enumerate(basis_vectors):
         X -= v[pivots[j]]*basis[j]
         v -= v[pivots[j]]*vec
@@ -181,7 +181,7 @@ def relations(*x):
 
 ## theta blocks
 
-def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose = False):
+def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=False):
     r"""
     Look for theta blocks of weight two and given index among the infinite families of weight two theta blocks associated to the root systems A_4, B_2+G_2, A_1+B_3, A_1+C_3
 
@@ -206,10 +206,10 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose
     thetablockQ_3 = QuadraticForm(matrix([[4,0,0,0],[0,20,10,20],[0,10,10,20],[0,20,20,60]]))
     thetablockQ_4 = QuadraticForm(matrix([[4,0,0,0],[0,8,8,4],[0,8,16,8],[0,4,8,6]]))
     thetablock_tuple = thetablockQ_1, thetablockQ_2, thetablockQ_3, thetablockQ_4
-    thetablock_1 = lambda a, b, c, d, prec: theta_block([a, a+b, a+b+c, a+b+c+d, b, b+c, b+c+d, c, c+d, d], -6, prec, jacobiforms = jacobiforms)
-    thetablock_2 = lambda a, b, c, d, prec: theta_block([a, 3*a+b, 3*a+b+b, a+a+b, a+b, b, c+c, c+c+d, 2*(c+d), d], -6, prec, jacobiforms = jacobiforms)
-    thetablock_3 = lambda a, b, c, d, prec: theta_block([a+a, b+b, b+b+c, 2*(b+c+d+d), b+b+c+d+d, b+b+c+4*d, c, c+d+d, c+4*d, d+d], -6, prec, jacobiforms = jacobiforms)
-    thetablock_4 = lambda a, b, c, d, prec: theta_block([a+a, b, b+b+c+c+d, b+c, b+c+c+d, b+c+d, c, c+c+d, c+d, d], -6, prec, jacobiforms = jacobiforms)
+    thetablock_1 = lambda a, b, c, d, prec: theta_block([a, a+b, a+b+c, a+b+c+d, b, b+c, b+c+d, c, c+d, d], -6, prec, jacobiforms=jacobiforms)
+    thetablock_2 = lambda a, b, c, d, prec: theta_block([a, 3*a+b, 3*a+b+b, a+a+b, a+b, b, c+c, c+c+d, 2*(c+d), d], -6, prec, jacobiforms=jacobiforms)
+    thetablock_3 = lambda a, b, c, d, prec: theta_block([a+a, b+b, b+b+c, 2*(b+c+d+d), b+b+c+d+d, b+b+c+4*d, c, c+d+d, c+4*d, d+d], -6, prec, jacobiforms=jacobiforms)
+    thetablock_4 = lambda a, b, c, d, prec: theta_block([a+a, b, b+b+c+c+d, b+c, b+c+c+d, b+c+d, c, c+c+d, c+d, d], -6, prec, jacobiforms=jacobiforms)
     thetablocks = thetablock_1, thetablock_2, thetablock_3, thetablock_4
     basis = []
     basis_vectors = []
@@ -217,9 +217,9 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose
     div_N = divisors(N)
     div_N.reverse()
     for i, Q in enumerate(thetablock_tuple):
-        v_list = Q.short_vector_list_up_to_length(N + 1, up_to_sign_flag = True)
+        v_list = Q.short_vector_list_up_to_length(N + 1, up_to_sign_flag=True)
         if verbose:
-            print('I am looking through the theta block family of the root system %s.' %['A_4','B_2+G_2','A_1+B_3','A_1+C_3'][i])
+            print('I am looking through the theta block family of the root system %s.' % ['A_4','B_2+G_2','A_1+B_3','A_1+C_3'][i])
         for _d in div_N:
             prec_d = prec * (N // _d)
             for v in v_list[_d]:
@@ -245,9 +245,9 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose
                     pass
     if verbose:
         print('I did not find enough theta blocks. Time to try something else.')
-    return jacobiforms.basis(2, prec, try_theta_blocks = False, verbose = verbose)
+    return jacobiforms.basis(2, prec, try_theta_blocks=False, verbose=verbose)
 
-def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbose = False):
+def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=False):
     r"""
     Look for theta blocks of weight three and given index among the infinite families of weight three theta blocks associated to the root systems B_3, C_3, A_2+A_3, 3A_2, 2A_1 + A_2 + B_2, 3A_1 + A_3, A_6, A_1+D_5.
 
@@ -284,14 +284,14 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
     args7 = lambda a, b, c, d, e, f : [a, a+b, a+b+c, a+b+c+d, a+b+c+d+e, a+b+c+d+e+f, b, b+c, b+c+d, b+c+d+e, b+c+d+e+f, c, c+d, c+d+e, c+d+e+f, d, d+e, d+e+f, e, e+f, f]
     args8 = lambda a, b, c, d, e, f : [a+a, b, c, d, b + d, c + d, b + c + d, e, d + e, b + d + e, c + d + e, b + c + d + e, b + c + 2*d + e, f, e + f, d + e + f, b + d + e + f, c + d + e + f, b + c + d + e + f, b + c + 2*d + e + f, b + c + 2*d + 2*e + f]
     args_tuple = args1, args2, args3, args4, args5, args6, args7, args8
-    thetablock_1 = lambda b, c, d, prec: theta_block(args1(b, c, d), -3, prec, jacobiforms = jacobiforms)
-    thetablock_2 = lambda b, c, d, prec: theta_block(args2(b, c, d), -3, prec, jacobiforms = jacobiforms)
-    thetablock_3 = lambda a, b, d, e, f, prec: theta_block(args3(a, b, d, e, f), -3, prec, jacobiforms = jacobiforms)
-    thetablock_4 = lambda a, b, c, d, e, f, prec: theta_block(args4(a, b, c, d, e, f), -3, prec, jacobiforms = jacobiforms)
-    thetablock_5 = lambda a, b, c, d, e, f, prec: theta_block(args5(a, b, c, d, e, f), -3, prec, jacobiforms = jacobiforms)
-    thetablock_6 = lambda a, b, c, d, e, f, prec: theta_block(args6(a, b, c, d, e, f), -3, prec, jacobiforms = jacobiforms)
-    thetablock_7 = lambda a, b, c, d, e, f, prec: theta_block(args7(a, b, c, d, e, f), -15, prec, jacobiforms = jacobiforms)
-    thetablock_8 = lambda a, b, c, d, e, f, prec: theta_block(args8(a, b, c, d, e, f), -15, prec, jacobiforms = jacobiforms)
+    thetablock_1 = lambda b, c, d, prec: theta_block(args1(b, c, d), -3, prec, jacobiforms=jacobiforms)
+    thetablock_2 = lambda b, c, d, prec: theta_block(args2(b, c, d), -3, prec, jacobiforms=jacobiforms)
+    thetablock_3 = lambda a, b, d, e, f, prec: theta_block(args3(a, b, d, e, f), -3, prec, jacobiforms=jacobiforms)
+    thetablock_4 = lambda a, b, c, d, e, f, prec: theta_block(args4(a, b, c, d, e, f), -3, prec, jacobiforms=jacobiforms)
+    thetablock_5 = lambda a, b, c, d, e, f, prec: theta_block(args5(a, b, c, d, e, f), -3, prec, jacobiforms=jacobiforms)
+    thetablock_6 = lambda a, b, c, d, e, f, prec: theta_block(args6(a, b, c, d, e, f), -3, prec, jacobiforms=jacobiforms)
+    thetablock_7 = lambda a, b, c, d, e, f, prec: theta_block(args7(a, b, c, d, e, f), -15, prec, jacobiforms=jacobiforms)
+    thetablock_8 = lambda a, b, c, d, e, f, prec: theta_block(args8(a, b, c, d, e, f), -15, prec, jacobiforms=jacobiforms)
     thetablocks = thetablock_1, thetablock_2, thetablock_3, thetablock_4, thetablock_5, thetablock_6, thetablock_7, thetablock_8
     basis = []
     basis_vectors = []
@@ -299,9 +299,9 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
     div_N = divisors(N)
     div_N.reverse()
     for i, Q in enumerate(thetablock_tuple):
-        v_list = Q.short_vector_list_up_to_length(N + 1, up_to_sign_flag = True)
+        v_list = Q.short_vector_list_up_to_length(N + 1, up_to_sign_flag=True)
         if verbose:
-            print('I am looking through the theta block family of the root system %s.' %['B_3','C_3','A_2+A_3','3A_2','2A_1+A_2+B_2','3A_1 + A_3','A_6','A_1+D_5'][i])
+            print('I am looking through the theta block family of the root system %s.' % ['B_3','C_3','A_2+A_3','3A_2','2A_1+A_2+B_2','3A_1 + A_3','A_6','A_1+D_5'][i])
         for _d in div_N:
             prec_d = prec * (N // _d)
             for v in v_list[_d]:
@@ -316,15 +316,14 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms = None, verbo
                             if _d == N:
                                 print('I found the theta block Th_' + str(L) + [' / eta^3.', ' / eta^15.'][i >= 6])
                             else:
-                                print('I applied the Hecke operator V_%d to the theta block Th_'%(N // _d) + str(L) + [' / eta^3.', ' / eta^15.'][i >= 6])
+                                print('I applied the Hecke operator V_%d to the theta block Th_' % (N // _d) + str(L) + [' / eta^3.', ' / eta^15.'][i >= 6])
                         if rank == dim:
                             return basis
                     except ValueError:
                         pass
     if verbose:
         print('I did not find enough theta blocks. Time to try something else.')
-    return jacobiforms.basis(2, prec, try_theta_blocks = False, verbose = verbose)
-
+    return jacobiforms.basis(2, prec, try_theta_blocks=False, verbose=verbose)
 
 
 class QuadraticLFunction(BuiltinFunction):
@@ -334,7 +333,7 @@ class QuadraticLFunction(BuiltinFunction):
     L(s, D) represents the Dirichlet series \sum_{n = 1}^{\infty} \chi_D(n) n^{-s}, where D is a discriminant (i.e. 0 or 1 mod 4) and \chi_D(n) is the kronecker symbol (D / n)
     """
     def __init__(self):
-        super().__init__('L', nargs=2, latex_name = 'L')
+        super().__init__('L', nargs=2, latex_name='L')
 
     def _eval_(self, x, D): #symbolic value
         D = Integer(D)

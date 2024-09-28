@@ -76,14 +76,19 @@ type3 = type(Gamma0_constructor(1))
 
 class JacobiForms:
     r"""
-    The JacobiForms class represents the graded module of Jacobi forms for some lattice index.
+    The JacobiForms class represents the graded module of Jacobi forms
+    for some lattice index.
 
     INPUT:
 
-    A JacobiForms instance is constructed by calling JacobiForms(m), where:
-    - ``m`` -- a positive-definite Gram matrix (symmetric, integral,
-      even diagonal); OR:
-    - ``m`` -- a natural number (not 0)
+    A ``JacobiForms`` instance is constructed by calling ``JacobiForms(m)``,
+    where ``m`` is either:
+
+    - a positive-definite Gram matrix (symmetric, integral, even diagonal)
+
+    or:
+
+    - a natural number (not 0)
 
     """
     def __init__(self, index_matrix=None, weilrep=None, **kwargs):

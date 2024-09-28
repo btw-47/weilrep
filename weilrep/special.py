@@ -40,12 +40,6 @@ from .weilrep_misc import relations
 sage_one_half = Integer(1) / Integer(2)
 
 
-
-
-
-
-
-
 class KohnenPlusSpace:
     r"""
     The Kohnen Plus space.
@@ -64,7 +58,7 @@ class KohnenPlusSpace:
         self.__weilrep2 = self.__weilrep1.dual()
 
     def __repr__(self):
-        return 'Kohnen plus space of level Gamma0(%d)'%self.__N
+        return 'Kohnen plus space of level Gamma0(%d)' % self.__N
 
     def _plus_form(self, X):
         X = X.fourier_expansion()
@@ -103,7 +97,6 @@ class KohnenPlusSpace:
     def theta_series(self, prec, *args, **kwargs):
         precn = prec // self.__N + 1
         return self._plus_form(self.__weilrep2.theta_series(precn, *args, **kwargs)).add_bigoh(prec)
-
 
 
 class HalfIntegralWeightModularForm(object):

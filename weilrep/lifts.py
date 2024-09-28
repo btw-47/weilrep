@@ -484,7 +484,11 @@ class OrthogonalModularForm(object):
             return self.__brilpr
         except AttributeError:
             r = self.base_ring()
-            self.__brilpr = isinstance(r, LaurentPolynomialRing_generic) or isinstance(r, NumberField) or isinstance(r, ComplexField_class) or isinstance(r, RealField_class)  # are we missing anything?
+            self.__brilpr = isinstance(r, (LaurentPolynomialRing_generic,
+                                           NumberField,
+                                           ComplexField_class,
+                                           RealField_class))
+            # are we missing anything?
             return self.__brilpr
 
     def __bool__(self):

@@ -122,7 +122,7 @@ class HermitianWeilRep(WeilRep):
         Direct sum of Hermitian lattices.
         """
         if isinstance(other, HermitianWeilRep):
-            return HermitianWeilRep(block_diagonal_matrix([self.complex_gram_matrix(), other.complex_gram_matrix()], subdivide = False), gen = self.__w)
+            return HermitianWeilRep(block_diagonal_matrix([self.complex_gram_matrix(), other.complex_gram_matrix()], subdivide=False), gen=self.__w)
         elif isinstance(other, RescaledHyperbolicPlane):
             return HermitianRescaledHyperbolicPlane(other._N()).__add__(self)
         return NotImplemented
@@ -133,7 +133,7 @@ class HermitianWeilRep(WeilRep):
         """
         try:
             N = Integer(N)
-            return HermitianWeilRep(N * self.complex_gram_matrix(), gen = self.__w)
+            return HermitianWeilRep(N * self.complex_gram_matrix(), gen=self.__w)
         except TypeError:
             return super().__call__(N)
 
@@ -144,7 +144,7 @@ class HermitianWeilRep(WeilRep):
         try:
             return self.__dual
         except AttributeError:
-            s = HermitianWeilRep(-self.complex_gram_matrix(), gen = self.__w)
+            s = HermitianWeilRep(-self.complex_gram_matrix(), gen=self.__w)
             self.__dual = s
             return s
 
@@ -180,10 +180,12 @@ class HermitianWeilRep(WeilRep):
             raise ValueError('The base field does not contain I.')
         w = self._w()
         a, b = w.parts()
+
         def f(v):
             n = len(v)
             if n == self.complex_gram_matrix().nrows():
                 i = (w - a) / b
+
                 def z(x):
                     re, im = x.parts()
                     return frac(re) + i * frac(im)
@@ -208,11 +210,13 @@ class HermitianWeilRep(WeilRep):
         w = self._w()
         a, b = w.parts()
         c, d, e = b - a, a * a + 3 * b * b, a + b
+
         def f(v):
             n = len(v)
             if n == self.complex_gram_matrix().nrows():
                 zeta = (w + b - a) / (b + b)
                 isqrt3 = 2 * zeta - 1
+
                 def z(x):
                     re, im = x.parts()
                     return frac(re) + isqrt3 * frac(im)
@@ -246,6 +250,7 @@ class HermitianWeilRep(WeilRep):
             w = self.__w
             n = len(X[0]) // 2
             g = self.base_field().gens()[0]
+
             def a(x):
                 c, d = x.parts()
                 return frac(c) + g * frac(d)
@@ -345,6 +350,7 @@ class HermitianWeilRep(WeilRep):
         w = self._w()
         w_conj = w.galois_conjugate()
         M = Matrix(ZZ, [[2, w + w_conj], [0, (w - w_conj)*g]]).inverse()
+
         def f(x):
             v = vector(d_inv[tuple(x)])
             v = v - (v*r0) * r
@@ -357,22 +363,22 @@ class HermitianWeilRep(WeilRep):
         return WeilRepAutomorphism(self, f)
 
     def biflection(self, r):
-        return self.unitary_reflection(r, alpha = -1)
+        return self.unitary_reflection(r, alpha=-1)
 
     def triflection(self, r):
         if not self.base_field().discriminant() == -3:
             raise ValueError('This lattice does not admit triflections.')
-        return self.unitary_reflection(r, alpha = self._units()[2])
+        return self.unitary_reflection(r, alpha=self._units()[2])
 
     def tetraflection(self, r):
         if not self.base_field().discriminant() == -4:
             raise ValueError('This lattice does not admit tetraflections.')
-        return self.unitary_reflection(r, alpha = self._units()[1])
+        return self.unitary_reflection(r, alpha=self._units()[1])
 
     def hexaflection(self, r):
         if not self.base_field().discriminant() == -3:
             raise ValueError('This lattice does not admit hexaflections.')
-        return self.unitary_reflection(r, alpha = self._units()[1])
+        return self.unitary_reflection(r, alpha=self._units()[1])
 
     def _w(self):
         r"""
@@ -391,18 +397,17 @@ class HermitianWeilRep(WeilRep):
         return S
 
 
-
 class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
 
     def __getattr__(self, x):
         return getattr(self.weilrep(), x)
 
-    def borcherds_lift(self, max_prec = None, _flag = False):
+    def borcherds_lift(self, max_prec=None, _flag=False):
         d = self.denominator()
         umf = UnitaryModularForms(self.weilrep())
         K = umf.field()
         if d > 1:
-            h, k = (d * self).borcherds_lift(max_prec = max_prec, _flag = True)
+            h, k = (d * self).borcherds_lift(max_prec=max_prec, _flag=True)
             k = ZZ(k)
             try:
                 u = h.trailing_monomial()
@@ -437,8 +442,8 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
         rx, x = LaurentPolynomialRing(K, 'x').objgen()
         rt, t = PowerSeriesRing(rx, 't').objgen()
         r = umf._taylor_exp_ring_extended()
-        e4 = eisenstein_series_qexp(4, prec0, normalization = 'constant')
-        e6 = eisenstein_series_qexp(6, prec0, normalization = 'constant')
+        e4 = eisenstein_series_qexp(4, prec0, normalization='constant')
+        e6 = eisenstein_series_qexp(6, prec0, normalization='constant')
         w1 = II(1)
         v = vector([0, 0])
         E4 = OrthogonalModularForm(4, w1, e4(t * ~x) * e4(t * x), 1, v)
@@ -496,7 +501,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                         except AttributeError:
                             u = c_ds.valuation()
                             c = c_ns[u] / c_ds[u]
-                        g += c * (x **(scale * (a - b))) * (t ** (scale * (a + b)))
+                        g += c * (x ** (scale * (a - b))) * (t ** (scale * (a + b)))
             pb[tuple(y)] = OrthogonalModularForm(k + sum(y), w1, g.add_bigoh(floor(F.precision())) / prod(factorial(a) for a in y), scale, v)
         if d == -3:
             eta = sum( (-1)**n * ( t ** (ZZ(n * (3 * n + 1) / 2)) - t ** (ZZ((n+1) * (3*n+2) / 2)) ) for n in range(isqrt(2 * prec0 / 3) + 1)).add_bigoh(prec0)
@@ -556,12 +561,11 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                 h += O(x_monomial)
                 if _flag:
                     return h, F.weight()
-                return UnitaryModularForm(self.complex_gram_matrix(), h, F.weight(), umf = umf)
+                return UnitaryModularForm(self.complex_gram_matrix(), h, F.weight(), umf=umf)
         h = h.add_bigoh(prec)
         if _flag:
             return h, F.weight()
-        return UnitaryModularForm(self.complex_gram_matrix(), h, F.weight(), umf = umf)
-
+        return UnitaryModularForm(self.complex_gram_matrix(), h, F.weight(), umf=umf)
 
     def theta_lift(self):
         cusp_form = self.is_cusp_form()
@@ -597,8 +601,8 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
         rx, x = LaurentPolynomialRing(QQ, 'x').objgen()
         rt, t = PowerSeriesRing(rx, 't').objgen()
         r = umf._taylor_exp_ring()
-        E4 = eisenstein_series_qexp(4, prec, normalization = 'constant')
-        E6 = eisenstein_series_qexp(6, prec, normalization = 'constant')
+        E4 = eisenstein_series_qexp(4, prec, normalization='constant')
+        E6 = eisenstein_series_qexp(6, prec, normalization='constant')
         Delta = delta_qexp(prec)
         w1 = II(1)
         v = vector([0, 0])
@@ -610,19 +614,21 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
         zeta = w._w()
         zeta_conj = zeta.conjugate()
         rho = -zeta_conj
-        r0 = PolynomialRing(r, ['x%s'%i for i in range(2 * rank)])
+        r0 = PolynomialRing(r, ['x%s' % i for i in range(2 * rank)])
         prec1 = 6 * isqrt(prec)
+
         def a(u):
             S = w.gram_matrix()
             v = S * vector(u)
             y = [v[i+i+1] + rho * v[i+i] for i in range(len(v) // 2)]
-            return prod(z[i]*y for i, y in enumerate(y)).exp(prec = prec1)
-        theta = w.dual().theta_series(prec, P = r0(1), funct = a, symm = False)
+            return prod(z[i]*y for i, y in enumerate(y)).exp(prec=prec1)
+        theta = w.dual().theta_series(prec, P=r0(1), funct=a, symm=False)
         f = self & theta
         # reorganize f...
         rq1, q = PowerSeriesRing(K, 'q').objgen()
         rz1 = PowerSeriesRing(rq1, r.gens())
         f = sum(q**b * rz1(h) for b, h in f.dict().items())
+
         def b(h, wt):
             cf = cusp_form or (wt > k)
             if cf:
@@ -676,9 +682,9 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                             maxprec = k1
                         v = X[0]
                         p = sum(v[i+1] * (24*isqrt3 * e6)**i2 * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]) if i1 == 0)
-                        h += p * prod(z[i]** a for i, a in enumerate(a))
+                        h += p * prod(z[i] ** a for i, a in enumerate(a))
             h = h.add_bigoh(prec1)
-            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf = umf)
+            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf=umf)
         elif d == -4:
             ## Gaussian lattice
             e4, eta6 = r.base_ring().gens()
@@ -711,9 +717,9 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                         maxprec = k1
                     v = X[0]
                     p = sum(v[i+1] * (12 * e4)**i1 * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]) if i2 == 0)
-                    h += p * prod(z[i]** a for i, a in enumerate(a))
+                    h += p * prod(z[i] ** a for i, a in enumerate(a))
             h = h.add_bigoh(prec1)
-            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf = umf)
+            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf=umf)
         else:
             e4, e6 = r.base_ring().gens()
             delta = (e4 ** 3 - e6 ** 2) / 1728
@@ -748,11 +754,11 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                             maxprec = k1
                         v = X[0]
                         p = sum(v[i+1] * (cm_val[0] * e4)**i1 * (cm_val[1] * e6)**i2 * delta**i3 for i, (i1, i2, i3) in enumerate(I[k1]))
-                        h += p * prod(z[i]** a for i, a in enumerate(a))
+                        h += p * prod(z[i] ** a for i, a in enumerate(a))
                     except AttributeError: #g=0
                         pass
             h = h.add_bigoh(prec1)
-            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf = umf)
+            return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf=umf)
 
 class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
     r"""
@@ -776,7 +782,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         s = ''
         if not self._plusH:
             s = ' + H'
-        return 'Unitary modular forms associated to the gram matrix\n%s%s\nwith coefficients in %s'%(S, s, S.base_ring())
+        return 'Unitary modular forms associated to the gram matrix\n%s%s\nwith coefficients in %s' % (S, s, S.base_ring())
 
     def _discriminant(self):
         try:
@@ -827,7 +833,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
             if rank == 1:
                 rz = PowerSeriesRing(r, 'z')
             else:
-                rz = PowerSeriesRing(r, ['z%s'%(n + 1) for n in range(rank)])
+                rz = PowerSeriesRing(r, ['z%s' % (n + 1) for n in range(rank)])
             self.__taylor_exp_ring = rz
             return rz
 
@@ -841,13 +847,13 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                 e6, eta8 = r.gens()
                 r1, e4 = PolynomialRing(r, 'e4').objgen()
                 I = r1.ideal(e4**3 - e6**2 - (12 * eta8) ** 3)
-                r1 = r1.quotient_ring(I, names = 'e4')
+                r1 = r1.quotient_ring(I, names='e4')
                 self._extra_var = r1(e4)
             elif dK == -4:
                 e4, eta6 = r.gens()
                 r1, e6 = PolynomialRing(r, 'e6').objgen()
                 I = r1.ideal(e6**2 - e4**3 - 1728 * (eta6 ** 4))
-                r1 = r1.quotient_ring(I, names = 'e6')
+                r1 = r1.quotient_ring(I, names='e6')
                 self._extra_var = r1(e6)
             else:
                 e4, e6 = r.gens()
@@ -859,7 +865,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
             if rank == 1:
                 rz = PowerSeriesRing(r1, 'z')
             else:
-                rz = PowerSeriesRing(r1, ['z%s'%(n + 1) for n in range(rank)])
+                rz = PowerSeriesRing(r1, ['z%s' % (n + 1) for n in range(rank)])
             self.__taylor_exp_ring_extended = rz
             return rz
 
@@ -904,7 +910,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         w = self.weilrep()
         d = self._discriminant()
         if k == 2 or k % 2 or (d == -3 and k % 6) or (d == -4 and k % 4):
-            raise ValueError('Invalid weight %s in Eisenstein series for U(n, 1)'%k)
+            raise ValueError('Invalid weight %s in Eisenstein series for U(n, 1)' % k)
         prec0 = ceil(prec / 6) ** 2
         rank = self.complex_gram_matrix().nrows()
         f = w.eisenstein_series(k - rank, prec0)
@@ -913,11 +919,11 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
 
     #### theta lifts
 
-    def lifts_basis(self, k, prec, cusp_forms = True):
+    def lifts_basis(self, k, prec, cusp_forms=True):
         w = self.weilrep()
         d = self._discriminant()
         if (d == -3 and k % 3) or (d == -4 and k % 2):
-            raise ValueError('Invalid weight %s in theta lift to U(n, 1)'%k)
+            raise ValueError('Invalid weight %s in theta lift to U(n, 1)' % k)
         prec0 = ceil(prec / 6) ** 2
         rank = self.complex_gram_matrix().nrows()
         if cusp_forms:
@@ -928,7 +934,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
 
     #### products
 
-    def _borcherds_product_polyhedron(self, pole_order, prec, verbose = False):
+    def _borcherds_product_polyhedron(self, pole_order, prec, verbose=False):
         r"""
         Construct a polyhedron representing a cone of Heegner divisors. For internal use in the methods borcherds_input_basis() and borcherds_input_Qbasis().
         INPUT:
@@ -943,16 +949,16 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         w = self.weilrep()
         rds = w.rds()
         norm_dict = w.norm_dict()
-        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec, verbose = verbose)
+        X = w.nearly_holomorphic_modular_forms_basis(wt, pole_order, prec, verbose=verbose)
         N = len([g for g in rds if not norm_dict[tuple(g)]])
-        v_list = w.coefficient_vector_exponents(0, 1, starting_from = -pole_order, include_vectors = True)
+        v_list = w.coefficient_vector_exponents(0, 1, starting_from=-pole_order, include_vectors=True)
         exp_list = [v[1] for v in v_list]
         d = w._ds_to_hds()
         v_list = [vector(d[tuple(v[0])]) for v in v_list]
         d = K.discriminant()
         positive = []
         zero = vector([0] * (len(exp_list) + 1))
-        M = Matrix([x.coefficient_vector(starting_from = -pole_order, ending_with = 0)[:-N] for x in X])
+        M = Matrix([x.coefficient_vector(starting_from=-pole_order, ending_with=0)[:-N] for x in X])
         vs = M.transpose().kernel().basis()
         prec = floor(min(exp_list) / max(filter(bool, exp_list)))
         norm_list = w._norm_form().short_vector_list_up_to_length(prec + 1)
@@ -1001,10 +1007,10 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                             v2 = v_list[j]
                             ieq[j + 1] = mult * any(all(t in O_K for t in x * v1 + u * v2) for x in norm_list[N] for u in units)
                 positive.append(ieq)# * denominator(ieq)
-        p = Polyhedron(ieqs = positive, eqns = [vector([0] + list(v)) for v in vs] + ys)
+        p = Polyhedron(ieqs=positive, eqns=[vector([0] + list(v)) for v in vs] + ys)
         return M, p, X
 
-    def borcherds_input_basis(self, pole_order, prec, verbose = False):
+    def borcherds_input_basis(self, pole_order, prec, verbose=False):
         r"""
         Compute a basis of input functions into the Borcherds lift with pole order in infinity up to pole_order.
 
@@ -1021,7 +1027,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         K = w.base_field()
         d = K.discriminant()
         wt = self.input_wt()
-        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
+        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose=verbose)
         try:
             b = Matrix(Cone(p).Hilbert_basis())
             if verbose:
@@ -1063,10 +1069,10 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                         del X[j2]
                     except ValueError:
                         pass
-        X.sort(key = lambda x: x.fourier_expansion()[0][2][0])
+        X.sort(key=lambda x: x.fourier_expansion()[0][2][0])
         return WeilRepModularFormsBasis(wt, X, w)
 
-    def borcherds_input_Qbasis(self, pole_order, prec, verbose = False):
+    def borcherds_input_Qbasis(self, pole_order, prec, verbose=False):
         r"""
         Compute a Q-basis of input functions into the Borcherds lift with pole order in infinity up to pole_order.
 
@@ -1083,7 +1089,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         K = w.base_field()
         d = K.discriminant()
         wt = self.input_wt()
-        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose = verbose)
+        M, p, X = self._borcherds_product_polyhedron(pole_order, prec, verbose=verbose)
         try:
             b = Matrix(Cone(p).rays())
             if verbose:
@@ -1125,7 +1131,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
                         del X[j2]
                     except ValueError:
                         pass
-        X.sort(key = lambda x: x.fourier_expansion()[0][2][0])
+        X.sort(key=lambda x: x.fourier_expansion()[0][2][0])
         return WeilRepModularFormsBasis(wt, X, w)
 
 class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
@@ -1134,7 +1140,7 @@ class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
 
     This should be called with II(n) where n \in O_K.
     """
-    def __init__(self, N, K = None, gen = None):
+    def __init__(self, N, K=None, gen=None):
         if K is None:
             K = N.parent()
             K = FractionField(K)
@@ -1153,7 +1159,7 @@ class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
                 S = Matrix(K, [[0, a], [a.galois_conjugate(), 0]])
             except AttributeError:
                 S = Matrix(K, [[0, a], [a, 0]])
-            super().__init__(S, gen = gen, plus_H = True)
+            super().__init__(S, gen=gen, plus_H=True)
             self.__class__ = HermitianRescaledHyperbolicPlane
         self.__N = N
 
@@ -1169,17 +1175,14 @@ class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
         A = Matrix(K, n + 2)
         for i in range(n):
             for j in range(n):
-                A[i + 1, j+ 1] = S[i, j]
+                A[i + 1, j + 1] = S[i, j]
         A[0, -1] = a
         A[-1, 0] = a.galois_conjugate()
         plus_H = other.is_positive_definite()
-        w = HermitianWeilRep(A, gen = other._w(), plus_H = plus_H)
+        w = HermitianWeilRep(A, gen=other._w(), plus_H=plus_H)
         w._lorentz_gram_matrix = lambda: Matrix(QQ, n + n + 2) #leave empty
         return w
     __radd__ = __add__
-
-
-
 
 
 class UnitaryModularForm:
@@ -1187,7 +1190,7 @@ class UnitaryModularForm:
     This class represents modular forms on U(n, 1).
     """
 
-    def __init__(self, complex_gram_matrix, taylor_series, weight, umf = None):
+    def __init__(self, complex_gram_matrix, taylor_series, weight, umf=None):
         self.__taylor = taylor_series
         self.__complex_gram_matrix = complex_gram_matrix
         self.__rank = complex_gram_matrix.rank()
@@ -1267,7 +1270,7 @@ class UnitaryModularForm:
         """
         f = self.taylor_series()
         f = f.add_bigoh(min(f.prec(), new_prec))
-        return UnitaryModularForm(self.complex_gram_matrix(), f, self.weight(), umf = self.umf())
+        return UnitaryModularForm(self.complex_gram_matrix(), f, self.weight(), umf=self.umf())
 
     ## arithmetic
 
@@ -1319,7 +1322,7 @@ class UnitaryModularForm:
             f = self.taylor_series()
             if n == 0:
                 r = f.parent()
-                return UnitaryModularForm(self.complex_gram_matrix(), r(1).add_bigoh(f.prec()), 0, umf = self.umf())
+                return UnitaryModularForm(self.complex_gram_matrix(), r(1).add_bigoh(f.prec()), 0, umf=self.umf())
             elif n == 1:
                 return self
             elif n > 1:
@@ -1329,7 +1332,7 @@ class UnitaryModularForm:
             a, b = n.as_integer_ratio()
             f = self.taylor_series()
             h = _root(f, b, self.weight(), self.umf())
-            return UnitaryModularForm(self.complex_gram_matrix(), h, self.weight() / ZZ(b), umf = self.umf()) ** a
+            return UnitaryModularForm(self.complex_gram_matrix(), h, self.weight() / ZZ(b), umf=self.umf()) ** a
         return NotImplemented
 
     def __sub__(self, other):
@@ -1407,7 +1410,7 @@ def _root(h, n, k, umf):
     d = h.dict()
     if r.ngens() == 1:
         d = {tuple([a]):b for a, b in d.items()}
-    L = sorted(d.keys(), key = sum)
+    L = sorted(d.keys(), key=sum)
     a = L[0]
     try:
         b_pow = d[a].lift()
@@ -1470,7 +1473,7 @@ def _hard_root(p, discr, n, k):
             e4, e6 = r1.gens()
         N = 12
     assert f.weight() == k
-    val = f.valuation(exact = True)
+    val = f.valuation(exact=True)
     h = f / Eta**ZZ(24 * val)
     k1 = ZZ(h.weight())
     k1n = ZZ(k1 / n)
@@ -1530,7 +1533,7 @@ def unitary_jacobian(X):
         Fz = [[f.derivative() for f in F]]
     M = Matrix([[k*F[i] for i, k in enumerate(K)], Ftau] + Fz)
     h = M.determinant()
-    return UnitaryModularForm(S, h, sum(K) + n + 2, umf = umf)
+    return UnitaryModularForm(S, h, sum(K) + n + 2, umf=umf)
 
 def _umf_relations(X):
     prec = min(x.precision() for x in X)
