@@ -23,8 +23,6 @@ import cmath
 import mpmath
 
 import cypari2
-pari = cypari2.Pari()
-PariError = cypari2.PariError
 
 from collections import defaultdict
 from copy import copy, deepcopy
@@ -33,7 +31,6 @@ from re import sub
 
 from sage.arith.misc import dedekind_sum, divisors, GCD, is_prime, kronecker, XGCD
 from sage.arith.srange import srange
-from sage.calculus.var import var
 from sage.functions.other import ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
@@ -67,7 +64,10 @@ from sage.rings.real_mpfr import RealField, RR
 from sage.structure.element import is_Matrix
 from sage.symbolic.ring import SR
 
-sage_one_half = Integer(1) / Integer(2)
+sage_one_half = Integer(1) / 2
+
+pari = cypari2.Pari()
+PariError = cypari2.PariError
 
 
 class WeilRepModularForm(object):
@@ -2562,7 +2562,8 @@ class WeilRepModularFormsBasis:
         e = Integer(S.nrows())
         K = [x[0][2].base_ring() for x in X]
         if e:
-            Rb = [LaurentPolynomialRing(K, list(var('w_%d' % i) for i in range(e) )) for K in K]
+            Rb = [LaurentPolynomialRing(K, [f'w_{i}' for i in range(e)])
+                  for K in K]
         else:
             Rb = list(K)
         R = [PowerSeriesRing(x, 'q', prec) for x in Rb]
@@ -3201,6 +3202,7 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         except AttributeError:
             x = self.character()
         return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep=f.weilrep(), character=x)
+
     __rmul__ = __mul__
 
     def __pow__(self, N):
@@ -3244,6 +3246,7 @@ def smf_eta(prec=20):
     r = PowerSeriesRing(ZZ, 'q')
     return WeilRepModularFormWithCharacter(sage_one_half, matrix([]), [(vector([]), ZZ(-23) / 24, qexp_eta(r, floor(prec)).shift(1))], character=EtaCharacterPower(1))
 
+
 def smf_delta(prec=20):
     r"""
     Compute the Ramanujan Delta function, with Fourier expansion up to precision 'prec'.
@@ -3255,6 +3258,7 @@ def smf_delta(prec=20):
     """
     return smf(Integer(12), delta_qexp(prec))
 
+
 def smf_j(prec=20):
     r"""
     Compute the Klein j-invariant, with Fourier expansion up to precision 'prec'.
@@ -3265,6 +3269,7 @@ def smf_j(prec=20):
     OUTPUT: WeilRepModularForm
     """
     return smf(Integer(0), j_invariant_qexp(prec))
+
 
 def smf_eisenstein_series(k, prec=20, normalization='constant'):
     r"""
@@ -3280,6 +3285,7 @@ def smf_eisenstein_series(k, prec=20, normalization='constant'):
         from weilrep import WeilRep
         return WeilRep([]).eisenstein_series(2, prec)
     return smf(Integer(k), eisenstein_series_qexp(k, prec, normalization=normalization))
+
 
 def smf_j_cube_root(prec=20):
     r"""

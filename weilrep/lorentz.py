@@ -1,6 +1,7 @@
 r"""
 
-Additive and multiplicative theta lifts for lattices split by a rational hyperbolic plane
+Additive and multiplicative theta lifts for lattices split
+by a rational hyperbolic plane
 
 AUTHORS:
 
@@ -19,27 +20,20 @@ AUTHORS:
 # ****************************************************************************
 
 import cypari2
-pari = cypari2.Pari()
-PariError = cypari2.PariError
 
 import math
 
 from .weilrep import WeilRep
-from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
+from .weilrep_modular_forms_class import WeilRepModularForm
 
-from copy import copy, deepcopy
 from re import sub
 
 from sage.arith.functions import lcm
-from sage.arith.misc import bernoulli, divisors, GCD, is_prime, is_square, XGCD
+from sage.arith.misc import bernoulli, GCD, is_prime, is_square, XGCD
 from sage.arith.srange import srange
-from sage.calculus.var import var
 from sage.combinat.combinat import bernoulli_polynomial
-from sage.combinat.root_system.cartan_matrix import CartanMatrix
 from sage.functions.log import exp, log
-from sage.functions.other import ceil, floor, frac, sqrt
-from sage.geometry.cone import Cone
-from sage.geometry.polyhedron.constructor import Polyhedron
+from sage.functions.other import ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
@@ -51,7 +45,6 @@ from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.big_oh import O
 from sage.rings.fraction_field import FractionField
-from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
@@ -61,19 +54,27 @@ from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 
-sage_one_half = Integer(1) / Integer(2)
-sage_three_half = Integer(3) / Integer(2)
-
 from .lifts import OrthogonalModularForm, OrthogonalModularForms
+
+sage_one_half = Integer(1) / 2
+sage_three_half = Integer(3) / 2
+
+pari = cypari2.Pari()
+PariError = cypari2.PariError
+
 
 class OrthogonalModularFormsLorentzian(OrthogonalModularForms):
     r"""
-    This class represents orthogonal modular forms for a Lorentzian lattice. (If the lattice is L and H is the hyperbolic plane then these are automorphic forms on the symmetric domain for L+H.)
+    This class represents orthogonal modular forms for a Lorentzian lattice.
+
+    (If the lattice is L and H is the hyperbolic plane then these are automorphic forms
+    on the symmetric domain for L+H.)
 
     Can be called simply with OrthogonalModularForms(w), where
     - ``w`` -- a WeilRep instance, or a Gram matrix
 
-    WARNING: the Gram matrix must have a strictly negative upper-left-most entry! We always choose (1, 0, ...) as a basis of the negative cone of our lattice!
+    WARNING: the Gram matrix must have a strictly negative upper-left-most entry!
+    We always choose (1, 0, ...) as a basis of the negative cone of our lattice!
     """
 
     def input_wt(self):
@@ -103,11 +104,10 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                     h = self.true_fourier_expansion()
                     return str(h).replace('t', 'q')
                 raise t
-            hprec = h.prec()
 
             def m(obj):
                 m1, m2 = obj.span()
-                obj_s = obj.string[m1 : m2]
+                obj_s = obj.string[m1:m2]
                 x = obj_s[0]
                 if x == '^':
                     u = Integer(obj_s[1:]) / d
@@ -158,7 +158,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                     s = str(f)
                 if not self._base_ring_is_laurent_polynomial_ring():#represent 'r'-terms as Laurent polynomials if possible
                     n = self.nvars() - 2
-                    r = LaurentPolynomialRing(QQ, list(var('r_%d' % i) for i in range(n)))
+                    r = LaurentPolynomialRing(QQ, list('r_%d' % i for i in range(n)))
 
                     def _a(obj):
                         obj_s = obj.string[slice(*obj.span())]
@@ -220,7 +220,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             nrows -= 2
         except AttributeError:
             N2 = 1
-        rb = LaurentPolynomialRing(QQ, list(var('w_%d' % i) for i in range(nrows)))
+        rb = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(nrows)))
         if not self._base_ring_is_laurent_polynomial_ring():
             rb = FractionField(rb)
         z = rb.gens()[0]
@@ -255,7 +255,6 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, j, w_scale=scale, q_scale=d) for n, j in enumerate(L)]
             return self.__fourier_jacobi
         f = self.fourier_expansion()
-        rb_old = f.base_ring()
         r_old = f.parent()
         s = r_old.gens()[1]
         prec = self.precision()
@@ -267,9 +266,9 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         s = self.qexp_representation()
         if s == 'PD+II':
             return True
-        elif s is None:
+        if s is None:
             return False
-        elif len(s) == 3:
+        if len(s) == 3:
             if s[0] == 'hermite' or s[0] == 'siegel':
                 return True
         elif s == 'shimura':
@@ -339,11 +338,11 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             else:
                 zeta = -Integer(1)
         else:
-            K = CyclotomicField(N, var('mu%d' % N))
+            K = CyclotomicField(N, 'mu%d' % N)
             zeta, = K.gens()
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -825,11 +824,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             else:
                 zeta = -1
         else:
-            K = CyclotomicField(N, var('mu%d' % N))
+            K = CyclotomicField(N, 'mu%d' % N)
             zeta, = K.gens()
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -1311,7 +1310,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             q^(1/4) - q^(5/4) - q^(9/4) + q^(25/4) + 2*q^(29/4) - 2*q^(41/4) + q^(45/4) - q^(49/4) + O(q^(61/4))
 
             sage: from weilrep import *
-            sage: x = var('x')
+            sage: x = polygen(QQ, 'x')
             sage: K.<sqrt5> = NumberField(x * x - 5)
             sage: HMF(K).borcherds_input_Qbasis(1, 5)[0].borcherds_lift()
             -q1^(-1/10*sqrt5 + 1/2)*q2^(1/10*sqrt5 + 1/2) + q1^(1/10*sqrt5 + 1/2)*q2^(-1/10*sqrt5 + 1/2) + q1^(-2/5*sqrt5 + 1)*q2^(2/5*sqrt5 + 1) + 10*q1^(-1/5*sqrt5 + 1)*q2^(1/5*sqrt5 + 1) - 10*q1^(1/5*sqrt5 + 1)*q2^(-1/5*sqrt5 + 1) - q1^(2/5*sqrt5 + 1)*q2^(-2/5*sqrt5 + 1) - 120*q1^(-3/10*sqrt5 + 3/2)*q2^(3/10*sqrt5 + 3/2) + 108*q1^(-1/10*sqrt5 + 3/2)*q2^(1/10*sqrt5 + 3/2) - 108*q1^(1/10*sqrt5 + 3/2)*q2^(-1/10*sqrt5 + 3/2) + 120*q1^(3/10*sqrt5 + 3/2)*q2^(-3/10*sqrt5 + 3/2) - 10*q1^(-4/5*sqrt5 + 2)*q2^(4/5*sqrt5 + 2) + 108*q1^(-3/5*sqrt5 + 2)*q2^(3/5*sqrt5 + 2) + 156*q1^(-2/5*sqrt5 + 2)*q2^(2/5*sqrt5 + 2) + 140*q1^(-1/5*sqrt5 + 2)*q2^(1/5*sqrt5 + 2) - 140*q1^(1/5*sqrt5 + 2)*q2^(-1/5*sqrt5 + 2) - 156*q1^(2/5*sqrt5 + 2)*q2^(-2/5*sqrt5 + 2) - 108*q1^(3/5*sqrt5 + 2)*q2^(-3/5*sqrt5 + 2) + 10*q1^(4/5*sqrt5 + 2)*q2^(-4/5*sqrt5 + 2) - q1^(-11/10*sqrt5 + 5/2)*q2^(11/10*sqrt5 + 5/2) - 108*q1^(-9/10*sqrt5 + 5/2)*q2^(9/10*sqrt5 + 5/2) + 140*q1^(-7/10*sqrt5 + 5/2)*q2^(7/10*sqrt5 + 5/2) - 625*q1^(-1/2*sqrt5 + 5/2)*q2^(1/2*sqrt5 + 5/2) - 810*q1^(-3/10*sqrt5 + 5/2)*q2^(3/10*sqrt5 + 5/2) + 728*q1^(-1/10*sqrt5 + 5/2)*q2^(1/10*sqrt5 + 5/2) - 728*q1^(1/10*sqrt5 + 5/2)*q2^(-1/10*sqrt5 + 5/2) + 810*q1^(3/10*sqrt5 + 5/2)*q2^(-3/10*sqrt5 + 5/2) + 625*q1^(1/2*sqrt5 + 5/2)*q2^(-1/2*sqrt5 + 5/2) - 140*q1^(7/10*sqrt5 + 5/2)*q2^(-7/10*sqrt5 + 5/2) + 108*q1^(9/10*sqrt5 + 5/2)*q2^(-9/10*sqrt5 + 5/2) + q1^(11/10*sqrt5 + 5/2)*q2^(-11/10*sqrt5 + 5/2) + O(q1, q2)^6
@@ -1362,7 +1361,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             else:
                 zeta = -Integer(1)
         else:
-            K = CyclotomicField(N, var('mu%d' % N))
+            K = CyclotomicField(N, 'mu%d' % N)
             zeta, = K.gens()
         try:
             k = Integer(coeffs[tuple([0] * (nrows + 1))]) / 2
@@ -1373,7 +1372,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 k = Integer(0)
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -1686,11 +1685,11 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
         else:
             zeta = -1
     else:
-        K = CyclotomicField(N, var('mu%d' % N))
+        K = CyclotomicField(N, 'mu%d' % N)
         zeta, = K.gens()
     if nrows > 1:
         if nrows > 2:
-            rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows - 2)))
+            rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
         else:
             rb = K
         rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -1817,11 +1816,11 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
             else:
                 zeta = -1
         else:
-            K = CyclotomicField(N, var('mu%d' % N))
+            K = CyclotomicField(N, 'mu%d' % N)
             zeta, = K.gens()
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list(var('r_%d' % i) for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -1968,7 +1967,6 @@ def _lorentz_laplacian(f):
     from weilrep.lifts import OrthogonalModularForm
     w = f.weilrep()
     S = w.orthogonalized_gram_matrix()
-    nrows = f.nvars()
     d = f.true_coefficients()
     h = f.true_fourier_expansion()
     rt, t = h.parent().objgen()
