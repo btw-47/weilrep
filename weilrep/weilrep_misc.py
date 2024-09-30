@@ -12,7 +12,6 @@ from bisect import bisect
 
 from sage.arith.misc import dedekind_sum, divisors, fundamental_discriminant, is_square, kronecker, prime_divisors
 from sage.arith.srange import srange
-from sage.calculus.var import var
 from sage.combinat.subset import Subsets
 from sage.functions.generalized import sgn
 from sage.functions.other import ceil, factorial, floor, frac, sqrt
@@ -87,7 +86,7 @@ def multilinear_gegenbauer_polynomial(n, s, vectors, S):
     """
     P = gegenbauer_polynomial(n, s)
     N = S.nrows()
-    R = PolynomialRing(QQ, list(var('z_%d' % i) for i in range(N + 1) ))
+    R = PolynomialRing(QQ, [f'z_{i}' for i in range(N + 1)])
     gens = R.gens()
     mu = vector(gens[:-1])
     n = gens[-1]

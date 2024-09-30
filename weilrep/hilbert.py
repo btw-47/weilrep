@@ -159,7 +159,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = var('x')
+            sage: x = polygen(QQ, 'x')
             sage: K.<sqrt5> = NumberField(x * x - 5)
             sage: chi = DirichletGroup(5)[2]
             sage: HMF(K).doi_naganuma_lift(CuspForms(chi, 6, prec = 20).basis()[0])
@@ -186,7 +186,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = var('x')
+            sage: x = polygen(QQ, 'x')
             sage: K.<sqrt5> = NumberField(x^2 - 5)
             sage: HMF(K).eisenstein_series(2, 6)
             1 + 120*q1^(-1/10*sqrt5 + 1/2)*q2^(1/10*sqrt5 + 1/2) + 120*q1^(1/10*sqrt5 + 1/2)*q2^(-1/10*sqrt5 + 1/2) + 120*q1^(-2/5*sqrt5 + 1)*q2^(2/5*sqrt5 + 1) + 600*q1^(-1/5*sqrt5 + 1)*q2^(1/5*sqrt5 + 1) + 720*q1*q2 + 600*q1^(1/5*sqrt5 + 1)*q2^(-1/5*sqrt5 + 1) + 120*q1^(2/5*sqrt5 + 1)*q2^(-2/5*sqrt5 + 1) + 720*q1^(-1/2*sqrt5 + 3/2)*q2^(1/2*sqrt5 + 3/2) + 1200*q1^(-3/10*sqrt5 + 3/2)*q2^(3/10*sqrt5 + 3/2) + 1440*q1^(-1/10*sqrt5 + 3/2)*q2^(1/10*sqrt5 + 3/2) + 1440*q1^(1/10*sqrt5 + 3/2)*q2^(-1/10*sqrt5 + 3/2) + 1200*q1^(3/10*sqrt5 + 3/2)*q2^(-3/10*sqrt5 + 3/2) + 720*q1^(1/2*sqrt5 + 3/2)*q2^(-1/2*sqrt5 + 3/2) + 600*q1^(-4/5*sqrt5 + 2)*q2^(4/5*sqrt5 + 2) + 1440*q1^(-3/5*sqrt5 + 2)*q2^(3/5*sqrt5 + 2) + 2520*q1^(-2/5*sqrt5 + 2)*q2^(2/5*sqrt5 + 2) + 2400*q1^(-1/5*sqrt5 + 2)*q2^(1/5*sqrt5 + 2) + 3600*q1^2*q2^2 + 2400*q1^(1/5*sqrt5 + 2)*q2^(-1/5*sqrt5 + 2) + 2520*q1^(2/5*sqrt5 + 2)*q2^(-2/5*sqrt5 + 2) + 1440*q1^(3/5*sqrt5 + 2)*q2^(-3/5*sqrt5 + 2) + 600*q1^(4/5*sqrt5 + 2)*q2^(-4/5*sqrt5 + 2) + 120*q1^(-11/10*sqrt5 + 5/2)*q2^(11/10*sqrt5 + 5/2) + 1440*q1^(-9/10*sqrt5 + 5/2)*q2^(9/10*sqrt5 + 5/2) + 2400*q1^(-7/10*sqrt5 + 5/2)*q2^(7/10*sqrt5 + 5/2) + 3720*q1^(-1/2*sqrt5 + 5/2)*q2^(1/2*sqrt5 + 5/2) + 3600*q1^(-3/10*sqrt5 + 5/2)*q2^(3/10*sqrt5 + 5/2) + 3840*q1^(-1/10*sqrt5 + 5/2)*q2^(1/10*sqrt5 + 5/2) + 3840*q1^(1/10*sqrt5 + 5/2)*q2^(-1/10*sqrt5 + 5/2) + 3600*q1^(3/10*sqrt5 + 5/2)*q2^(-3/10*sqrt5 + 5/2) + 3720*q1^(1/2*sqrt5 + 5/2)*q2^(-1/2*sqrt5 + 5/2) + 2400*q1^(7/10*sqrt5 + 5/2)*q2^(-7/10*sqrt5 + 5/2) + 1440*q1^(9/10*sqrt5 + 5/2)*q2^(-9/10*sqrt5 + 5/2) + 120*q1^(11/10*sqrt5 + 5/2)*q2^(-11/10*sqrt5 + 5/2) + O(q1, q2)^6
@@ -424,7 +424,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = var('x')
+            sage: x = polygen(QQ, 'x')
             sage: K.<sqrt2> = NumberField(x^2 - 2)
             sage: e2 = HMF(K).eisenstein_series(2, 5)
             sage: e2[2 - sqrt2]
@@ -478,7 +478,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = var('x')
+            sage: x = polygen(QQ, 'x')
             sage: K.<sqrt13> = NumberField(x * x - 13)
             sage: HMF(K).eisenstein_series(2, 15).hz_pullback(4 - sqrt13)
             1 + 24*q + O(q^2)
