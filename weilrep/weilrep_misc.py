@@ -5,45 +5,37 @@ Miscellaneous functions
 
 
 """
-
-import cmath
-import math
 from bisect import bisect
 
-from sage.arith.misc import dedekind_sum, divisors, fundamental_discriminant, is_square, kronecker, prime_divisors
+from sage.arith.misc import divisors, kronecker, prime_divisors
 from sage.arith.srange import srange
 from sage.combinat.subset import Subsets
-from sage.functions.generalized import sgn
-from sage.functions.other import ceil, factorial, floor, frac, sqrt
+from sage.functions.other import ceil, factorial
 from sage.functions.transcendental import zeta
 from sage.matrix.constructor import matrix
-from sage.misc.functional import denominator, isqrt
 from sage.misc.misc_c import prod
 from sage.modular.dirichlet import kronecker_character
-from sage.modular.modform.eis_series import eisenstein_series_qexp
-from sage.modular.modform.vm_basis import delta_qexp
 from sage.modules.free_module import FreeModule
 from sage.modules.free_module_element import vector
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.quadratic_forms.special_values import quadratic_L_function__exact
-from sage.rings.big_oh import O
 from sage.rings.integer import Integer
-from sage.rings.integer_ring import ZZ
-from sage.rings.number_field.number_field import QuadraticField
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
-from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
 from sage.symbolic.function import BuiltinFunction
 
-sage_one_eighth = Integer(1) / Integer(8)
-sage_three_half = Integer(3) / Integer(2)
+sage_one_eighth = Integer(1) / 8
+sage_three_half = Integer(3) / 2
 
 
 def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound):
     r"""
-    Updates a basis in echelon form with a new object. Usually used for JacobiForm's
+    Updates a basis in echelon form with a new object.
+
+    Usually used for JacobiForm's
 
     INPUT:
+
     - ``X`` -- a WeilRepModularForm or JacobiForm
     - ``basis`` -- a list of WeilRepModularForm's or JacobiForm's
     - ``basis_vectors`` -- a list of coefficient vectors corresponding to basis
@@ -73,12 +65,16 @@ def update_echelon_form_with(X, basis, basis_vectors, pivots, rank, sturm_bound)
             return basis, basis_vectors, pivots, rank
     return basis, basis_vectors, pivots, rank
 
+
 def gegenbauer_polynomial(N, s):
     r"""
     Two-variable Gegenbauer polynomials.
     """
     x, y = PolynomialRing(QQ, ['x', 'y']).gens()
-    return factorial(N) * sum( prod(srange(s + ceil(N / 2), s + N - k)) / (factorial(k) * factorial(N - (k + k))) * x**(N - (k + k)) * (-y)**k for k in range(N // 2 + 1) )
+    return factorial(N) * sum(prod(srange(s + ceil(N / 2), s + N - k)) /
+                              (factorial(k) * factorial(N - (k + k))) * x**(N - (k + k)) * (-y)**k
+                              for k in range(N // 2 + 1))
+
 
 def multilinear_gegenbauer_polynomial(n, s, vectors, S):
     r"""
@@ -105,7 +101,8 @@ def multilinear_gegenbauer_polynomial(n, s, vectors, S):
         h += (-1) ** len(s) * P(mu * Sv, n * (v * Sv)/2)
     return h / factorial(len(vectors))
 
-## linear relations
+
+# ## linear relations
 
 def relations(*x):
     r"""
@@ -178,7 +175,8 @@ def relations(*x):
         return _amf_relations(x)
     return NotImplemented
 
-## theta blocks
+
+# ## theta blocks
 
 def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=False):
     r"""
@@ -187,6 +185,7 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=F
     This is not meant to be called directly. Use JacobiForms(N).basis(2) with the optional parameter try_theta_blocks = True.
 
     INPUT:
+
     - ``N`` -- the index
     - ``prec`` -- precision
     - ``dim`` -- the dimension of the space of Jacobi forms.
@@ -196,14 +195,15 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=F
     OUTPUT: a list of JacobiForm's
     """
     from .jacobi_forms_class import theta_block
+    from .jacobi_forms_class import JacobiForms
     if not jacobiforms:
         jacobiforms = JacobiForms(N)
     rank = 0
-    #four families of weight two theta blocks from root lattices
-    thetablockQ_1 = QuadraticForm(matrix([[4,3,2,1],[3,6,4,2],[2,4,6,3],[1,2,3,4]]))
-    thetablockQ_2 = QuadraticForm(matrix([[24,12,0,0],[12,8,0,0],[0,0,12,6],[0,0,6,6]]))
-    thetablockQ_3 = QuadraticForm(matrix([[4,0,0,0],[0,20,10,20],[0,10,10,20],[0,20,20,60]]))
-    thetablockQ_4 = QuadraticForm(matrix([[4,0,0,0],[0,8,8,4],[0,8,16,8],[0,4,8,6]]))
+    # four families of weight two theta blocks from root lattices
+    thetablockQ_1 = QuadraticForm(matrix([[4, 3, 2, 1], [3, 6, 4, 2], [2, 4, 6, 3], [1, 2, 3, 4]]))
+    thetablockQ_2 = QuadraticForm(matrix([[24, 12, 0, 0], [12, 8, 0, 0], [0, 0, 12, 6], [0, 0, 6, 6]]))
+    thetablockQ_3 = QuadraticForm(matrix([[4, 0, 0, 0], [0, 20, 10, 20], [0, 10, 10, 20], [0, 20, 20, 60]]))
+    thetablockQ_4 = QuadraticForm(matrix([[4, 0, 0, 0], [0, 8, 8, 4], [0, 8, 16, 8], [0, 4, 8, 6]]))
     thetablock_tuple = thetablockQ_1, thetablockQ_2, thetablockQ_3, thetablockQ_4
     thetablock_1 = lambda a, b, c, d, prec: theta_block([a, a+b, a+b+c, a+b+c+d, b, b+c, b+c+d, c, c+d, d], -6, prec, jacobiforms=jacobiforms)
     thetablock_2 = lambda a, b, c, d, prec: theta_block([a, 3*a+b, 3*a+b+b, a+a+b, a+b, b, c+c, c+c+d, 2*(c+d), d], -6, prec, jacobiforms=jacobiforms)
@@ -218,7 +218,7 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=F
     for i, Q in enumerate(thetablock_tuple):
         v_list = Q.short_vector_list_up_to_length(N + 1, up_to_sign_flag=True)
         if verbose:
-            print('I am looking through the theta block family of the root system %s.' % ['A_4','B_2+G_2','A_1+B_3','A_1+C_3'][i])
+            print('I am looking through the theta block family of the root system %s.' % ['A_4', 'B_2+G_2', 'A_1+B_3', 'A_1+C_3'][i])
         for _d in div_N:
             prec_d = prec * (N // _d)
             for v in v_list[_d]:
@@ -246,6 +246,7 @@ def weight_two_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=F
         print('I did not find enough theta blocks. Time to try something else.')
     return jacobiforms.basis(2, prec, try_theta_blocks=False, verbose=verbose)
 
+
 def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose=False):
     r"""
     Look for theta blocks of weight three and given index among the infinite families of weight three theta blocks associated to the root systems B_3, C_3, A_2+A_3, 3A_2, 2A_1 + A_2 + B_2, 3A_1 + A_3, A_6, A_1+D_5.
@@ -262,26 +263,60 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose
     OUTPUT: a list of JacobiForm's
     """
     from .jacobi_forms_class import theta_block
+    from .jacobi_forms_class import JacobiForms
     if not jacobiforms:
         jacobiforms = JacobiForms(N)
     rank = 0
-    thetablockQ_1 = QuadraticForm(matrix([[20,10,20],[10,10,20],[20,20,60]])) #B3
-    thetablockQ_2 = QuadraticForm(matrix([[8,8,4],[8,16,8],[4,8,6]])) #C3
-    thetablockQ_3 = QuadraticForm(matrix([[2,1,0,0,0],[1,2,0,0,0],[0,0,12,4,4],[0,0,4,4,4],[0,0,4,4,12]])) #A2 + A3
-    thetablockQ_4 = QuadraticForm(matrix([[2,1,0,0,0,0],[1,2,0,0,0,0],[0,0,2,1,0,0],[0,0,1,2,0,0],[0,0,0,0,2,1],[0,0,0,0,1,2]])) #3 A2
-    thetablockQ_5 = QuadraticForm(matrix([[4,0,0,0,0,0],[0,4,0,0,0,0],[0,0,2,1,0,0],[0,0,1,2,0,0],[0,0,0,0,6,6],[0,0,0,0,6,12]])) #2A1 + A2 + B2
-    thetablockQ_6 = QuadraticForm(matrix([[4,0,0,0,0,0],[0,4,0,0,0,0],[0,0,4,0,0,0],[0,0,0,12,4,4],[0,0,0,4,4,4],[0,0,0,4,4,12]])) #3A1 + A3
-    thetablockQ_7 = QuadraticForm(matrix([[6,5,4,3,2,1],[5,10,8,6,4,2],[4,8,12,9,6,3],[3,6,9,12,8,4],[2,4,6,8,10,5],[1,2,3,4,5,6]])) #A6
-    thetablockQ_8 = QuadraticForm(matrix([[4,0,0,0,0,0],[0,10,6,12,8,4],[0,6,10,12,8,4],[0,12,12,24,16,8],[0,8,8,16,16,8],[0,4,4,8,8,8]])) #A1 + D5
+    thetablockQ_1 = QuadraticForm(matrix([[20, 10, 20],
+                                          [10, 10, 20],
+                                          [20, 20, 60]]))  # B3
+    thetablockQ_2 = QuadraticForm(matrix([[8, 8, 4],
+                                          [8, 16, 8],
+                                          [4, 8, 6]]))  # C3
+    thetablockQ_3 = QuadraticForm(matrix([[2, 1, 0, 0, 0],
+                                          [1, 2, 0, 0, 0],
+                                          [0, 0, 12, 4, 4],
+                                          [0, 0, 4, 4, 4],
+                                          [0, 0, 4, 4, 12]]))  # A2 + A3
+    thetablockQ_4 = QuadraticForm(matrix([[2, 1, 0, 0, 0, 0],
+                                          [1, 2, 0, 0, 0, 0],
+                                          [0, 0, 2, 1, 0, 0],
+                                          [0, 0, 1, 2, 0, 0],
+                                          [0, 0, 0, 0, 2, 1],
+                                          [0, 0, 0, 0, 1, 2]]))  # 3 A2
+    thetablockQ_5 = QuadraticForm(matrix([[4, 0, 0, 0, 0, 0],
+                                          [0, 4, 0, 0, 0, 0],
+                                          [0, 0, 2, 1, 0, 0],
+                                          [0, 0, 1, 2, 0, 0],
+                                          [0, 0, 0, 0, 6, 6],
+                                          [0, 0, 0, 0, 6, 12]]))  # 2A1 + A2 + B2
+    thetablockQ_6 = QuadraticForm(matrix([[4, 0, 0, 0, 0, 0],
+                                          [0, 4, 0, 0, 0, 0],
+                                          [0, 0, 4, 0, 0, 0],
+                                          [0, 0, 0, 12, 4, 4],
+                                          [0, 0, 0, 4, 4, 4],
+                                          [0, 0, 0, 4, 4, 12]]))  # 3A1 + A3
+    thetablockQ_7 = QuadraticForm(matrix([[6, 5, 4, 3, 2, 1],
+                                          [5, 10, 8, 6, 4, 2],
+                                          [4, 8, 12, 9, 6, 3],
+                                          [3, 6, 9, 12, 8, 4],
+                                          [2, 4, 6, 8, 10, 5],
+                                          [1, 2, 3, 4, 5, 6]]))  # A6
+    thetablockQ_8 = QuadraticForm(matrix([[4, 0, 0, 0, 0, 0],
+                                          [0, 10, 6, 12, 8, 4],
+                                          [0, 6, 10, 12, 8, 4],
+                                          [0, 12, 12, 24, 16, 8],
+                                          [0, 8, 8, 16, 16, 8],
+                                          [0, 4, 4, 8, 8, 8]]))  # A1 + D5
     thetablock_tuple = thetablockQ_1, thetablockQ_2, thetablockQ_3, thetablockQ_4, thetablockQ_5, thetablockQ_6, thetablockQ_7, thetablockQ_8
-    args1 = lambda b, c, d : [b+b, b+b+c, 2*(b+c+d+d), b+b+c+d+d, b+b+c+4*d, c, c+d+d, c+4*d, d+d]
-    args2 = lambda b, c, d : [b, b+b+c+c+d, b+c, b+c+c+d, b+c+d, c, c+c+d, c+d, d]
-    args3 = lambda a, b, d, e, f : [a, a+b, b, d+d, e, d+d+e, f+f, e+f+f, d+d+e+f+f]
-    args4 = lambda a, b, c, d, e, f : [a, a+b, b, c, c+d, d, e, e+f, f]
-    args5 = lambda a, b, c, d, e, f : [a+a, b+b, c, c+d, d, e, f+f, e+f+f, e+e+f+f]
-    args6 = lambda a, b, c, d, e, f : [a+a, b+b, c+c, d+d, e, d+d+e, f+f, e+f+f, d+d+e+f+f]
-    args7 = lambda a, b, c, d, e, f : [a, a+b, a+b+c, a+b+c+d, a+b+c+d+e, a+b+c+d+e+f, b, b+c, b+c+d, b+c+d+e, b+c+d+e+f, c, c+d, c+d+e, c+d+e+f, d, d+e, d+e+f, e, e+f, f]
-    args8 = lambda a, b, c, d, e, f : [a+a, b, c, d, b + d, c + d, b + c + d, e, d + e, b + d + e, c + d + e, b + c + d + e, b + c + 2*d + e, f, e + f, d + e + f, b + d + e + f, c + d + e + f, b + c + d + e + f, b + c + 2*d + e + f, b + c + 2*d + 2*e + f]
+    args1 = lambda b, c, d: [b+b, b+b+c, 2*(b+c+d+d), b+b+c+d+d, b+b+c+4*d, c, c+d+d, c+4*d, d+d]
+    args2 = lambda b, c, d: [b, b+b+c+c+d, b+c, b+c+c+d, b+c+d, c, c+c+d, c+d, d]
+    args3 = lambda a, b, d, e, f: [a, a+b, b, d+d, e, d+d+e, f+f, e+f+f, d+d+e+f+f]
+    args4 = lambda a, b, c, d, e, f: [a, a+b, b, c, c+d, d, e, e+f, f]
+    args5 = lambda a, b, c, d, e, f: [a+a, b+b, c, c+d, d, e, f+f, e+f+f, e+e+f+f]
+    args6 = lambda a, b, c, d, e, f: [a+a, b+b, c+c, d+d, e, d+d+e, f+f, e+f+f, d+d+e+f+f]
+    args7 = lambda a, b, c, d, e, f: [a, a+b, a+b+c, a+b+c+d, a+b+c+d+e, a+b+c+d+e+f, b, b+c, b+c+d, b+c+d+e, b+c+d+e+f, c, c+d, c+d+e, c+d+e+f, d, d+e, d+e+f, e, e+f, f]
+    args8 = lambda a, b, c, d, e, f: [a+a, b, c, d, b + d, c + d, b + c + d, e, d + e, b + d + e, c + d + e, b + c + d + e, b + c + 2*d + e, f, e + f, d + e + f, b + d + e + f, c + d + e + f, b + c + d + e + f, b + c + 2*d + e + f, b + c + 2*d + 2*e + f]
     args_tuple = args1, args2, args3, args4, args5, args6, args7, args8
     thetablock_1 = lambda b, c, d, prec: theta_block(args1(b, c, d), -3, prec, jacobiforms=jacobiforms)
     thetablock_2 = lambda b, c, d, prec: theta_block(args2(b, c, d), -3, prec, jacobiforms=jacobiforms)
@@ -300,9 +335,8 @@ def weight_three_basis_from_theta_blocks(N, prec, dim, jacobiforms=None, verbose
     for i, Q in enumerate(thetablock_tuple):
         v_list = Q.short_vector_list_up_to_length(N + 1, up_to_sign_flag=True)
         if verbose:
-            print('I am looking through the theta block family of the root system %s.' % ['B_3','C_3','A_2+A_3','3A_2','2A_1+A_2+B_2','3A_1 + A_3','A_6','A_1+D_5'][i])
+            print('I am looking through the theta block family of the root system %s.' % ['B_3', 'C_3', 'A_2+A_3', '3A_2', '2A_1+A_2+B_2', '3A_1 + A_3', 'A_6', 'A_1+D_5'][i])
         for _d in div_N:
-            prec_d = prec * (N // _d)
             for v in v_list[_d]:
                 if all(a for a in args_tuple[i](*v)):
                     try:
@@ -334,7 +368,7 @@ class QuadraticLFunction(BuiltinFunction):
     def __init__(self):
         super().__init__('L', nargs=2, latex_name='L')
 
-    def _eval_(self, x, D): #symbolic value
+    def _eval_(self, x, D):  # symbolic value
         D = Integer(D)
         if D % 4 > 1:
             raise ValueError('Not a discriminant')
@@ -352,7 +386,8 @@ class QuadraticLFunction(BuiltinFunction):
         except TypeError:
             pass
 
-    def _evalf_(self, x, D, **kwargs): #numerical value
+    def _evalf_(self, x, D, **kwargs):
+        # numerical value
         D = Integer(D)
         if D % 4 > 1:
             raise ValueError('Not a discriminant')
@@ -368,7 +403,8 @@ class QuadraticLFunction(BuiltinFunction):
             return prod(1 - p**(-x) * kronecker(f, p) for p in prime_divisors(m)) * s
         return s
 
-    def residue(self, D): #residue at s=1 if there is a pole
+    def residue(self, D):
+        # residue at s=1 if there is a pole
         D = Integer(D)
         f = D.squarefree_part()
         if f != 1:
