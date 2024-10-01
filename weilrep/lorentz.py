@@ -449,7 +449,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
                 hprec += hprec
                 d += d
-                self.__q_s_exp = sum((q ** ((i + v - n))) * (s ** ((i + v + n))) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ).O(hprec)
+                self.__q_s_exp = sum((q ** ((i + v - n))) * (s ** (i + v + n)) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ).O(hprec)
             self.__q_s_scale = d
             self.__q_s_prec = hprec
             return self.__q_s_exp

@@ -53,7 +53,7 @@ import cypari2
 pari = cypari2.Pari()
 
 
-class AlgebraicModularForms(object):
+class AlgebraicModularForms:
     r"""
     This class represents spaces of algebraic modular forms on the compact groups O(n).
 
@@ -594,7 +594,7 @@ class AlgebraicModularForms(object):
         raise NotImplementedError('Hecke operators are only implemented for primes not dividing the discriminant.')
 
 
-class AlgebraicModularForm(object):
+class AlgebraicModularForm:
     r"""
     Class to represent an algebraic modular form.
 
@@ -752,7 +752,7 @@ class AlgebraicModularForm(object):
         return sum(f[i][[0] * n] * x.quadratic_form().theta_series(bound) / x.number_of_automorphisms() for i, x in enumerate(classes))
 
 
-class AlgebraicModularFormHeckeOperator(object):
+class AlgebraicModularFormHeckeOperator:
     r"""
     This class represents Hecke operators that act on algebraic modular forms for a definite orthogonal group O(n) = O(S).
 

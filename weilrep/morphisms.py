@@ -254,8 +254,7 @@ class WeilRepAutomorphismGroup:
             self.__G = [G[i] for i in self.__indices]
 
     def __iter__(self):
-        for x in self.__G:
-            yield x
+        yield from self.__G
 
     def __getitem__(self, x):
         return self.__G[x]
