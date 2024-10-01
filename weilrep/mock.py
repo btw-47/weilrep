@@ -41,6 +41,7 @@ from sage.symbolic.constants import pi
 
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
 
+
 class WeilRepQuasiModularForm(WeilRepModularForm):
     r"""
     Class for quasimodular forms.
@@ -424,6 +425,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
     def theta_contraction(self):
         X = WeilRepModularFormsBasis(self.weight(), self._terms(), self.weilrep()).theta()
         return WeilRepQuasiModularForm(X.weight(), X.gram_matrix(), list(X), X.weilrep())
+
 
 class WeilRepAlmostHolomorphicModularForm:
     r"""

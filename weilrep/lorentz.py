@@ -677,8 +677,10 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
     def _pos_def_gram_matrix(self):
         return matrix([])
 
+
 def II(N, **kwargs): #short constructor for rescaled hyperbolic planes
     return RescaledHyperbolicPlane(N, **kwargs)
+
 
 class WeilRepModularFormLorentzian(WeilRepModularForm):
     r"""
@@ -1606,6 +1608,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         f = exp(log_f) * const_f
         return OrthogonalModularForm(k, w, f.V(d) * weyl_monomial * (t ** weyl_vector[0]), scale=d, weylvec=weyl_vector, qexp_representation=w.lift_qexp_representation, ppcoeffs=self.principal_part_coefficients())
 
+
 class WeilRepLorentzianPlusII(WeilRepLorentzian):
 
     def __init__(self, S, lorentz_S, N, lift_qexp_representation=None):
@@ -1630,6 +1633,7 @@ class WeilRepLorentzianPlusII(WeilRepLorentzian):
 
     def is_lorentzian_plus_II(self):
         return True
+
 
 def _theta_lifts(X, prec=None, constant_term_weight_one=True):
     Xref = X[0]
@@ -1957,6 +1961,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
         if eps == -1 and extra_plane and N >= 3:
             lift /= sum(zeta**i - zeta**(-i) for i in range(1, (N + 1)//2))
         return OrthogonalModularForm(k, w, lift + C + O(t ** prec), scale=1, weylvec=vector([0]*nrows), qexp_representation=w.lift_qexp_representation)
+
 
 def _lorentz_laplacian(f):
     r"""
