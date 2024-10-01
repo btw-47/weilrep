@@ -464,8 +464,7 @@ class WeilRepAlmostHolomorphicModularForm:
         return self.__list[n]
 
     def __iter__(self):
-        for x in self.__list:
-            yield x
+        yield from self.__list
 
     def weight(self):
         return self.__weight
@@ -685,7 +684,7 @@ class WeilRepAlmostHolomorphicModularForm:
         return L
 
 
-class WeilRepMixedModularForm(object):
+class WeilRepMixedModularForm:
 
     def __init__(self, y_power, weight, gram_matrix, fourier_expansions, weilrep=None):
         self.__weight = weight

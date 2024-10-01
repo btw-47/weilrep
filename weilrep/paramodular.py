@@ -379,7 +379,7 @@ class ParamodularEigenform(ParamodularForm):
         R = A
         for i in range(4):
             for j in range(i+1, 4):
-                a, = [(m, n) for m in range(4) for n in range(4) if m not in [i, j] and n not in [i, j] and m < n]
+                a, = ((m, n) for m in range(4) for n in range(4) if m not in [i, j] and n not in [i, j] and m < n)
                 m, n = a
                 if R[i] * R[j] == R[m] * R[n]:
                     g = (1 - X * R[m] / R[i]) * (1 - X * R[i] / R[m]) * (1 - X * R[m] / R[j]) * (1 - X * R[j] / R[m])

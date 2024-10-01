@@ -57,7 +57,7 @@ pari = cypari2.Pari()
 PariError = cypari2.PariError
 
 
-class OrthogonalModularForms(object):
+class OrthogonalModularForms:
     r"""
     This class represents spaces of modular forms on the type IV domain attached to a lattice of the form L + II_{2,2}, where L is positive-definite.
 
@@ -390,7 +390,7 @@ class OrthogonalModularForms(object):
         return Y
 
 
-class Spezialschar(object):
+class Spezialschar:
     r"""
     The Spezialschar of theta lifts.
     """
@@ -415,7 +415,7 @@ class Spezialschar(object):
         return f.is_lift()
 
 
-class OrthogonalModularForm(object):
+class OrthogonalModularForm:
     r"""
     This class represents modular forms on type IV domains.
 
@@ -742,7 +742,7 @@ class OrthogonalModularForm(object):
         q, s = f.parent().gens()
         d_prec = d * prec
         for j, x in coeffs.items():
-            a, c = [Integer(i) for i in j.exponents()[0]]
+            a, c = (Integer(i) for i in j.exponents()[0])
             if a + c < d_prec:
                 try:
                     x_coeffs = x.coefficients()

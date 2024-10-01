@@ -86,7 +86,7 @@ pari = cypari2.Pari()
 PariError = cypari2.PariError
 
 
-class WeilRep(object):
+class WeilRep:
     r"""
     The WeilRep class represents the dual Weil representation attached to an even integral lattice.
 

@@ -99,7 +99,7 @@ class KohnenPlusSpace:
         return self._plus_form(self.__weilrep2.theta_series(precn, *args, **kwargs)).add_bigoh(prec)
 
 
-class HalfIntegralWeightModularForm(object):
+class HalfIntegralWeightModularForm:
 
     def __init__(self, k, N, f):
         self.__weight = k

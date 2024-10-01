@@ -70,7 +70,7 @@ pari = cypari2.Pari()
 PariError = cypari2.PariError
 
 
-class WeilRepModularForm(object):
+class WeilRepModularForm:
     r"""
     The WeilRepModularForm class represents vector-valued modular forms which transform with the dual Weil representation.
 
@@ -2536,12 +2536,11 @@ class WeilRepModularFormsBasis:
     def index(self, x):
         return self.__basis.index(x)
 
-    def is_symmetric(self): #whether self's modular forms are symmetric
+    def is_symmetric(self):  # whether self's modular forms are symmetric
         return self.__weilrep.is_symmetric_weight(self.__weight)
 
-    def __iter__(self): #iterate like a list
-        for x in self.__basis:
-            yield x
+    def __iter__(self):  # iterate like a list
+        yield from self.__basis
 
     def jacobi_forms(self):
         r"""
@@ -2913,7 +2912,7 @@ def _vvmf_rankin_cohen(N, X, Y):
     S1, S2 = X.gram_matrix(), Y.gram_matrix()
     w1, w2 = X.weilrep(), Y.weilrep()
     w = w1.__add__(w2, _flag=1) #i.e. w = w1 + w2. writing it this way forces w + II(N) to be taken literally when w is positive-definite
-    binom1, binom2, deriv1, deriv2 = [[None] * (N + 1) for _ in range(4)]
+    binom1, binom2, deriv1, deriv2 = ([None] * (N + 1) for _ in range(4))
     binom1[0], binom2[0], deriv1[0], deriv2[0] = 1, 1, X.fourier_expansion(), Y.fourier_expansion()
     k = k1 + N - 1
     ell = k2 + N - 1
