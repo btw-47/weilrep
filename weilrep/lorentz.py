@@ -259,7 +259,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         s = r_old.gens()[1]
         prec = self.precision()
         f = f.polynomial()
-        self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, r({x[0]: rb(y) for x, y in f.coefficient({s : n}).dict().items()}).add_bigoh(prec - n), w_scale=scale, q_scale=d) for n in range(prec)]
+        self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, r({x[0]: rb(y) for x, y in f.coefficient({s: n}).dict().items()}).add_bigoh(prec - n), w_scale=scale, q_scale=d) for n in range(prec)]
         return self.__fourier_jacobi
 
     def has_fourier_jacobi_representation(self):

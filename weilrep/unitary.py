@@ -487,7 +487,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                         c_ns = c_n.subs({a:exp_z[i] for i, a in enumerate(c_n.parent().gens())})
                         c_d = c.denominator()
                         c_ds = c_d.subs({a:exp_z[i] for i, a in enumerate(c_d.parent().gens())})
-                        while not(c_ds):
+                        while not c_ds:
                             j += 5
                             exp_z = [y.exp(j) for b in r1.gens() for y in [b, rho * b]]
                             c_ns = c_n.subs({a:exp_z[i] for i, a in enumerate(c_n.parent().gens())})
@@ -637,7 +637,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
             else:
                 X = w1.modular_forms_basis(wt, prec)
             if X:
-                return (X * [K(x) for x in h.padded_list()[cf : len(X)+cf]]).theta_lift()
+                return (X * [K(x) for x in h.padded_list()[cf: len(X)+cf]]).theta_lift()
             else:
                 return 0
         if len(z) > 1:
