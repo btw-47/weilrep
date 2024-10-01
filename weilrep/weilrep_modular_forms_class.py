@@ -2336,6 +2336,7 @@ class WeilRepModularForm(object):
                 Y[i] = g, -offset, eps * Y[_indices[i]][2]
         return WeilRepModularForm(QQ(self.weight() + sage_one_half + odd), S, Y, weilrep=weilrep)
 
+
 def smf(weight, f): #scalar modular forms
     r"""
     Construct WeilRepModularForms for the empty matrix from q-series.
@@ -2354,6 +2355,7 @@ def smf(weight, f): #scalar modular forms
 
     """
     return WeilRepModularForm(weight, matrix([]), [[vector([]), 0, f]])
+
 
 class WeilRepModularFormsBasis:
     r"""
@@ -2854,6 +2856,7 @@ class WeilRepModularFormsBasis:
     def weilrep(self):
         return self.__weilrep
 
+
 def _vvmf_rankin_cohen(N, X, Y):
     r"""
     Compute the Nth Rankin--Cohen bracket [X, Y]_N.
@@ -2937,6 +2940,7 @@ def _vvmf_rankin_cohen(N, X, Y):
         return sum( (-1)**r * binom2[r] * binom1[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w=w) for r in range(N + 1))
     return sum( (-1)**r * binom2[r] * binom1[-1-r] * deriv1[r].__mul__(deriv2[-1 - r], w=w) for r in range(N + 1))
 
+
 def rankin_cohen(*x):
     xref = x[1]
     if type(xref) is list:
@@ -2945,6 +2949,7 @@ def rankin_cohen(*x):
         return _vvmf_rankin_cohen(*x)
     from .lifts import _omf_rankin_cohen
     return _omf_rankin_cohen(*x)
+
 
 def theta_product(f, g, _check=True):
     r"""
@@ -2970,6 +2975,7 @@ def theta_product(f, g, _check=True):
             return f * g
         except ZeroDivisionError:
             raise TypeError('This lattice does not have the correct Witt index.') from None
+
 
 class WeilRepModularFormPrincipalPart:
 
@@ -3067,6 +3073,7 @@ class WeilRepModularFormPrincipalPart:
     def weilrep(self):
         return self.__weilrep
 
+
 class EtaCharacterPower:
     r"""
     A power of the Eta character.
@@ -3128,6 +3135,7 @@ class EtaCharacterPower:
         elif k == 3:
             return 'rd'
         return 'th'
+
 
 class WeilRepModularFormWithCharacter(WeilRepModularForm):
     r"""
@@ -3234,6 +3242,8 @@ class WeilRepModularFormWithCharacter(WeilRepModularForm):
         return WeilRepModularFormWithCharacter(f.weight(), f.gram_matrix(), f.fourier_expansion(), weilrep=f.weilrep(), character=self.character())
 
 #special modular forms
+
+
 def smf_eta(prec=20):
     r"""
     Compute the Dedekind eta function, with Fourier expansion up to precision 'prec'.

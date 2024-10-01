@@ -56,6 +56,7 @@ from .weilrep import WeilRep
 from .weilrep_misc import relations
 from .weilrep_modular_forms_class import smf, smf_eta, smf_eisenstein_series, WeilRepModularFormPrincipalPart, WeilRepModularFormsBasis
 
+
 class HermitianWeilRep(WeilRep):
     r"""
     The Weil representation associated to an even integral Hermitian lattice (L, H) over an imaginary-quadratic number field 'K'.
@@ -760,6 +761,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
             h = h.add_bigoh(prec1)
             return UnitaryModularForm(self.complex_gram_matrix(), h, k, umf=umf)
 
+
 class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
     r"""
     This class represents modular forms for the unitary group U(n, 1) associated to our lattice.
@@ -1134,6 +1136,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         X.sort(key=lambda x: x.fourier_expansion()[0][2][0])
         return WeilRepModularFormsBasis(wt, X, w)
 
+
 class HermitianRescaledHyperbolicPlane(HermitianWeilRep):
     r"""
     Rescaled hyperbolic planes over O_K.
@@ -1403,6 +1406,7 @@ class UnitaryModularForm:
         d = M.determinant()
         return UnitaryModularForm(self.complex_gram_matrix(), d, (k+2)*(N+1), umf=umf)
 
+
 def _root(h, n, k, umf):
     r = h.parent()
     r1 = r.base_ring()
@@ -1433,6 +1437,7 @@ def _root(h, n, k, umf):
         except TypeError:
             raise ValueError('Not an nth power') from None
     return prefactor * r1(b) * h1**(1/n)
+
 
 def _hard_root(p, discr, n, k):
     r"""
@@ -1493,6 +1498,7 @@ def _hard_root(p, discr, n, k):
     v = V[0]
     return phi.section()(eta_N**ZZ(24 * val / (n*N)) * sum(v[i + 1] * y for i, y in enumerate(Y)))
 
+
 def unitary_jacobian(X):
     r"""
     Compute the Jacobian of unitary modular forms.
@@ -1534,6 +1540,7 @@ def unitary_jacobian(X):
     M = Matrix([[k*F[i] for i, k in enumerate(K)], Ftau] + Fz)
     h = M.determinant()
     return UnitaryModularForm(S, h, sum(K) + n + 2, umf=umf)
+
 
 def _umf_relations(X):
     prec = min(x.precision() for x in X)

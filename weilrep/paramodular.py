@@ -120,6 +120,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
             eigenforms.append(x)
         return eigenforms
 
+
 class ParamodularForm(OrthogonalModularFormPositiveDefinite):
 
     def level(self):
