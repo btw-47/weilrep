@@ -378,7 +378,7 @@ class WeilRepModularForm(object):
             except TypeError:
                 j = 0
         val = min(0, X[j][2].valuation())
-        return defaultdict(f, {n + nl[j] + val : x for n, x in enumerate(X[j][2].list())})
+        return defaultdict(f, {n + nl[j] + val: x for n, x in enumerate(X[j][2].list())})
 
     def gram_matrix(self):
         r"""
@@ -1687,7 +1687,7 @@ class WeilRepModularForm(object):
             else:
                 i = indices[j]
                 Y[j] = [g, big_offset, eps * Y[i][2]]
-        return WeilRepModularForm(self.weight(), N*S, Y , weilrep=big_w)
+        return WeilRepModularForm(self.weight(), N * S, Y, weilrep=big_w)
 
     def hecke_V_adj(self, N):
         r"""
@@ -2272,7 +2272,7 @@ class WeilRepModularForm(object):
                 weilrep = WeilRep(S)
             _indices = weilrep.rds(indices=True)
             _ds = weilrep.ds()
-        big_ds_dict = {tuple(x[1][0]) : x[0] for x in enumerate(X)}
+        big_ds_dict = {tuple(x[1][0]): x[0] for x in enumerate(X)}
         b_denom = b.denominator()
         bm2 = Integer(2*m*b_denom)
         Y = [None] * len(_ds)
@@ -2679,9 +2679,9 @@ class WeilRepModularFormsBasis:
         norm_dict = w.norm_dict()
         w.sorted_ds = sorted(w.ds(), key=lambda x: -norm_dict[tuple(x)])
         s = '\n'.join('%d %s' % (i, str(x.principal_part())) for i, x in enumerate(self))
-        del(w.sorted_ds)
+        del w.sorted_ds
         try:
-            del(w.h_sorted_ds)
+            del w.h_sorted_ds
         except AttributeError:
             pass
         return s
@@ -2783,14 +2783,14 @@ class WeilRepModularFormsBasis:
             b = vector([])
         m = (big_S[e,e] - b*Sb)/2
         X = [x.fourier_expansion() for x in self.__basis]
-        X_ref = X[0]#reference
+        X_ref = X[0]  # reference
         R, q = X_ref[0][2].parent().objgen()
         g_list = []
         S_indices = []
         bound = 3 + 2*isqrt(m * (prec - self.valuation()))
         _ds = weilrep.ds()
         _indices = weilrep.rds(indices=True)
-        big_ds_dict = {tuple(x[0]) : i for i, x in enumerate(X_ref)}
+        big_ds_dict = {tuple(x[0]): i for i, x in enumerate(X_ref)}
         b_denom = b.denominator()
         bm2 = Integer(2*m*b_denom)
         Y = [None] * len(_ds)

@@ -23,8 +23,6 @@ import math
 from scipy.special import iv, jv
 
 import cypari2
-pari = cypari2.Pari()
-PariError = cypari2.PariError
 from copy import copy
 from itertools import product
 
@@ -76,13 +74,16 @@ from .morphisms import WeilRepAutomorphism, WeilRepAutomorphismGroup, WeilRepMor
 from .weilrep_misc import QuadraticLFunction
 from .weilrep_modular_forms_class import EtaCharacterPower, smf, WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
 
-sage_one_half = Integer(1) / Integer(2)
-sage_three_half = Integer(3) / Integer(2)
-sage_five_half = Integer(5) / Integer(2)
-sage_seven_half = Integer(7) / Integer(2)
-sage_nine_half = Integer(9) / Integer(2)
+sage_one_half = Integer(1) / 2
+sage_three_half = Integer(3) / 2
+sage_five_half = Integer(5) / 2
+sage_seven_half = Integer(7) / 2
+sage_nine_half = Integer(9) / 2
 _automorphism_group_dict = {}
 _sentinel = object()
+
+pari = cypari2.Pari()
+PariError = cypari2.PariError
 
 
 class WeilRep(object):
@@ -535,7 +536,7 @@ class WeilRep(object):
         return None
 
     def __ne__(self, other):
-        return not(self.__eq__(other))
+        return not self.__eq__(other)
 
     def quadratic_form(self):
         return self.__quadratic_form
@@ -834,7 +835,7 @@ class WeilRep(object):
                     u = vector(map(frac, -g))
                     dg = denominator(g)
                     Y[i] = dg
-                    order_two_ds[i] = not(2 % dg)
+                    order_two_ds[i] = not 2 % dg
                     tu = tuple(u)
                     if tu in set_L:
                         X[i] = Gdict[tu]
@@ -919,7 +920,7 @@ class WeilRep(object):
                 Y[i] = g, offset, f
                 mfq -= f.V(p)
             else:
-                u = q * R(mf_coeffs[p + Integer(p*offset) :: p])/2 + O(q**(prec+1))
+                u = q * R(mf_coeffs[p + Integer(p*offset)::p])/2 + O(q**(prec+1))
                 Y[i] = g, offset, u
                 mfq -= u.V(p) * q ** Integer(p * offset)
         if mfq:
@@ -1095,7 +1096,7 @@ class WeilRep(object):
                                 new_g = g - v * (N_b // p_power_N_b) * b
                                 for u in range(p_power_N_b):
                                     if u % p:
-                                        LvalueSeries = RPoly(lazy_l_value(new_g, n + p_alpha * v * u / p_power_N_b , S, p, k, u=t))
+                                        LvalueSeries = RPoly(lazy_l_value(new_g, n + p_alpha * v * u / p_power_N_b, S, p, k, u=t))
                                         s_alpha += CC(p_e_alpha * (p * LvalueSeries[alpha] - LvalueSeries[alpha - 1])) * vector(CC(chi_p.bar()(u)) for chi_p in chi_p_list)
                             s = s + vector(p_pow_list[i] * s_alpha[i] for i in range(len(p_pow_list)))
                         for i in range(len(finite_parts)):
@@ -2108,7 +2109,7 @@ class WeilRep(object):
                     if eta_twist:
                         v = e(two_pi_i * chi(matrix([[b, -a], [c, d]])) / 24)
                         M *= v
-                    zeta1, zeta2 = e(two_pi_i_c * m * b) , e(two_pi_i_c * d)
+                    zeta1, zeta2 = e(two_pi_i_c * m * b), e(two_pi_i_c * d)
                     for i, g in enumerate(ds):
                         if rds[i] is None:
                             u = nl[i]# + 1
@@ -4562,7 +4563,7 @@ class WeilRep(object):
         eps = self.is_symmetric_weight(0)
         if eps == 0:
             eps = -1
-        elif not(eps):
+        elif not eps:
             return []
         if self.discriminant() == 1: #unimodular
             f = self.zero(weight=0, prec=prec)
@@ -4754,7 +4755,7 @@ class WeilRep(object):
         S = self.gram_matrix()
         n = S.nrows()
         X = WeilRepModularFormsBasis(sage_one_half, [], self)
-        if not(n % 2) or ((self.signature() + 1) % 8 and len(set([x for x in S.elementary_divisors() if x - 1])) <= 1): #skoruppa theorem 10
+        if not n % 2 or ((self.signature() + 1) % 8 and len(set(x for x in S.elementary_divisors() if x - 1)) <= 1):  # Skoruppa theorem 10
             return X
         N = self.level() // 4
         b = vector([0] * n)

@@ -1082,7 +1082,7 @@ class JacobiForm:
                                            NumberField,
                                            ComplexField_class,
                                            RealField_class))
-                                       # are we missing anything?
+            # are we missing anything?
             return self.__brilpr
 
     def character(self):
