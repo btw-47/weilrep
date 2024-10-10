@@ -54,7 +54,7 @@ class KohnenPlusSpace:
         if N % 4:
             raise NotImplementedError
         self.__N = N
-        self.__weilrep1 = WeilRep(matrix([[ N // 2]]))
+        self.__weilrep1 = WeilRep(matrix([[N // 2]]))
         self.__weilrep2 = self.__weilrep1.dual()
 
     def __repr__(self):
