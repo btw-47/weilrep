@@ -707,7 +707,7 @@ class WeilRepMixedModularForm:
                 def b(y):
                     y = y.string[slice(*y.span())]
                     if y[0] != 'q':
-                        return '%sq^(%s)*qbar^(%s) ' % ([y[:-1]+'*',''][y == '1 '], x1, x2)
+                        return '%sq^(%s)*qbar^(%s) ' % ([y[:-1]+'*', ''][y == '1 '], x1, x2)
                     try:
                         return 'q^(%s)' % (QQ(y[2:]) + x)
                     except TypeError:
@@ -807,7 +807,9 @@ class WeilRepMockModularForm(WeilRepModularForm):
         except TypeError:
             return NotImplemented
         u = factorial(-k)
-        return WeilRepMockModularForm(k, self.gram_matrix(), (u * self.shadow()).fourier_expansion(), self.bol() / u, weilrep=self.weilrep() )
+        return WeilRepMockModularForm(k, self.gram_matrix(),
+                                      (u * self.shadow()).fourier_expansion(),
+                                      self.bol() / u, weilrep=self.weilrep())
 
     def is_modular(self):
         return False
