@@ -119,7 +119,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 return (x, obj_s)[x == '_'] + '^(%s)' % (Integer(1)/d)
             _m = lambda s: sub(r'\^-?\d+|(?<!O\(|\, )(\_\d+|q|s|(?<!e)t|x)(?!\^)', m, s)
             if self.qexp_representation() == 'shimura':
-                s = sub(r'(?<!e)t','q', str(h)) #two passes?
+                s = sub(r'(?<!e)t', 'q', str(h))  # two passes?
                 if d == 1:
                     self.__string = s
                     return s
@@ -156,7 +156,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                     s = ' + '.join(c(x, a+v, b+v) for (a, b), x in qd.items()).replace('+ -', '- ')
                 else:
                     s = str(f)
-                if not self._base_ring_is_laurent_polynomial_ring():#represent 'r'-terms as Laurent polynomials if possible
+                if not self._base_ring_is_laurent_polynomial_ring():  # represent 'r'-terms as Laurent polynomials if possible
                     n = self.nvars() - 2
                     r = LaurentPolynomialRing(QQ, list('r_%d' % i for i in range(n)))
 
@@ -326,9 +326,9 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
         if new_prec is None:
             v = vector(H[0, 1:])
             try:
-                new_prec = floor( prec * (a - (v*v) * math.sqrt(c / (v * S1 * v))) )
+                new_prec = floor(prec * (a - (v*v) * math.sqrt(c / (v * S1 * v))))
             except ZeroDivisionError:
-                new_prec = floor( prec * a)
+                new_prec = floor(prec * a)
         nrows = w_new.gram_matrix().nrows()
         N = w._N()
         if N <= 2:
@@ -362,7 +362,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                         c = -vector(v[2:])
                         try:
                             m = rb.monomial(*c)
-                        except AttributeError:  #univariate Laurent polynomial ring does not have "monomial"?
+                        except AttributeError:  # univariate Laurent polynomial ring does not have "monomial"?
                             m = rb.gens()[0] ** c[0]
                     m *= (x ** b)
                 m *= (t ** a)
@@ -394,7 +394,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                 b = any(x not in ZZ for x in v)
             except ArithmeticError:
                 pass
-            if N < -100000: #?!
+            if N < -100000:  # ?!
                 raise RuntimeError from None
         x = matrix(ZZ, matrix(ZZ, [v]).transpose().echelon_form(transformation=True)[1].inverse()).transpose() * y
         if 'print_basis' in kwargs.keys():
@@ -444,12 +444,12 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             self.__qs_valuation = qsval
             try:
                 q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-                self.__q_s_exp = sum((q ** (ZZ(i + v - n) / 2)) * (s ** (ZZ(i + v + n) / 2)) * p[n] for i, p in enumerate(h.list()) for n in p.exponents() ).O(h.prec() + v)
+                self.__q_s_exp = sum((q ** (ZZ(i + v - n) / 2)) * (s ** (ZZ(i + v + n) / 2)) * p[n] for i, p in enumerate(h.list()) for n in p.exponents()).O(h.prec() + v)
             except ValueError:
-                mapdict = {u:u*u for u in self.base_ring().base_ring().gens()}
+                mapdict = {u: u*u for u in self.base_ring().base_ring().gens()}
                 hprec += hprec
                 d += d
-                self.__q_s_exp = sum((q ** ((i + v - n))) * (s ** (i + v + n)) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents()) ).O(hprec)
+                self.__q_s_exp = sum((q ** ((i + v - n))) * (s ** (i + v + n)) * p.coefficients()[j].subs(mapdict) for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents())).O(hprec)
             self.__q_s_scale = d
             self.__q_s_prec = hprec
             return self.__q_s_exp
@@ -461,7 +461,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             _ = self._q_s_expansion()
             return self.__qs_valuation
 
-    ## other
+    # ## other
 
     def phi(self):
         r"""
@@ -678,7 +678,7 @@ class RescaledHyperbolicPlane(WeilRepLorentzian):
         return matrix([])
 
 
-def II(N, **kwargs): #short constructor for rescaled hyperbolic planes
+def II(N, **kwargs):  # short constructor for rescaled hyperbolic planes
     return RescaledHyperbolicPlane(N, **kwargs)
 
 
@@ -815,7 +815,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             try:
                 C = X._weight_one_theta_lift_constant_term()
             except IndexError:
-                print('Warning: I could not find the correct constant term! Please use a higher precision.') #WARNING: we will keep computing!! even though the output is almost certainly wrong!
+                print('Warning: I could not find the correct constant term! Please use a higher precision.')  # WARNING: we will keep computing!! even though the output is almost certainly wrong!
         elif k <= 0:
             return NotImplemented
         N = w._N()
@@ -899,7 +899,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         lift += c * sum([n ** (k - 1) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                     except KeyError:
                         if -norm_z >= prec0:
@@ -911,7 +911,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             z[0] = i / N
                             zeta_i = zeta ** i
                             try:
-                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                                 lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                             except KeyError:
                                 pass
@@ -923,7 +923,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         lift += c * sum([n ** (k - 1) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                     except KeyError:
                         if -norm_z >= prec0:
@@ -935,7 +935,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             z[0] = i / N
                             zeta_i = zeta ** i
                             try:
-                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                                 lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                             except KeyError:
                                 pass
@@ -951,13 +951,13 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 for i in srange(N):
                     z[0] = i / N
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         lift += c * sum([n ** (k - 1) * (zeta ** (i * n)) * t ** (n * j) for n in srange(1, prec//j + 1)])
                     except KeyError:
                         pass
             else:
                 try:
-                    c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                    c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                     lift += c * sum([n ** (k - 1) * t ** (n * j) for n in srange(1, prec//j + 1)])
                 except KeyError:
                     if -norm_z >= self.precision():
@@ -1008,7 +1008,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         S = w._lorentz_gram_matrix()
         nrows = Integer(S.nrows())
         val = self.valuation(exact=True)
-        #suppose v is a primitive vector. extend_vector computes a matrix M in GL_n(Z) whose left column is v. If v has a denominator then we divide it off first.
+        # suppose v is a primitive vector. extend_vector computes a matrix M in GL_n(Z) whose left column is v. If v has a denominator then we divide it off first.
         extend_vector = lambda v: matrix(ZZ, matrix([v]).transpose().echelon_form(transformation=True)[1].inverse())
         if nrows > 1:
             N = nrows - 1
@@ -1080,12 +1080,12 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             m = X.valuation(exact=True)
             Xcoeff = X.principal_part_coefficients()
             e = X.weilrep().dual().eisenstein_series(2, ceil(-m), allow_small_weight=True).coefficients()
-            scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.items() if n < 0 and tuple(list(g[:-1]) + [-g[-1]]) in e.keys()) #dubious
+            scale = 1 + isqrt(p_0 / N - m) + sum(e[tuple(list(g[:-1]) + [-g[-1]])] * n / 24 for g, n in Xcoeff.items() if n < 0 and tuple(list(g[:-1]) + [-g[-1]]) in e.keys())  # dubious
             v = []
             h = [None] * 2
             bound = 2
             j = ceil(scale)
-            while i < bound: #we can raise this bound for some redundant checks that the weyl vector is correct
+            while i < bound:  # we can raise this bound for some redundant checks that the weyl vector is correct
                 jN = j * j * N
                 for f in range(1, 1 + ceil(j / scale)):
                     norm = f * f * p_0 - jN
@@ -1114,7 +1114,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         N = S[0, -1]
         XK = self.reduce_lattice(z=vector([1] + [0]*(nrows - 1)), z_prime=vector([0]*(nrows - 1) + [Integer(1) / N]))
         val = self.valuation()
-        K = S[1:-1,1:-1]
+        K = S[1:-1, 1:-1]
         K_inv = K.inverse()
         if XK:
             Theta_K = WeilRep(-K).theta_series(1 - val)
@@ -1163,7 +1163,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         nrows = s.nrows()
         sz = s * z
 
-        def xgcd_v(x): #xgcd for more than two arguments
+        def xgcd_v(x):  # xgcd for more than two arguments
             if len(x) > 1:
                 g, a = xgcd_v(x[:-1])
                 if g == 1:
@@ -1265,35 +1265,35 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         nrows = S.nrows()
         N = -(S[0, 0] // 2)
         A1 = matrix([[2]])
-        #D4 = CartanMatrix(['D', 4])
+        # D4 = CartanMatrix(['D', 4])
         v = QuadraticForm(QQ, A1).solve(N)
-        #v = QuadraticForm(QQ, D4).solve(N)
-        #big_S = block_diagonal_matrix([S, D4])
+        # v = QuadraticForm(QQ, D4).solve(N)
+        # big_S = block_diagonal_matrix([S, D4])
         big_S = block_diagonal_matrix([S, A1])
         v1 = vector([1] + [0] * (nrows - 1) + list(v))
         v2 = vector([-1] + [0] * (nrows - 1) + list(v))
-        #b = matrix(ZZ, matrix(ZZ, [v1, v2]).transpose().echelon_form(transformation = True)[1].inverse())
+        # b = matrix(ZZ, matrix(ZZ, [v1, v2]).transpose().echelon_form(transformation = True)[1].inverse())
         b = matrix(ZZ, [big_S * v1, big_S * v2]).transpose().integer_kernel().basis_matrix()
         b = matrix(ZZ, [v1] + b.rows() + [v2]).transpose()
-        #psi = OrthogonalModularForms(D4).borcherds_input_Qbasis(Integer(1)/2, self.precision())[0]
+        # psi = OrthogonalModularForms(D4).borcherds_input_Qbasis(Integer(1)/2, self.precision())[0]
         psi = OrthogonalModularForms(A1).borcherds_input_Qbasis(Integer(1)/2, self.precision())[0]
         X = (self * psi).conjugate(b)
         S_conj = X.gram_matrix()
-        N, S_conj = S_conj[0, -1], S_conj[1:-1,1:-1]
+        N, S_conj = S_conj[0, -1], S_conj[1:-1, 1:-1]
         w = WeilRep(S_conj) + II(N)
         S_conj = w.gram_matrix()
         X = WeilRepModularForm(X.weight(), X.gram_matrix(), X.fourier_expansion(), weilrep=w)
         v = X.__weyl_vector_II()
         print('v:', v)
         return b, S_conj.inverse() * v
-        #return b.inverse()*vector([v[0] + v[-1], v[-1] - v[0]] + list(v[1:-1]))
-        #z = QuadraticForm(QQ, S).solve(0)
-        #a = extend_vector([z])
-        #a1 = a[:,1:
-        #S1 = a1.transpose() * S * a1
-        #z_prime = a1 * QuadraticForm(QQ, S1).solve(0)
-        #N = z * S * z_prime
-        #b = extend_vector([z, z_prime])
+        # return b.inverse()*vector([v[0] + v[-1], v[-1] - v[0]] + list(v[1:-1]))
+        # z = QuadraticForm(QQ, S).solve(0)
+        # a = extend_vector([z])
+        # a1 = a[:,1:
+        # S1 = a1.transpose() * S * a1
+        # z_prime = a1 * QuadraticForm(QQ, S1).solve(0)
+        # N = z * S * z_prime
+        # b = extend_vector([z, z_prime])
         return b, big_S
 
     def borcherds_lift(self, prec=None, omit_weyl_vector=False, weyl_vector=None, verbose=False):
@@ -1440,7 +1440,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         log_f += c * log(1 - t**j * m + h)
                         if verbose:
                             print('Multiplying by factor: (%s)^%s' % (1 - t**j * m, c))
@@ -1454,7 +1454,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         for i in srange(1, N):
                             z[0] = i / N
                             try:
-                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                                 log_f += c * log(1 - (zeta**i) * (t ** j) * m + h)
                                 if verbose:
                                     print('Multiplying by factor: (%s)^%s' % (1 - zeta**i * t**j * m, c))
@@ -1465,7 +1465,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         log_f += c * log(1 - t**j * ~m + h)
                         if verbose:
                             print('Multiplying by factor: (%s)^%s' % (1 - t**j * ~m, c))
@@ -1479,7 +1479,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         for i in srange(1, N):
                             z[0] = i / N
                             try:
-                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                                 log_f += c * log(1 - (zeta ** i) * (t ** j) * ~m + h)
                                 if verbose:
                                     print('Multiplying by factor: (%s)^%s' % (1 - zeta**i * t**j * ~m, c))
@@ -1499,14 +1499,14 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         sz *= -1
                     norm_z = z * sz / 2
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         if c > 0:
                             const_f *= (1 - m + h) ** c
                         else:
                             p *= (1 - tpoly) ** c
                             for j in range(2, isqrt(-val / norm_z) + 1):
                                 try:
-                                    c_new = coeffs[tuple([frac(j * y) for y in z] + [-j * j * norm_z] )]
+                                    c_new = coeffs[tuple([frac(j * y) for y in z] + [-j * j * norm_z])]
                                     p *= (1 - tpoly**j) ** c_new
                                     excluded_vectors.add(tuple(j * v))
                                 except KeyError:
@@ -1531,7 +1531,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                         vtuple_i = tuple([i] + list(v))
                         if vtuple_i not in excluded_vectors:
                             try:
-                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                                 if c > 0:
                                     const_f *= (1 - mu * m + h) ** c
                                 else:
@@ -1540,7 +1540,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                                         v_new = tuple([j*i % N] + list(j * v))
                                         if v_new not in excluded_vectors:
                                             try:
-                                                c_new = coeffs[tuple([frac(j * y) for y in z] + [-j * j * norm_z] )]
+                                                c_new = coeffs[tuple([frac(j * y) for y in z] + [-j * j * norm_z])]
                                                 p *= (1 - mu**j * (tpoly**j)) ** c_new
                                                 excluded_vectors.add(v_new)
                                             except KeyError:
@@ -1548,11 +1548,11 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                             except KeyError:
                                 pass
                 try:
-                    const_f *= rb_x(rpoly(p).subs({tpoly:m}))
+                    const_f *= rb_x(rpoly(p).subs({tpoly: m}))
                     if verbose:
-                        print('Multiplying by: %s' % rb_x(rpoly(p).subs({tpoly:m})))
+                        print('Multiplying by: %s' % rb_x(rpoly(p).subs({tpoly: m})))
                 except TypeError:
-                    const_f *= rpoly_ff(p).subs({tpoly:m})
+                    const_f *= rpoly_ff(p).subs({tpoly: m})
         v = a.rows()[0]
         norm_v = v * S * v / 2
         for j in srange(1, prec):
@@ -1612,7 +1612,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
 class WeilRepLorentzianPlusII(WeilRepLorentzian):
 
     def __init__(self, S, lorentz_S, N, lift_qexp_representation=None):
-        #S should be a Lorentzian lattice in which the bottom-right entry is negative!!
+        # S should be a Lorentzian lattice in which the bottom-right entry is negative!!
         self._WeilRep__gram_matrix = S
         self._WeilRep__quadratic_form = QuadraticForm(S)
         self._WeilRep__eisenstein = {}
@@ -1678,7 +1678,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
         try:
             C = [x._weight_one_theta_lift_constant_term() for x in X]
         except IndexError:
-            print('Warning: I could not find the correct constant term! Please use a higher precision.') #WARNING: we will keep computing!! even though the output is almost certainly wrong!
+            print('Warning: I could not find the correct constant term! Please use a higher precision.')  # WARNING: we will keep computing!! even though the output is almost certainly wrong!
     elif k <= 0:
         return NotImplemented
     N = w._N()
@@ -1809,7 +1809,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
             try:
                 C = self._weight_one_theta_lift_constant_term()
             except IndexError:
-                print('Warning: I could not find the correct constant term! Please use a higher precision.') #WARNING: we will keep computing!! even though the output is almost certainly wrong!
+                print('Warning: I could not find the correct constant term! Please use a higher precision.')  # WARNING: we will keep computing!! even though the output is almost certainly wrong!
         elif k <= 0:
             return NotImplemented
         N = w._N()
@@ -1893,7 +1893,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         lift += c * sum([n ** (k - 1) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                     except KeyError:
                         if -norm_z >= prec0:
@@ -1905,7 +1905,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
                             z[0] = i / N
                             zeta_i = zeta ** i
                             try:
-                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                                 lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                             except KeyError:
                                 pass
@@ -1917,7 +1917,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
                     if extra_plane:
                         z = vector([0] + list(z) + [0])
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         lift += c * sum([n ** (k - 1) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                     except KeyError:
                         if -norm_z >= prec0:
@@ -1929,7 +1929,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
                             z[0] = i / N
                             zeta_i = zeta ** i
                             try:
-                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                                c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                                 lift += c * sum([n ** (k - 1) * (zeta_i ** n) * (m ** n) * t ** (n * j) for n in srange(1, prec_j)])
                             except KeyError:
                                 pass
@@ -1945,13 +1945,13 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
                 for i in srange(N):
                     z[0] = i / N
                     try:
-                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                        c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                         lift += c * sum([n ** (k - 1) * (zeta ** (i * n)) * t ** (n * j) for n in srange(1, prec//j + 1)])
                     except KeyError:
                         pass
             else:
                 try:
-                    c = coeffs[tuple([frac(y) for y in z] + [-norm_z] )]
+                    c = coeffs[tuple([frac(y) for y in z] + [-norm_z])]
                     lift += c * sum([n ** (k - 1) * t ** (n * j) for n in srange(1, prec//j + 1)])
                 except KeyError:
                     if -norm_z >= self.precision():
@@ -1967,7 +1967,8 @@ def _lorentz_laplacian(f):
     r"""
     Apply the Laplace operator.
 
-    WARNING: the Laplace operator does not act on modular forms! It is only used to define Rankin--Cohen brackets.
+    WARNING: the Laplace operator does not act on modular forms!
+    It is only used to define Rankin--Cohen brackets.
     """
     from weilrep.lifts import OrthogonalModularForm
     w = f.weilrep()

@@ -268,12 +268,12 @@ class HermitianWeilRep(WeilRep):
     def _hds_to_ds(self):
         hds = self.hds()
         ds = self.ds()
-        return {tuple(g):tuple(ds[i]) for i, g in enumerate(hds)}
+        return {tuple(g): tuple(ds[i]) for i, g in enumerate(hds)}
 
     def _ds_to_hds(self):
         hds = self.hds()
         ds = self.ds()
-        return {tuple(g):tuple(hds[i]) for i, g in enumerate(ds)}
+        return {tuple(g): tuple(hds[i]) for i, g in enumerate(ds)}
 
     def _hds_dict(self):
         try:
@@ -289,7 +289,7 @@ class HermitianWeilRep(WeilRep):
         except AttributeError:
             n = self.norm_list()
             ds = self.hds()
-            self.__h_norm_dict = {tuple(g):n[i] for i, g in enumerate(ds)}
+            self.__h_norm_dict = {tuple(g): n[i] for i, g in enumerate(ds)}
             return self.__h_norm_dict
 
     def trace_form(self):
@@ -484,14 +484,14 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                         j = 5
                         exp_z = [y.exp(j) for b in r1.gens() for y in [b, rho * b]]
                         c_n = c.numerator()
-                        c_ns = c_n.subs({a:exp_z[i] for i, a in enumerate(c_n.parent().gens())})
+                        c_ns = c_n.subs({a: exp_z[i] for i, a in enumerate(c_n.parent().gens())})
                         c_d = c.denominator()
-                        c_ds = c_d.subs({a:exp_z[i] for i, a in enumerate(c_d.parent().gens())})
+                        c_ds = c_d.subs({a: exp_z[i] for i, a in enumerate(c_d.parent().gens())})
                         while not c_ds:
                             j += 5
                             exp_z = [y.exp(j) for b in r1.gens() for y in [b, rho * b]]
-                            c_ns = c_n.subs({a:exp_z[i] for i, a in enumerate(c_n.parent().gens())})
-                            c_ds = c_d.subs({a:exp_z[i] for i, a in enumerate(c_d.parent().gens())})
+                            c_ns = c_n.subs({a: exp_z[i] for i, a in enumerate(c_n.parent().gens())})
+                            c_ds = c_d.subs({a: exp_z[i] for i, a in enumerate(c_d.parent().gens())})
                             if j > 1000:
                                 raise RuntimeError #??
                         try:
@@ -556,7 +556,8 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
             X = relations([g] + Z[g_k]).basis()
             if len(X) == 1:
                 v = X[0]
-                s = sum(v[i + 1] * eta_p**a * (cm_val[0] * e4)**b * (cm_val[1] * e6)**c * (e4**3 - cm_val[0]**3 * delta)**d for i, (a,b,c,d) in enumerate(I[g_k]))
+                s = sum(v[i + 1] * eta_p**a * (cm_val[0] * e4)**b * (cm_val[1] * e6)**c * (e4**3 - cm_val[0]**3 * delta)**d
+                        for i, (a, b, c, d) in enumerate(I[g_k]))
                 h += s * x_monomial
             else:
                 h += O(x_monomial)
@@ -1413,7 +1414,7 @@ def _root(h, n, k, umf):
     z = r.gens()
     d = h.dict()
     if r.ngens() == 1:
-        d = {tuple([a]):b for a, b in d.items()}
+        d = {tuple([a]): b for a, b in d.items()}
     L = sorted(d.keys(), key=sum)
     a = L[0]
     try:
