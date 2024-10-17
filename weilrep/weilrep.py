@@ -3669,7 +3669,8 @@ class WeilRep:
                 V2 = span(A)
                 V = (V1.intersection(V2)).basis_matrix()
                 X = [w.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
-                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], w)
+                Y = [X1 * v for v in A.kernel().basis_matrix().rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X + Y], w)
                 if echelonize:
                     pivots = X.echelonize(save_pivots=save_pivots)
                     self.__cusp_forms_basis[k] = prec, X
@@ -3888,7 +3889,8 @@ class WeilRep:
                 V2 = span(A)
                 V = (V1.intersection(V2)).basis_matrix()
                 X = [self.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
-                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], self, symmetry_data=[G, chi])
+                Y = [X1 * v for v in A.kernel().basis_matrix().rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X + Y], self, symmetry_data=[G, chi])
                 X.echelonize()
                 return X
             except AttributeError:
@@ -4003,7 +4005,8 @@ class WeilRep:
                 V2 = span(A)
                 V = (V1.intersection(V2)).basis_matrix()
                 X = [self.recover_modular_form_from_coefficient_vector(k + 4, v * B, prec) for v in A.solve_left(V).rows()]
-                X = WeilRepModularFormsBasis(k, [x * e4 for x in X], self, symmetry_data=[G, chi])
+                Y = [X1 * v for v in A.kernel().basis_matrix().rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X + Y], self, symmetry_data=[G, chi])
                 X.echelonize()
                 return X
             except AttributeError:
@@ -4156,9 +4159,10 @@ class WeilRep:
                 A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector(starting_from=0, ending_with=prec) for x in X1])
                 V1 = span(B)
                 V2 = span(A)
-                V = (V1.intersection(V2)).basis_matrix()
+                V = (V1.intersection(V2)).basis_matrix().stack(A.transpose().kernel().basis_matrix())
                 X = [self.recover_modular_form_from_coefficient_vector(weight + 4, v * B, prec) for v in A.solve_left(V).rows()]
-                X = WeilRepModularFormsBasis(weight, [x * e4 for x in X], self)
+                Y = [X1 * v for v in A.kernel().basis_matrix().rows()]
+                X = WeilRepModularFormsBasis(k, [x * e4 for x in X + Y], self)
                 X.echelonize()
                 self.__modular_forms_basis[weight] = prec, X
                 return X

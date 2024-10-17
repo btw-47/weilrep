@@ -25,7 +25,7 @@ import random
 
 from sage.arith.misc import kronecker_symbol, next_prime
 from sage.arith.srange import srange
-from sage.combinat.subset import powerset
+from sage.combinat.subset import subsets
 from sage.functions.other import binomial, floor
 from sage.graphs.graph import Graph
 from sage.matrix.constructor import matrix
@@ -106,7 +106,7 @@ class AlgebraicModularForms:
         except AttributeError:
             g = self.automorphism_group()
             g_gens = g.gens()
-            X = [g.subgroup(x) for x in powerset(g_gens)]
+            X = [g.subgroup(x) for x in subsets(g_gens)]
             self.__aut_small = max(X, key=lambda x: len(x) if len(x) < 10000 else 0)
             return self.__aut_small
 
@@ -500,7 +500,7 @@ class AlgebraicModularForms:
 
     # ## Hecke etc
 
-    def eigenforms(self, X, spin=1, det=1, _p=2, _name='', _final_recursion=True, _K_list=[]):
+    def eigenforms(self, X, spin=1, det=1, dimension_bound = None, _p=2, _name='', _final_recursion=True, _K_list=[]):
         r"""
         Compute eigenforms.
 
@@ -512,6 +512,12 @@ class AlgebraicModularForms:
         self.eigenforms(X)
         produces Galois representatives of the eigenforms contained in span(X).
         (If span(X) is not invariant under the Hecke operators then this should produce some sort of error!!)
+
+        INPUT::
+        - ``X`` -- an integer, OR a list of AlgebraicModularForm instances
+        - ``spin`` -- an integer dividing self's determinant
+        - ``det`` -- either 1 or -1
+        - ``dimension_bound" -- a natural number (only eigenforms over fields of degree at most this will be found) default None
 
         EXAMPLES::
 
@@ -528,7 +534,7 @@ class AlgebraicModularForms:
         """
         if isinstance(X, Integer):
             X = self.basis(X, spin=spin, det=det)
-            return self.eigenforms(X, spin=spin, det=det)
+            return self.eigenforms(X, spin=spin, det=det, dimension_bound = dimension_bound)
         if not X:
             return []
         while self.level() % _p == 0:
@@ -542,32 +548,33 @@ class AlgebraicModularForms:
         K_list = []
         chi_list = []
         for x, n in F:
-            if x.degree() > 1:
-                name = 'a_%s%s' % (_name, i)
-                K = NumberField(x, name)
-                i += 1
-            else:
-                K = QQ
-            M_K = matrix(K, M)
-            V = x(M_K).transpose().kernel().basis_matrix()
-            V_rows = V.rows()
-            if n == 1:
-                if len(V_rows) > 1:
-                    P = matrix(K, [V.solve_left(M_K * v) for v in V_rows])
-                    for p in P.eigenvectors_left(extend=False):
-                        c = p[0].charpoly()
-                        if c not in chi_list:
-                            L.append(vector(p[1][0]) * V)
-                            K_list.append(K)
-                            chi_list.append(c)
+            if dimension_bound is None or x.degree() <= dimension_bound:
+                if x.degree() > 1:
+                    name = 'a_%s%s' % (_name, i)
+                    K = NumberField(x, name)
+                    i += 1
                 else:
-                    L.append(V_rows[0])
-                    K_list.append(K)
-            else:  # this will get ugly if multiplicity-one fails for some reason. For maximal lattices it is probably OK.
-                _name = _name + '%s_' % i
-                K_list_2, eigenvectors = self.eigenforms([sum(v[i] * X[i] for i in range(len(v))) for v in V_rows], _p=next_prime(_p), _name=_name, _final_recursion=False, _K_list=K_list)
-                K_list.extend(K_list_2)
-                L.extend([x * V for x in eigenvectors])
+                    K = QQ
+                M_K = matrix(K, M)
+                V = x(M_K).transpose().kernel().basis_matrix()
+                V_rows = V.rows()
+                if n == 1:
+                    if len(V_rows) > 1:
+                        P = matrix(K, [V.solve_left(M_K * v) for v in V_rows])
+                        for p in P.eigenvectors_left(extend=False):
+                            c = p[0].charpoly()
+                            if c not in chi_list:
+                                L.append(vector(p[1][0]) * V)
+                                K_list.append(K)
+                                chi_list.append(c)
+                    else:
+                        L.append(V_rows[0])
+                        K_list.append(K)
+                else:  # this will get ugly if multiplicity-one fails for some reason. For maximal lattices it is probably OK.
+                    _name = _name + '%s_' % i
+                    K_list_2, eigenvectors = self.eigenforms([sum(v[i] * X[i] for i in range(len(v))) for v in V_rows], dimension_bound = dimension_bound, _p=next_prime(_p), _name=_name, _final_recursion=False, _K_list=K_list)
+                    K_list.extend(K_list_2)
+                    L.extend([x * V for x in eigenvectors])
         eigenforms = []
         if _final_recursion:
             L = [sum(X[i] * y for i, y in enumerate(x)) for x in L]

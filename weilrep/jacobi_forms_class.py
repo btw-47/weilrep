@@ -18,7 +18,9 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
+import cmath
 import cypari2
+import math
 
 from collections import Counter, defaultdict
 from re import sub
@@ -29,6 +31,7 @@ from sage.combinat.root_system.root_system import RootSystem
 from sage.functions.other import binomial, ceil, floor, frac
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, block_matrix, identity_matrix
+from sage.misc.cachefunc import cached_method
 from sage.misc.functional import denominator, isqrt
 from sage.misc.latex import latex
 from sage.misc.misc_c import prod
@@ -39,6 +42,7 @@ from sage.modular.modform.eis_series import eisenstein_series_qexp
 from sage.modular.modform.element import ModularFormElement
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
+from sage.plot.complex_plot import complex_plot
 from sage.quadratic_forms.quadratic_form import QuadraticForm
 from sage.rings.all import CC
 from sage.rings.big_oh import O
@@ -1085,6 +1089,53 @@ class JacobiForm:
             # are we missing anything?
             return self.__brilpr
 
+    def eval(self, tau, z, q=False, w=False, funct=None):
+        cmath_exp = cmath.exp
+        cmath_log = cmath.log
+        two_pi = 2 * math.pi
+        try:
+            N = len(z)
+        except TypeError:
+            z = tuple([z])
+            N = 1
+        if self.nvars() != N:
+            raise ValueError("Incorrect number of elliptic variables")
+        f = self.qexp()
+        if funct is None:
+            funct = self.eval
+        if not w:
+            z = vector(cmath_exp(x * complex(0.0, two_pi)) for x in z)
+            return funct(tau, tuple(z), q=q, w = True)
+        if q:
+            if tau:
+                tau = cmath_log(tau) / complex(0.0, two_pi)
+                return funct(tau, tuple(z), w=True)
+            return f[0](*z)
+        z0 = vector(cmath_log(x) / complex(0.0, two_pi) for x in z)
+        try:
+            y = tau.imag()
+            x = tau.real()
+        except TypeError:
+            y = tau.imag
+            x = tau.real
+        try:
+            v = [a.imag() for a in z0]
+            u = [a.real() for a in z0]
+        except TypeError:
+            v = [a.imag for a in z0]
+            u = [a.real for a in z0]
+        b = [a / y for a in v]
+        b_floor = list(map(floor, b))
+        if any(b_floor):
+            print('b:', b, 'bfloor:', b_floor)
+            h = vector(b_floor)
+            z1 = z0 - h * tau
+            S = self.index_matrix()
+            n = h * S * (tau * h / 2 + z0)
+            return (-1)**(h * S * h) * cmath_exp(-complex(0.0, two_pi) * n) * funct(tau, tuple(z1))
+        q = cmath_exp(complex(0.0, two_pi) * tau)
+        return sum(b(*z) * q**a for a, b in f.dict().items())
+
     def character(self):
         return EtaCharacterPower(0)
 
@@ -1347,6 +1398,36 @@ class JacobiForm:
         except AttributeError:
             self.__nvars = Integer(self.index_matrix().nrows())
             return self.__nvars
+
+    def plot(self, tau, x_range=[-1, 1], y_range=[-1, 1], isotherm=True, show=True, **kwargs):
+        r"""
+        Plot self on \CC for a given value of "tau".
+        This does not work if self has lattice index with a lattice of rank > 1.
+
+        INPUT:
+        - ``x_range`` -- range for 'x' (default -1 <= x <= 1)
+        - ``y_range`` -- range for 'y' (default 0.01 <= y <= 2). Warning: keep z=x+iy in the upper half plane!!
+        - ``isotherm`` -- phase plot with magnitude indicated by isotherms or contour lines. (default True). If False then use Sage default plot style.
+        - ``show`` -- boolean (default True) if False then return only the graphics object without displaying it
+        -- keyword arguments for complex_plot(), e.g. figsize, plot_points, etc.
+        """
+        if self.nvars() > 1:
+            raise ValueError('Plotting is only implemented for scalar-index Jacobi forms.')
+        if isotherm and 'plot_points' not in kwargs:
+            kwargs['plot_points'] = 150
+        if isotherm:
+            def f(z):
+                s = self.eval(tau, z)
+                c = abs(s)
+                if c:
+                    return 2 * s * math.frexp(c)[0] / c
+                else:
+                    return 0.0
+        else:
+            f = lambda z: self.eval(tau, z)
+        P = complex_plot(f, x_range, y_range, **kwargs)
+        self._cached_call.clear_cache()
+        return P
 
     def precision(self):
         r"""
@@ -2105,9 +2186,12 @@ class JacobiForm:
         f = self.fourier_expansion()
         S = self.index_matrix()
         e = S.nrows()
-        Rb = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(e)))
+        Rb = self.base_ring()
         Rb_new = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(new_e)))
-        R, q = PowerSeriesRing(Rb_new, 'q').objgen()
+        if self._base_ring_is_laurent_polynomial_ring():
+            R, q = PowerSeriesRing(Rb_new, 'q').objgen()
+        else:
+            R, q = PowerSeriesRing(FractionField(Rb_new), 'q').objgen()
         val = f.valuation()
         prec = f.prec()
         if new_e > 1:
