@@ -19,13 +19,12 @@ AUTHORS:
 # ****************************************************************************
 
 from collections import defaultdict
-from itertools import combinations, product
+from itertools import chain, combinations, product
 
 import random
 
 from sage.arith.misc import kronecker_symbol, next_prime
 from sage.arith.srange import srange
-from sage.combinat.subset import subsets
 from sage.functions.other import binomial, floor
 from sage.graphs.graph import Graph
 from sage.matrix.constructor import matrix
@@ -106,7 +105,7 @@ class AlgebraicModularForms:
         except AttributeError:
             g = self.automorphism_group()
             g_gens = g.gens()
-            X = [g.subgroup(x) for x in subsets(g_gens)]
+            X = [g.subgroup(x) for x in chain.from_iterable(combinations(g_gens, n) for n in range(len(g_gens) + 1))]
             self.__aut_small = max(X, key=lambda x: len(x) if len(x) < 10000 else 0)
             return self.__aut_small
 
