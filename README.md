@@ -1,6 +1,6 @@
 # weilrep
 
-Sage code for computing with vector-valued modular forms, Jacobi forms and theta lifts.
+[Sage](https://www.sagemath.org) code for computing with vector-valued modular forms, Jacobi forms and theta lifts.
 
 # Installation
 
