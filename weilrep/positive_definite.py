@@ -117,7 +117,7 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
             a = scale
         S = self.gram_matrix()
         nrows = S.nrows()
-        rb_r = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows)))
+        rb_r = LaurentPolynomialRing(K, [f'r_{i}' for i in range(nrows)])
         rb_x, x = LaurentPolynomialRing(rb_r, 'x').objgen()
         rb_q, q = PowerSeriesRing(rb_r, 'q').objgen()
         rb_t, t = PowerSeriesRing(rb_x, 't').objgen()
@@ -368,7 +368,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
                 s = ' + '.join(c(x, a+v, b+v) for (a, b), x in qd.items()).replace('+ -', '- ')
             if not self._base_ring_is_laurent_polynomial_ring():  # represent 'r'-terms as Laurent polynomials if possible
                 n = self.nvars() - 2
-                r = LaurentPolynomialRing(QQ, list('r_%d' % i for i in range(n)))
+                r = LaurentPolynomialRing(QQ, [f'r_{i}' for i in range(n)])
 
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
@@ -480,7 +480,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         f = self.fourier_expansion()
         rb_old = f.base_ring()
         K = rb_old.base_ring()
-        rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(nrows)))
+        rb = LaurentPolynomialRing(K, [f'w_{i}' for i in range(nrows)])
         if not self._base_ring_is_laurent_polynomial_ring():
             rb = FractionField(rb)
         z = rb.gens()[0]
@@ -498,10 +498,10 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             for x, y in coeffs.items():
                 a = x[0]
                 c = x[2]
-                b = [x for x in x[1:-1]]
+                b = list(x[1:-1])
                 wscale = 1
                 if any(u not in ZZ for u in b):
-                    b = [b + b for b in b]
+                    b = [bb + bb for bb in b]
                     wscale = 2
                 if nrows > 1:
                     u = rb.monomial(*b)
@@ -811,7 +811,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         e = Integer(S.nrows())
         K = self.base_ring()
         if e:
-            Rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(e)))
+            Rb = LaurentPolynomialRing(K, [f'w_{i}' for i in range(e)])
         else:
             Rb = K
         R, q = PowerSeriesRing(Rb, 'q', prec).objgen()
@@ -1015,7 +1015,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             if wt == 1 and not _omit_weight_one_constant_term:
                 C = [x._weight_one_theta_lift_constant_term() for x in L]
         if S:
-            rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(S.nrows())))
+            rb = LaurentPolynomialRing(K, [f'r_{i}' for i in range(S.nrows())])
             rb.inject_variables(verbose=False)
             z = rb.gens()[0]
             if val:
@@ -1324,7 +1324,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             N2 = 1
             zeta = 1
         if S:
-            rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(S.nrows())))
+            rb = LaurentPolynomialRing(K, [f'r_{i}' for i in range(S.nrows())])
             rb_zero = rb.gens()[0]
             rb.inject_variables(verbose=False)
         else:

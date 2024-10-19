@@ -679,7 +679,7 @@ class OrthogonalModularForm:
                             else:
                                 try:
                                     for j_r, y in h.dict().items():
-                                        g = tuple([j_t / d, j_x / d, Integer(j_r) / d])
+                                        g = (j_t / d, j_x / d, Integer(j_r) / d)
                                         L[g] = y
                                 except AttributeError:
                                     hn, hd = h.numerator(), h.denominator()
@@ -689,7 +689,7 @@ class OrthogonalModularForm:
                                         h = s(h).add_bigoh(constant_prec)
                                         try:
                                             for j_r, y in h.dict().items():
-                                                g = tuple([j_t / d, j_x / d, Integer(j_r) / d])
+                                                g = (j_t / d, j_x / d, Integer(j_r) / d)
                                                 L[g] = y
                                         except AttributeError:
                                             pass
@@ -700,15 +700,15 @@ class OrthogonalModularForm:
                                         h = h.valuation_zero_part()
                                         try:
                                             for j_r, y in h.dict().items():
-                                                g = tuple([j_t / d, j_x / d, (Integer(j_r) + hval) / d])
+                                                g = (j_t / d, j_x / d, (Integer(j_r) + hval) / d)
                                                 L[g] = y
                                         except AttributeError:
                                             pass
                         else:
-                            g = tuple([j_t / d, j_x / d])
+                            g = (j_t / d, j_x / d)
                             L[g] = h
                 else:
-                    g = tuple([j_t / d])
+                    g = (j_t / d,)
                     L[g] = p
         return L
 

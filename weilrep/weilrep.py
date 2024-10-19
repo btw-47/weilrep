@@ -3047,7 +3047,7 @@ class WeilRep:
             else:
                 rds = ds
             d = [[0]*len(ds) for _ in ds]
-            e = set([])
+            e = set()
             s1 = 0
             s2 = 0
             s3 = []
@@ -3567,7 +3567,7 @@ class WeilRep:
                 rank = len(X)
                 return X, rank
             failure_count = 0
-            excluded = set([])
+            excluded = set()
             while rank < dim:
                 for b_tuple in G:
                     b = vector(b_tuple)
@@ -3823,7 +3823,7 @@ class WeilRep:
             rds = self.sorted_rds()
             indices = self.rds(indices=True)
             orbits = []
-            e = set([])
+            e = set()
             n = self.norm_dict()
             n0 = []
             for i, b in enumerate(rds):
@@ -4759,7 +4759,7 @@ class WeilRep:
         S = self.gram_matrix()
         n = S.nrows()
         X = WeilRepModularFormsBasis(sage_one_half, [], self)
-        if not n % 2 or ((self.signature() + 1) % 8 and len(set(x for x in S.elementary_divisors() if x - 1)) <= 1):  # Skoruppa theorem 10
+        if not n % 2 or ((self.signature() + 1) % 8 and len({x for x in S.elementary_divisors() if x - 1}) <= 1):  # Skoruppa theorem 10
             return X
         N = self.level() // 4
         b = vector([0] * n)

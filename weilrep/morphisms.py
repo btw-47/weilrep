@@ -324,7 +324,7 @@ class WeilRepAutomorphismGroup:
             try:
                 _ = next(x for x in L if tuple_g in x)
             except StopIteration:
-                y = set(tuple(h(g)) for h in self)
+                y = {tuple(h(g)) for h in self}
                 L.append(y)
                 X.append(list(y))
                 r.append(i)

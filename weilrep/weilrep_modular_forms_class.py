@@ -967,7 +967,7 @@ class WeilRepModularForm:
                         g1, o1, y = f1[j]
                         offset = ceil(o + o1)
                         h += x*y / q**(-offset)
-                    X.append(tuple([g0, n[i], h]))
+                    X.append(tuple(g0, n[i], h))
                 return WeilRepModularForm(self.weight() + other.weight(), w0.gram_matrix(), X, w0)
             h = O(q ** self.precision())
             for g, o, x in f2:

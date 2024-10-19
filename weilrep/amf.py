@@ -1516,7 +1516,7 @@ def invariant_weight_k_polynomials_with_dim_bound(S, G, k, bound, spin=1, det=1,
     else:
         if verbose:
             print('I will compute polynomials via harmonic projection.')
-        excluded_monomials = set([])
+        excluded_monomials = set()
         n = S.nrows()
         if spin == 1:
             if det == 1:
