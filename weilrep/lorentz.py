@@ -158,7 +158,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                     s = str(f)
                 if not self._base_ring_is_laurent_polynomial_ring():  # represent 'r'-terms as Laurent polynomials if possible
                     n = self.nvars() - 2
-                    r = LaurentPolynomialRing(QQ, list('r_%d' % i for i in range(n)))
+                    r = LaurentPolynomialRing(QQ, [f'r_{i}' for i in range(n)])
 
                     def _a(obj):
                         obj_s = obj.string[slice(*obj.span())]
@@ -220,7 +220,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             nrows -= 2
         except AttributeError:
             N2 = 1
-        rb = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(nrows)))
+        rb = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(nrows)])
         if not self._base_ring_is_laurent_polynomial_ring():
             rb = FractionField(rb)
         z = rb.gens()[0]
@@ -342,7 +342,7 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             zeta, = K.gens()
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, [f'r_{i}' for i in range(nrows - 2)])
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -830,7 +830,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
             zeta, = K.gens()
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, [f'r_{i}' for i in range(nrows - 2)])
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -1374,7 +1374,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
                 k = Integer(0)
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, [f'r_{i}' for i in range(nrows - 2)])
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -1411,7 +1411,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         log_f = h
         const_f = rb_x(1)
         val = self.valuation(exact=True)
-        excluded_vectors = set([])
+        excluded_vectors = set()
         rpoly, tpoly = PolynomialRing(K, 'tpoly').objgen()
         rpoly_ff = FractionField(rpoly)
         negative = lambda v: v[0] < 0 or next(s for s in reversed(v[1:]) if s) < 0
@@ -1693,7 +1693,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
         zeta, = K.gens()
     if nrows > 1:
         if nrows > 2:
-            rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
+            rb = LaurentPolynomialRing(K, [f'r_{i}' for i in range(nrows - 2)])
         else:
             rb = K
         rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()
@@ -1824,7 +1824,7 @@ def _theta_lifts(X, prec=None, constant_term_weight_one=True):
             zeta, = K.gens()
         if nrows > 1:
             if nrows > 2:
-                rb = LaurentPolynomialRing(K, list('r_%d' % i for i in range(nrows - 2)))
+                rb = LaurentPolynomialRing(K, [f'r_{i}' for i in range(nrows - 2)])
             else:
                 rb = K
             rb_x, x = LaurentPolynomialRing(rb, 'x').objgen()

@@ -644,7 +644,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
         if len(z) > 1:
             df = {a: b(h, sum(a) + k) for a, h in f.dict().items()}
         else:
-            df = {tuple([a]): b(h, a + k) for a, h in f.dict().items()}
+            df = {(a,): b(h, a + k) for a, h in f.dict().items()}
         k_max = k + prec1
         Z = defaultdict(list)
         I = defaultdict(list)
@@ -968,7 +968,7 @@ class UnitaryModularForms(OrthogonalModularFormsPositiveDefinite):
         units = w._units()
         _w = w._w()
         norm_list = [[a + b * _w for a, b in x] for x in norm_list]
-        excluded_list = set([])
+        excluded_list = set()
         if d >= -4:
             if d == -4:
                 f = w.multiplication_by_i()
@@ -1414,8 +1414,8 @@ def _root(h, n, k, umf):
     z = r.gens()
     d = h.dict()
     if r.ngens() == 1:
-        d = {tuple([a]): b for a, b in d.items()}
-    L = sorted(d.keys(), key=sum)
+        d = {(a,): b for a, b in d.items()}
+    L = sorted(d, key=sum)
     a = L[0]
     try:
         b_pow = d[a].lift()

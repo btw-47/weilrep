@@ -1096,7 +1096,7 @@ class JacobiForm:
         try:
             N = len(z)
         except TypeError:
-            z = tuple([z])
+            z = (z,)
             N = 1
         if self.nvars() != N:
             raise ValueError("Incorrect number of elliptic variables")
@@ -1105,7 +1105,7 @@ class JacobiForm:
             funct = self.eval
         if not w:
             z = vector(cmath_exp(x * complex(0.0, two_pi)) for x in z)
-            return funct(tau, tuple(z), q=q, w = True)
+            return funct(tau, tuple(z), q=q, w=True)
         if q:
             if tau:
                 tau = cmath_log(tau) / complex(0.0, two_pi)
