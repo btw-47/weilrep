@@ -2365,6 +2365,10 @@ class WeilRepModularFormsBasis:
     def __init__(self, weight, basis, weilrep, flag=None, symmetry_data=None):
         self.__weight = weight
         self.__basis = basis
+        if basis:
+            N = max(x.depth() + 1 for x in basis)
+        else:
+            N = 1
         try:
             x = weilrep._flag()
         except AttributeError:
@@ -2376,7 +2380,6 @@ class WeilRepModularFormsBasis:
             self.__weilrep_hidden = weilrep
         else:
             self.__weilrep = weilrep
-            N = 1
             self.__flag2 = 0
         self.__flag = flag
         self.__bound = N * self.__weight / 12

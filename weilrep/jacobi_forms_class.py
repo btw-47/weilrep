@@ -1463,6 +1463,7 @@ class JacobiForm:
 
     def qscale(self):
         return 1
+    q_scale = qscale
 
     def _qshift(self):
         return 0
@@ -1477,6 +1478,10 @@ class JacobiForm:
         d = {rb_w('w_%d' % j): rb_w('w_%d' % j)**a for j in range(e)}
         f = f.map_coefficients(lambda x: x.subs(d))
         return JacobiForm(self.weight(), self.index_matrix(), f, modform=self.modform(error=False), weilrep=self.weilrep(), w_scale=self.scale() * a)
+
+    def _rescale_q(self, a):
+        from .jacobi_lvl import JacobiFormWithLevel
+        return JacobiFormWithLevel(self.weight(), 1, self.index_matrix(), self.qexp().V(a), q_scale = a, w_scale = self.scale())
 
     def scale(self):
         return self.__wscale
@@ -1536,6 +1541,8 @@ class JacobiForm:
             norms = j._short_vector_norms_by_component()
         else:
             norms = [0] * len(ds)
+        qscale = self.qscale()
+        norms = [x * qscale for x in norms]
         f, S, e, n_list = self.fourier_expansion(), self.index_matrix(), self.nvars(), w.norm_list()
         prec, val, S_inv = f.prec(), f.valuation(), S.inverse()
         lsr, q = LaurentSeriesRing(QQ, 'q').objgen()
@@ -1566,6 +1573,7 @@ class JacobiForm:
             self.__theta = WeilRepModularForm(self.weight() - e / 2, S, L, weilrep=self.weilrep())
             return self.__theta
         return WeilRepModularForm(self.weight() - e / 2, S, L, weilrep=self.weilrep())
+    _theta_decomposition = theta_decomposition
 
     def valuation(self):
         r"""
@@ -1638,7 +1646,7 @@ class JacobiForm:
         if not other:
             return self
         if not isinstance(other, JacobiForm):
-            raise TypeError('Cannot add these objects')
+            return NotImplemented
         if not self.weight() == other.weight():
             raise ValueError('Incompatible weights')
         if not self.index_matrix() == other.index_matrix():
@@ -1667,7 +1675,7 @@ class JacobiForm:
         if not other:
             return self
         if not isinstance(other, JacobiForm):
-            raise TypeError('Cannot subtract these objects')
+            return NotImplemented
         if not self.weight() == other.weight():
             raise ValueError('Incompatible weights')
         if not self.index_matrix() == other.index_matrix():
@@ -2693,6 +2701,9 @@ def _jf_relations(X):
     Compute all relations among a set of Jacobi forms.
     This should no longer be called directly. Use weilrep_misc.relations instead.
     """
+    from .jacobi_lvl import JacobiFormWithLevel, _jf_relations_lvl
+    if any(isinstance(x, JacobiFormWithLevel) for x in X):
+        return _jf_relations_lvl(X)
     Xref = X[0]
     N = Xref.nvars()
     if Xref.scale() == 2:
@@ -2703,7 +2714,7 @@ def _jf_relations(X):
     elif not all(x.weight() == Xref.weight() and x.index() == Xref.index() for x in X[1:]):
         raise ValueError('Incompatible Jacobi forms')
     try:
-        X = [x.theta_decomposition() for x in X]
+        X = [x._theta_decomposition() for x in X]
         val = min(x.valuation() for x in X)
         prec = min(x.precision() for x in X)
         M = matrix([x.coefficient_vector(starting_from=val, ending_with=prec) for x in X])

@@ -851,6 +851,7 @@ class JacobiFormWithLevel:
 
     def q_scale(self):
         return self.__qscale
+    qscale = q_scale
 
     def _qshift(self):
         return 0
@@ -862,6 +863,10 @@ class JacobiFormWithLevel:
         d = {rb_w('w_%d' % j): rb_w('w_%d' % j)**a for j in range(e)}
         f = f.map_coefficients(lambda x: x.subs(d))
         return JacobiFormWithLevel(self.weight(), self.level(), self.index_matrix(), f, q_scale=self.q_scale(), w_scale=self.scale() * a)
+    rescale = _rescale
+
+    def _rescale_q(self, a):
+        return JacobiFormWithLevel(self.weight(), self.level(), self.index_matrix(), self.qexp().V(a), q_scale = a * self.q_scale(), w_scale = self.scale())
 
     def scale(self):
         return self.__wscale
@@ -1000,6 +1005,9 @@ class JacobiFormWithLevel:
         if h:
             of *= q ** Integer(q_scale * d)
         return JacobiFormWithLevel(self.weight(), level, self.index_matrix(), sf - of, w_scale=scale, q_scale=q_scale)
+
+    def __rsub__(self, other):
+        return self.__neg__().__add__(other)
 
     def __invert__(self):
         f = self.qexp()
@@ -1161,6 +1169,7 @@ class JacobiFormWithLevel:
                 of = of.V(q2)
             h = other._qshift()
             if h:
+                q, = of.parent().gens()
                 of *= q ** Integer(h * d)
             try:
                 f = sf / of
@@ -1498,10 +1507,11 @@ def jacobi_thetanull(prec, s):
 
 def _jf_relations_lvl(X):
     Xref = X[0]
-    # if Xref.scale() == 2:
-    #    return _jf_relations([x.hecke_U(2) for x in X])
     if not all(x.weight() == Xref.weight() and x.index() == Xref.index() for x in X[1:]):
         raise ValueError('Incompatible Jacobi forms')
+    Nq = lcm(x.q_scale() for x in X)
+    Nw = lcm(x.scale() for x in X)
+    X = [x._rescale_q(Nq / x.q_scale()).rescale(Nw / x.scale()) for x in X]
     X = [x._theta_decomposition() for x in X]
     val = min(x.valuation() for x in X)
     prec = min(x.precision() for x in X)

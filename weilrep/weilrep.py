@@ -4171,12 +4171,6 @@ class WeilRep:
                 self.__modular_forms_basis[weight] = prec, X
                 return X
         else:
-            try:
-                x = self._flag()
-                if x is not None:
-                    raise NotImplementedError from None
-            except AttributeError:
-                pass
             if verbose:
                 print('I do not know how to find enough Eisenstein series. I am going to compute the image of M_%s under multiplication by Delta.' % weight)
             return self.nearly_holomorphic_modular_forms_basis(weight, 0, prec, inclusive=True, reverse=False, force_N_positive=True, verbose=verbose)
