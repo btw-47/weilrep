@@ -3979,9 +3979,13 @@ class WeilRep:
                 return self.nearly_holomorphic_modular_forms_basis(k, 0, prec=prec, inclusive=True, reverse=False, force_N_positive=True, symmetry_data=[G, chi], verbose=verbose)
             mod_dim = self.invariant_forms_dimension(k, G=G, chi=chi)
             cusp_dim = self.invariant_cusp_forms_dimension(k, G=G, chi=chi)
-            E = [self.eisenstein_oldform(k, x, prec) for x in b]
-            E = WeilRepModularFormsBasis(k, [sum(chi[i] * g(y) for i, g in enumerate(G)) for y in E], self, symmetry_data=symmetry_data)
-            E_rank = E.rank()
+            if symm:
+                E = [self.eisenstein_oldform(k, x, prec) for x in b]
+                E = WeilRepModularFormsBasis(k, [sum(chi[i] * g(y) for i, g in enumerate(G)) for y in E], self, symmetry_data=symmetry_data)
+                E_rank = E.rank()
+            else:
+                E = WeilRepModularFormsBasis(k, [], self, symmetry_data=symmetry_data)
+                E_rank = 0
             if verbose:
                 print('I have computed %s invariant Eisenstein series.' % E_rank)
             if E_rank + cusp_dim < mod_dim:

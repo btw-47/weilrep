@@ -193,7 +193,7 @@ class JacobiFormsGamma0:
         w1 = WeilRep(self.index_matrix())
         w = w1 + II(N)
         try:
-            if k - rk / 2 >= 5/2:
+            if k - rk / 2 >= 5/2 + (k % 2):
                 w._WeilRep__applied_funct = lambda x: _remove_N(x, w1, N)
                 w._WeilRep__flag = w1, h
                 w.modular_forms_dimension = lambda k: self.jacobi_forms_dimension(k + rk/2)
