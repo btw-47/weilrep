@@ -2887,7 +2887,7 @@ class WeilRep:
                 raise ValueError('Not yet implemented')
             return len(self.cusp_forms_basis(weight))
 
-    def eigenforms(self, k, prec=20, cusp_forms=False, eta_twist=0, _p=Integer(2), _name='', _final_recursion=True, _K_list=[]):
+    def eigenforms(self, k, prec=20, cusp_forms=False, quasimodular = False, eta_twist=0, _p=Integer(2), _name='', _final_recursion=True, _K_list=[]):
         r"""
         Compute modular forms that are eigenforms of the Hecke operators.
 
@@ -2907,6 +2907,10 @@ class WeilRep:
         if k in QQ:
             if cusp_forms:
                 X = self.cusp_forms_basis(k, prec, eta_twist=eta_twist)
+            elif quasimodular:
+                if eta_twist:
+                    return NotImplemented
+                X = self.quasimodular_forms_basis(k, prec)
             else:
                 X = self.modular_forms_basis(k, prec, eta_twist=eta_twist)
         else:
@@ -4163,10 +4167,10 @@ class WeilRep:
                 A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector(starting_from=0, ending_with=prec) for x in X1])
                 V1 = span(B)
                 V2 = span(A)
-                V = (V1.intersection(V2)).basis_matrix().stack(A.transpose().kernel().basis_matrix())
+                V = (V1.intersection(V2)).basis_matrix()
                 X = [self.recover_modular_form_from_coefficient_vector(weight + 4, v * B, prec) for v in A.solve_left(V).rows()]
                 Y = [X1 * v for v in A.kernel().basis_matrix().rows()]
-                X = WeilRepModularFormsBasis(k, [x * e4 for x in X + Y], self)
+                X = WeilRepModularFormsBasis(weight, [x * e4 for x in X + Y], self)
                 X.echelonize()
                 self.__modular_forms_basis[weight] = prec, X
                 return X

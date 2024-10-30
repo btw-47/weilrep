@@ -359,7 +359,8 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() / (N * N), [x.hecke_P(N) for x in self._terms()], weilrep=self.weilrep())
 
     def hecke_T(self, N):
-        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.hecke_T(N) for x in self._terms()], weilrep=self.weilrep())
+        k = self.depth()
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [N**(2*k-2*j) * x.hecke_T(N) for j, x in enumerate(self._terms())], weilrep=self.weilrep())
 
     def hecke_U(self, N):
         return WeilRepQuasiModularForm(self.weight(), self.gram_matrix() * N * N, [x.hecke_U(N) for x in self._terms()])
@@ -483,6 +484,9 @@ class WeilRepAlmostHolomorphicModularForm:
 
     def coefficient_vector(self):
         return self[0].coefficient_vector()
+
+    def completion(self):
+        return self
 
     def weilrep(self):
         try:
