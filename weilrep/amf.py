@@ -1290,10 +1290,24 @@ def lift_p_to_psqr(S, p, X, Z):
 
 def antisymmetric_matrices_mod(n, p):
     r"""
-    Iterate through antisymmetric matrices of size (n x n) modulo p
+    Iterate through antisymmetric matrices of size `(n x n)` modulo `p`.
+
+    EXAMPLES::
+
+        sage: from weilrep.amf import antisymmetric_matrices_mod
+        sage: list(antisymmetric_matrices_mod(3, 2))
+        [
+        [0 0 0]  [ 0  0  0]  [ 0  0  1]  [ 0  0  1]  [ 0  1  0]  [ 0  1  0]
+        [0 0 0]  [ 0  0  1]  [ 0  0  0]  [ 0  0  1]  [-1  0  0]  [-1  0  1]
+        [0 0 0], [ 0 -1  0], [-1  0  0], [-1 -1  0], [ 0  0  0], [ 0 -1  0],
+
+        [ 0  1  1]  [ 0  1  1]
+        [-1  0  0]  [-1  0  1]
+        [-1  0  0], [-1 -1  0]
+        ]
     """
-    r = list(range(p))
-    X = product(*[r for _ in range(ZZ(n * (n - 1) / 2))])
+    r = range(p)
+    X = product(*[r for _ in range((n * (n - 1) // 2))])
     for x in X:
         y = matrix(ZZ, n, n)
         s = 0
