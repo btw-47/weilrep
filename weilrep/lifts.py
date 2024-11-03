@@ -537,7 +537,7 @@ class OrthogonalModularForm:
         """
         r = self.base_ring()
         if self._base_ring_is_laurent_polynomial_ring():
-            s = FractionField(PolynomialRing(QQ, list('r_%d' % i for i in range(r.ngens()))))
+            s = FractionField(PolynomialRing(QQ, ['r_%d' % i for i in range(r.ngens())]))
             rx = LaurentPolynomialRing(s, 'x')
             rx.inject_variables(verbose=False)
             rt = PowerSeriesRing(rx, 't')
@@ -668,10 +668,10 @@ class OrthogonalModularForm:
                                     hn, hd = h.numerator(), h.denominator()
                                     r = hd.parent()
                                     if hd.constant_coefficient():
-                                        s = PowerSeriesRing(r.base_ring(), list('r_%d' % i for i in range(nrows - 2)), default_prec=constant_prec)
+                                        s = PowerSeriesRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)], default_prec=constant_prec)
                                         h = s(h).add_bigoh(constant_prec)
                                     else:
-                                        s = LaurentPolynomialRing(r.base_ring(), list('r_%d' % i for i in range(nrows - 2)))
+                                        s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)])
                                         h = s(hn) / s(hd)
                                     for j_r, y in h.dict().items():
                                         g = tuple([j_t / d, j_x / d] + list(vector(ZZ, j_r) / d))
@@ -750,10 +750,10 @@ class OrthogonalModularForm:
                     xn, xd = x.numerator(), x.denominator()
                     r = xd.parent()
                     if xd.constant_coefficient():
-                        s = PowerSeriesRing(r.base_ring(), list('r_%d' % i for i in range(nrows)))
+                        s = PowerSeriesRing(r.base_ring(), ['r_%d' % i for i in range(nrows)])
                         x = s(xn) / s(xd)
                     else:
-                        s = LaurentPolynomialRing(r.base_ring(), list('r_%d' % i for i in range(nrows)))
+                        s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows)])
                         x = s(xn) / s(xd)
                     x_coeffs = x.coefficients()
                 if nrows > 1:

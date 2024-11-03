@@ -231,11 +231,11 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
         else:
             U = []
             for i in range(d + 1):
-                U_i = []
                 lower_bd = ceil(-p**i / 2)
                 upper_bd = ceil(p**i / 2)
-                for j in range(lower_bd, upper_bd):
-                    U_i.append(matrix([[1, 0], [N * j, 1]]))
+                U_i = [matrix([[1, 0], [N * j, 1]])
+                       for j in range(lower_bd, upper_bd)]
+
                 if i > 0:
                     p_i = p**(i - 1)
                     for j in range(p_i):
@@ -446,11 +446,10 @@ class ParamodularHeckeOperator:
         else:
             U = []
             for i in range(d + 1):
-                U_i = []
                 lower_bd = ceil(-p**i / 2)
                 upper_bd = ceil(p**i / 2)
-                for j in range(lower_bd, upper_bd):
-                    U_i.append(matrix([[1, 0], [N * j, 1]]))
+                U_i = [matrix([[1, 0], [N * j, 1]])
+                       for j in range(lower_bd, upper_bd)]
                 if i > 0:
                     p_i = p**(i - 1)
                     for j in range(p_i):

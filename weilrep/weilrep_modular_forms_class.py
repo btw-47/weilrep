@@ -416,7 +416,7 @@ class WeilRepModularForm:
             # construct Puiseux series this way to try not to break things. This is not really good
             e = f.exponents()
             c = f.coefficients()
-            return r( sum(c * q**(e[i] + n) for i, c in enumerate(c)) )
+            return r(sum(c * q**(e[i] + n) for i, c in enumerate(c)))
         return [(g, a(f, n).add_bigoh(prec)) for g, n, f in x]
 
     def puiseux_series_component(self, v):
@@ -1215,7 +1215,7 @@ class WeilRepModularForm:
         prec = self.precision()
         for j, x in enumerate(X):
             val = min(0, x[2].valuation())
-            X_new[j] = x[0], x[1], (q ** val) * R([ y * (i + x[1] + val) ** (1-k) for i, y in enumerate(x[2].list())]) + O(q ** (prec - floor(x[1])))
+            X_new[j] = x[0], x[1], (q ** val) * R([y * (i + x[1] + val) ** (1-k) for i, y in enumerate(x[2].list())]) + O(q**(prec - floor(x[1])))
         return WeilRepModularForm(2 - k, self.gram_matrix(), X_new, weilrep=self.weilrep())
 
     def conjugate(self, A, w=None):
@@ -1404,7 +1404,7 @@ class WeilRepModularForm:
         for u in L:
             u = vector(u)
             for i, g in enumerate(ds):
-                gauss_sum[i] += zeta_p ** Integer( u * S * (u / 2 + vector(g)))
+                gauss_sum[i] += zeta_p ** Integer(u * S * (u / 2 + vector(g)))
         if r % 2 and p % 2:
             x, = PolynomialRing(K, 'x').gens()
             if p % 4 == 1:
@@ -1876,12 +1876,12 @@ class WeilRepModularForm:
                     h1 = list(map(frac, gz + Ax))
                     h2 = list(map(frac, gz - Ax))
                     u = v_norm - offset
-                    X[i][2] += r( [coeffs[tuple(h1 + [n-u])] * P(*Ax, (n+offset)) + coeffs[tuple(h2 + [n-u])] * P(*(-Ax), (n+offset)) for n in range(ceil(val + u), ceil(prec + u))]).shift(ceil(val + u))
+                    X[i][2] += r([coeffs[tuple(h1 + [n-u])] * P(*Ax, (n+offset)) + coeffs[tuple(h2 + [n-u])] * P(*(-Ax), (n+offset)) for n in range(ceil(val + u), ceil(prec + u))]).shift(ceil(val + u))
         for i, gz in enumerate(gz_list):
             if indices[i] is None:
                 offset = norm_list[i]
                 h = list(map(frac, gz))
-                X[i][2] += r( [coeffs[tuple(h + [n + offset])] * P([0]*S.nrows() + [(n + offset)]) for n in range(ceil(val - offset), ceil(prec - offset))] ).shift(ceil(val - offset)).add_bigoh(ceil(prec - offset))
+                X[i][2] += r([coeffs[tuple(h + [n + offset])] * P([0]*S.nrows() + [(n + offset)]) for n in range(ceil(val - offset), ceil(prec - offset))]).shift(ceil(val - offset)).add_bigoh(ceil(prec - offset))
             else:
                 X[i][2] = eps * X[indices[i]][2]
         return WeilRepModularForm(k + Integer(nrows) / 2 + N, w.gram_matrix(), X, weilrep=w)
@@ -2939,8 +2939,8 @@ def _vvmf_rankin_cohen(N, X, Y):
         deriv2[r] = d(deriv2[r - 1])
         k, ell = k-1, ell-1
     if m:
-        return sum( (-1)**r * binom2[r] * binom1[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w=w) for r in range(N + 1))
-    return sum( (-1)**r * binom2[r] * binom1[-1-r] * deriv1[r].__mul__(deriv2[-1 - r], w=w) for r in range(N + 1))
+        return sum((-1)**r * binom2[r] * binom1[-1-r] * WeilRepModularForm(weight, S1, deriv1[r], w1).__mul__(WeilRepModularForm(0, S2, deriv2[-1-r], w2), w=w) for r in range(N + 1))
+    return sum((-1)**r * binom2[r] * binom1[-1-r] * deriv1[r].__mul__(deriv2[-1 - r], w=w) for r in range(N + 1))
 
 
 def rankin_cohen(*x):

@@ -181,7 +181,7 @@ class WeilRep:
         """
         try:
             N = Integer(N) #If this worked then we are probably trying to rescale.
-            w = WeilRep( N * self.gram_matrix())
+            w = WeilRep(N * self.gram_matrix())
             return w
         except TypeError: #I will assume that N is a matrix in SL_2(ZZ).
             a, b, c, d = tuple(ZZ(x) for x in N.list())
@@ -686,7 +686,7 @@ class WeilRep:
                 L = [vector(range(D[k, k])) / D[k, k] for k in range(D.nrows())]
                 ds = [None] * prod(D.diagonal())
                 ds_dict = {}
-                for i, r in enumerate(product( *L )):
+                for i, r in enumerate(product(*L)):
                     frac_r = list(map(frac, V * vector(r)))
                     ds[i] = vector(frac_r)
                     ds_dict[tuple(frac_r)] = i
@@ -706,7 +706,8 @@ class WeilRep:
             v[i] = ~d
             return vector(v)
         L = [a(*x) for x in enumerate(D.diagonal()) if x[1] != 1]
-        return [vector(map(frac, x)) for x in ( matrix(L) * V.transpose() ).rows() ]
+        return [vector(map(frac, x))
+                for x in (matrix(L) * V.transpose()).rows()]
 
     def _embiggen(self, b, m):
         r"""
@@ -1061,7 +1062,7 @@ class WeilRep:
                             p_pow_2 = RR(p ** Integer(1 / 2 - k))
                             for i in range(len(chi_list)):
                                 chi_p = CC(chi_list[i](p))
-                                main_terms[i] *= ( (1 - chi_p * chi0_p * p_pow_2) * Euler_factors[i] / (1 - (chi_p * p_pow_2) ** 2))#.n()
+                                main_terms[i] *= ((1 - chi_p * chi0_p * p_pow_2) * Euler_factors[i] / (1 - (chi_p * p_pow_2) ** 2))#.n()
                         else:
                             for i in range(len(chi_list)):
                                 main_terms[i] *= Euler_factors[i] / (1 - chi_list[i](p) * chi0_p * (p ** (-k)))
@@ -2887,7 +2888,7 @@ class WeilRep:
                 raise ValueError('Not yet implemented')
             return len(self.cusp_forms_basis(weight))
 
-    def eigenforms(self, k, prec=20, cusp_forms=False, quasimodular = False, eta_twist=0, _p=Integer(2), _name='', _final_recursion=True, _K_list=[]):
+    def eigenforms(self, k, prec=20, cusp_forms=False, quasimodular=False, eta_twist=0, _p=Integer(2), _name='', _final_recursion=True, _K_list=[]):
         r"""
         Compute modular forms that are eigenforms of the Hecke operators.
 
