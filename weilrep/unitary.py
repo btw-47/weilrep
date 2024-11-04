@@ -456,7 +456,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
         zeta = w._w()
         zeta_conj = zeta.conjugate()
         rho = -zeta_conj
-        eta3 = sum( (2 * n + 1) * (-1) ** n * t ** (ZZ(n * (n + 1) / 2)) for n in range(isqrt(2 * prec0) + 2)).add_bigoh(prec0)
+        eta3 = sum((2 * n + 1) * (-1) ** n * t ** (ZZ(n * (n + 1) / 2)) for n in range(isqrt(2 * prec0) + 2)).add_bigoh(prec0)
         L = [[i] for i in range(prec)]
         j = 1
         while j < rank:
@@ -493,7 +493,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                             c_ns = c_n.subs({a: exp_z[i] for i, a in enumerate(c_n.parent().gens())})
                             c_ds = c_d.subs({a: exp_z[i] for i, a in enumerate(c_d.parent().gens())})
                             if j > 1000:
-                                raise RuntimeError #??
+                                raise RuntimeError  # ??
                         try:
                             u = c_ds.trailing_monomial()
                             c_ns /= u
@@ -505,7 +505,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
                         g += c * (x ** (scale * (a - b))) * (t ** (scale * (a + b)))
             pb[tuple(y)] = OrthogonalModularForm(k + sum(y), w1, g.add_bigoh(floor(F.precision())) / prod(factorial(a) for a in y), scale, v)
         if d == -3:
-            eta = sum( (-1)**n * ( t ** (ZZ(n * (3 * n + 1) / 2)) - t ** (ZZ((n+1) * (3*n+2) / 2)) ) for n in range(isqrt(2 * prec0 / 3) + 1)).add_bigoh(prec0)
+            eta = sum((-1)**n * (t**(n * (3 * n + 1) // 2) - t**((n+1) * (3*n+2) // 2)) for n in range(isqrt(2 * prec0 / 3) + 1)).add_bigoh(prec0)
             eta_p = (eta3 * eta) ** 2
             eta_p = OrthogonalModularForm(4, w1, t**2 * eta_p((t * ~x)**3) * eta_p((t * x)**3), 3, v)
             delta = t * eta3 ** 8
@@ -1431,10 +1431,10 @@ def _root(h, n, k, umf):
         discr = umf._discriminant()
         b = _hard_root(b_pow, discr, n, k + h.valuation())
     try:
-        h1 = sum( r1(x.lift() / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for (c, x) in d.items() ).add_bigoh(h.prec() - sum(a))
+        h1 = sum(r1(x.lift() / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for (c, x) in d.items()).add_bigoh(h.prec() - sum(a))
     except (AttributeError, TypeError):
         try:
-            h1 = sum( r1(x / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for (c, x) in d.items() ).add_bigoh(h.prec() - sum(a))
+            h1 = sum(r1(x / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for c, x in d.items()).add_bigoh(h.prec() - sum(a))
         except TypeError:
             raise ValueError('Not an nth power') from None
     return prefactor * r1(b) * h1**(1/n)
@@ -1576,7 +1576,6 @@ def _umf_relations(X):
                     except KeyError:
                         v.append(0)
             except KeyError:
-                for key in key_keys[key]:
-                    v.append(0)
+                v.extend(0 for _ in key_keys[key])
         M.append(v)
     return Matrix(M).kernel()

@@ -415,7 +415,7 @@ class HermitianModularForm(OrthogonalModularFormPositiveDefinite):
             h = f[a]
             for d, g in h.dict().items():
                 d = ZZ(d)
-                for (b, c), N in g.dict().items():
+                for b, c in g.dict():
                     b = ZZ(b)
                     c = ZZ(c)
                     u, v = convert_exponent(b, c)

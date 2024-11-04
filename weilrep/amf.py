@@ -499,7 +499,7 @@ class AlgebraicModularForms:
 
     # ## Hecke etc
 
-    def eigenforms(self, X, spin=1, det=1, dimension_bound = None, _p=2, _name='', _final_recursion=True, _K_list=[]):
+    def eigenforms(self, X, spin=1, det=1, dimension_bound=None, _p=2, _name='', _final_recursion=True, _K_list=[]):
         r"""
         Compute eigenforms.
 
@@ -512,7 +512,8 @@ class AlgebraicModularForms:
         produces Galois representatives of the eigenforms contained in span(X).
         (If span(X) is not invariant under the Hecke operators then this should produce some sort of error!!)
 
-        INPUT::
+        INPUT:
+
         - ``X`` -- an integer, OR a list of AlgebraicModularForm instances
         - ``spin`` -- an integer dividing self's determinant
         - ``det`` -- either 1 or -1
@@ -533,7 +534,7 @@ class AlgebraicModularForms:
         """
         if isinstance(X, Integer):
             X = self.basis(X, spin=spin, det=det)
-            return self.eigenforms(X, spin=spin, det=det, dimension_bound = dimension_bound)
+            return self.eigenforms(X, spin=spin, det=det, dimension_bound=dimension_bound)
         if not X:
             return []
         while self.level() % _p == 0:
@@ -571,7 +572,7 @@ class AlgebraicModularForms:
                         K_list.append(K)
                 else:  # this will get ugly if multiplicity-one fails for some reason. For maximal lattices it is probably OK.
                     _name = _name + '%s_' % i
-                    K_list_2, eigenvectors = self.eigenforms([sum(v[i] * X[i] for i in range(len(v))) for v in V_rows], dimension_bound = dimension_bound, _p=next_prime(_p), _name=_name, _final_recursion=False, _K_list=K_list)
+                    K_list_2, eigenvectors = self.eigenforms([sum(v[i] * X[i] for i in range(len(v))) for v in V_rows], dimension_bound=dimension_bound, _p=next_prime(_p), _name=_name, _final_recursion=False, _K_list=K_list)
                     K_list.extend(K_list_2)
                     L.extend([x * V for x in eigenvectors])
         eigenforms = []
@@ -1289,10 +1290,24 @@ def lift_p_to_psqr(S, p, X, Z):
 
 def antisymmetric_matrices_mod(n, p):
     r"""
-    Iterate through antisymmetric matrices of size (n x n) modulo p
+    Iterate through antisymmetric matrices of size `(n x n)` modulo `p`.
+
+    EXAMPLES::
+
+        sage: from weilrep.amf import antisymmetric_matrices_mod
+        sage: list(antisymmetric_matrices_mod(3, 2))
+        [
+        [0 0 0]  [ 0  0  0]  [ 0  0  1]  [ 0  0  1]  [ 0  1  0]  [ 0  1  0]
+        [0 0 0]  [ 0  0  1]  [ 0  0  0]  [ 0  0  1]  [-1  0  0]  [-1  0  1]
+        [0 0 0], [ 0 -1  0], [-1  0  0], [-1 -1  0], [ 0  0  0], [ 0 -1  0],
+
+        [ 0  1  1]  [ 0  1  1]
+        [-1  0  0]  [-1  0  1]
+        [-1  0  0], [-1 -1  0]
+        ]
     """
-    r = list(range(p))
-    X = product(*[r for _ in range(ZZ(n * (n - 1) / 2))])
+    r = range(p)
+    X = product(*[r for _ in range((n * (n - 1) // 2))])
     for x in X:
         y = matrix(ZZ, n, n)
         s = 0

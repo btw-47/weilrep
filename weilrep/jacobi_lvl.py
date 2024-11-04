@@ -866,7 +866,7 @@ class JacobiFormWithLevel:
     rescale = _rescale
 
     def _rescale_q(self, a):
-        return JacobiFormWithLevel(self.weight(), self.level(), self.index_matrix(), self.qexp().V(a), q_scale = a * self.q_scale(), w_scale = self.scale())
+        return JacobiFormWithLevel(self.weight(), self.level(), self.index_matrix(), self.qexp().V(a), q_scale=a * self.q_scale(), w_scale=self.scale())
 
     def scale(self):
         return self.__wscale
@@ -1235,7 +1235,7 @@ class JacobiFormWithLevel:
         S2 = other.index_matrix()
         bigS = block_diagonal_matrix([S1, S2])
         K = self.base_ring().base_ring()
-        rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(bigS.nrows())))
+        rb = LaurentPolynomialRing(K, [f'w_{i}' for i in range(bigS.nrows())])
         r, q = PowerSeriesRing(rb, 'q').objgen()
         g = rb.gens()
         e1 = S1.nrows()
@@ -1287,7 +1287,7 @@ class JacobiFormWithLevel:
             Sz = S * z_tr
             if matrix(v) * Sz:
                 raise ValueError('The development coefficient must be evaluated along vectors orthogonal to the sublattice.')
-            Rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(ell)))
+            Rb = LaurentPolynomialRing(K, [f'w_{i}' for i in range(ell)])
         else:
             Rb = K
             Sz = matrix([])
@@ -1345,8 +1345,8 @@ class JacobiFormWithLevel:
         f = self.qexp()
         S = self.index_matrix()
         e = S.nrows()
-        Rb = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(e)))
-        Rb_new = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(new_e)))
+        Rb = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(e)])
+        Rb_new = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(new_e)])
         R, q = PowerSeriesRing(Rb_new, 'q').objgen()
         q_scale = self.q_scale()
         val = f.valuation()
