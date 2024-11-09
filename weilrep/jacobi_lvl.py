@@ -18,6 +18,8 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
+from collections import defaultdict
+
 from re import sub
 
 from sage.arith.functions import lcm
@@ -908,6 +910,23 @@ class JacobiFormWithLevel:
 
     # coefficients
 
+    def dict(self):
+        d = {}
+        qs = self.__qscale
+        ws = self.__wscale
+        f = self.fourier_expansion()
+        if self.nvars() > 1:
+            for i, x in enumerate(f):
+                j = Integer(i) / qs
+                for y, c in x.dict().items():
+                    y = [j] + list(vector(QQ, y) / ws)
+                    d[tuple(y)] = c
+        elif self.nvars():
+            for i, x in enumerate(f):
+                for j, c in x.dict().items():
+                    d[tuple([Integer(i)/qs, Integer(j)/ws])] = c
+        return d
+
     def q_coefficients(self):
         r"""
         Return self's Fourier coefficients with respect to the variable 'q'.
@@ -1509,11 +1528,8 @@ def _jf_relations_lvl(X):
     Xref = X[0]
     if not all(x.weight() == Xref.weight() and x.index() == Xref.index() for x in X[1:]):
         raise ValueError('Incompatible Jacobi forms')
-    Nq = lcm(x.q_scale() for x in X)
-    Nw = lcm(x.scale() for x in X)
-    X = [x._rescale_q(Nq / x.q_scale()).rescale(Nw / x.scale()) for x in X]
-    X = [x._theta_decomposition() for x in X]
-    val = min(x.valuation() for x in X)
     prec = min(x.precision() for x in X)
-    M = matrix([x.coefficient_vector(starting_from=val, ending_with=prec) for x in X])
+    D = [defaultdict(lambda:0, x.dict()) for x in X]
+    D_keys = D[0].keys()
+    M = matrix([d[x] for x in D_keys] for d in D)
     return M.kernel()

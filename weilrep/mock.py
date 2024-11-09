@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2022 Brandon Williams
+#       Copyright (C) 2020-2024 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,6 +40,7 @@ from sage.rings.rational_field import QQ
 from sage.symbolic.constants import pi
 
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
+
 
 
 class WeilRepQuasiModularForm(WeilRepModularForm):
@@ -230,6 +231,60 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
             Nhalf = floor(N / 2)
             return (self ** Nhalf) * (self ** (N - Nhalf))
         raise ValueError('Invalid exponent')
+
+    def __and__(self, other, w=None):
+        from .weilrep import WeilRep
+        k = self.weight() + other.weight()
+        if w is None:
+            w = self.weilrep()
+            minus_w = other.weilrep()
+            S1 = w.gram_matrix()
+            S2 = minus_w.gram_matrix()
+            N1 = S1.nrows()
+            N2 = S2.nrows()
+            N = N1 - N2
+            if N < 0 or S1[N:, N:] != -S2 or any(S1[:N, N:]):
+                raise NotImplementedError('The & operator (i.e. the bilinear pairing <-, ->) only accepts two modular forms whose Weil representations are dual to one another and returns the q-expansion of a scalar modular form.')
+            w = WeilRep(S1[:N, :N])
+        t1 = self._terms()
+        t2 = other._terms()
+        r = self.depth()
+        s = other.depth()
+        rs = r + s
+        j = k - rs - rs
+        p = self.precision()
+        X = [w.zero(i + i + j, p) for i in range(rs + 1)]
+        for i in range(r + 1):
+            for j in range(s + 1):
+                X[i + j] += t1[i] & t2[j]
+        return WeilRepQuasiModularForm(k, w.gram_matrix(), X, weilrep=w)
+
+    def __rand__(self, other, w=None):
+        from .weilrep import WeilRep
+        k = self.weight() + other.weight()
+        if w is None:
+            w = other.weilrep()
+            minus_w = self.weilrep()
+            S1 = w.gram_matrix()
+            S2 = minus_w.gram_matrix()
+            N1 = S1.nrows()
+            N2 = S2.nrows()
+            N = N1 - N2
+            if N < 0 or S1[N:, N:] != -S2 or any(S1[:N, N:]):
+                raise NotImplementedError('The & operator (i.e. the bilinear pairing <-, ->) only accepts two modular forms whose Weil representations are dual to one another and returns the q-expansion of a scalar modular form.')
+            w = WeilRep(S1[:N, :N])
+        t1 = self._terms()
+        t2 = other._terms()
+        r = self.depth()
+        s = other.depth()
+        rs = r + s
+        j = k - rs - rs
+        p = self.precision()
+        X = [w.zero(i + i + j, p) for i in range(rs + 1)]
+        for i in range(r + 1):
+            for j in range(s + 1):
+                X[i + j] += t1[i] & t2[j]
+        return WeilRepQuasiModularForm(k, w.gram_matrix(), X, weilrep=w)
 
     ## other ##
 
@@ -545,6 +600,12 @@ class WeilRepAlmostHolomorphicModularForm:
     def derivative(self):
         return NotImplemented
 
+    def __and__(self, other):
+        return self[0].__and__(other).completion()
+
+    def __rand__(self, other):
+        return self[0].__rand__(other).completion()
+
     def character(self):
         return self.__character
 
@@ -561,6 +622,9 @@ class WeilRepAlmostHolomorphicModularForm:
             return a
         except AttributeError as e:
             raise e
+
+    def _terms(self):
+        return self[0]._terms()
 
     def is_holomorphic(self):
         return False

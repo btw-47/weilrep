@@ -974,7 +974,7 @@ class WeilRepModularForm:
                 j = dsdict[tuple(g)]
                 g1, o1, y = f1[j]
                 h += x*y / q**(-Integer(o+o1))
-            return h
+            return smf(self.weight() + other.weight(), h)
         raise NotImplementedError
 
     def __eq__(self,other):

@@ -433,7 +433,10 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
             if isinstance(h.parent(), LaurentSeriesRing):
                 u = ZZ(max(0, self.valuation()))
                 h = h.valuation_zero_part()
-            m = ZZ(max(max(x.degree(), -x.valuation()) - i for i, x in enumerate(h.list())))
+            try:
+                m = ZZ(max(max(x.degree(), -x.valuation()) - i for i, x in enumerate(h.list())))
+            except ValueError:
+                m = 0
             if m:
                 h = h.shift(m)
                 qsval -= m / 2
