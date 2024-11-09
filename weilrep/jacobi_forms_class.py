@@ -1273,6 +1273,28 @@ class JacobiForm:
             return JacobiFormWithCharacter(k + N, j.index_matrix(), f, jacobiforms=j, character=self.character(), qshift=qshift, w_scale=wscale)
         return JacobiForm(k + N, j.index_matrix(), f, jacobiforms=j, w_scale=wscale)
 
+    def dict(self):
+        r"""
+        Return a dictionary of self's known Fourier coefficients.
+        """
+        d = {}
+        qs = self._qshift()
+        ws = self.scale()
+        f = self.fourier_expansion()
+        if self.nvars() > 1:
+            for i, x in enumerate(f):
+                j = Integer(i) + qs
+                for y, c in x.dict().items():
+                    y = [j] + list(vector(QQ, y) / ws)
+                    d[tuple(y)] = c
+        elif self.nvars():
+            for i, x in enumerate(f):
+                for j, c in x.dict().items():
+                    d[tuple([Integer(i) + qs, Integer(j)/ws])] = c
+        else:
+            d = {Integer(i) + qs: c for i, c in enumerate(f)}
+        return d
+
     def fourier_expansion(self):
         r"""
         Return self's Fourier expansion.
@@ -1481,7 +1503,7 @@ class JacobiForm:
 
     def _rescale_q(self, a):
         from .jacobi_lvl import JacobiFormWithLevel
-        return JacobiFormWithLevel(self.weight(), 1, self.index_matrix(), self.qexp().V(a), q_scale=a, w_scale=self.scale())
+        return JacobiFormWithLevel(self.weight(), 1, self.index_matrix(), self.qexp().V(a), q_scale = a, w_scale = self.scale())
 
     def scale(self):
         return self.__wscale
@@ -2702,9 +2724,9 @@ def _jf_relations(X):
     This should no longer be called directly. Use weilrep_misc.relations instead.
     """
     from .jacobi_lvl import JacobiFormWithLevel, _jf_relations_lvl
-    if any(isinstance(x, JacobiFormWithLevel) for x in X):
-        return _jf_relations_lvl(X)
     Xref = X[0]
+    if any(isinstance(x, JacobiFormWithLevel) for x in X) or Xref.nvars() < 2:
+        return _jf_relations_lvl(X)
     N = Xref.nvars()
     if Xref.scale() == 2:
         return _jf_relations([x.hecke_U(2) for x in X])

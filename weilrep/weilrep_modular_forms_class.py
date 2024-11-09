@@ -1028,10 +1028,12 @@ class WeilRepModularForm:
 
         """
         from .jacobi_forms_class import JacobiForm
+        from .jacobi_lvl import JacobiFormWithLevel
         from .mock import WeilRepAlmostHolomorphicModularForm, WeilRepQuasiModularForm
         if isinstance(other, (WeilRepQuasiModularForm,
                               WeilRepAlmostHolomorphicModularForm,
-                              JacobiForm)):
+                              JacobiForm,
+                              JacobiFormWithLevel)):
             return other.__rmul__(self)
         elif isinstance(other, WeilRepModularFormWithCharacter) and not isinstance(self, WeilRepModularFormWithCharacter):
             return other.__rmul__(self)

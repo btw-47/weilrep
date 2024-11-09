@@ -925,6 +925,8 @@ class JacobiFormWithLevel:
             for i, x in enumerate(f):
                 for j, c in x.dict().items():
                     d[tuple([Integer(i)/qs, Integer(j)/ws])] = c
+        else:
+            d = {Integer(i) / qs: c for i, c in enumerate(f)}
         return d
 
     def q_coefficients(self):
@@ -1529,7 +1531,10 @@ def _jf_relations_lvl(X):
     if not all(x.weight() == Xref.weight() and x.index() == Xref.index() for x in X[1:]):
         raise ValueError('Incompatible Jacobi forms')
     prec = min(x.precision() for x in X)
+    X = [x.reduce_precision(prec) for x in X]
     D = [defaultdict(lambda:0, x.dict()) for x in X]
-    D_keys = D[0].keys()
+    D_keys = set(D[0].keys())
+    for x in D[1:]:
+        D_keys = D_keys.union(set(x.keys()))
     M = matrix([d[x] for x in D_keys] for d in D)
     return M.kernel()
