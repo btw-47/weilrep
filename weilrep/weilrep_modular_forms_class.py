@@ -1316,25 +1316,6 @@ class WeilRepModularForm:
         f = WeilRepQuasiModularForm(k + 2, S, [-k * self, d(self)], weilrep=self.weilrep())
         return f
 
-    def eigenvalue(self, N):
-        r"""
-        Compute self's Hecke eigenvalue with respect to the operator T_N.
-
-        This will return a ValueError if self is not an eigenvector of T_N.
-
-        NOTE: In some conventions T_N is known as T_{N^2}.
-        """
-        from .weilrep_misc import relations
-        V = relations(self.hecke_T(N), self).basis_matrix()
-        if V.nrows():
-            if V.nrows() > 1:
-                raise ValueError
-            a, b = V.rows()[0]
-            if b:
-                return -b/a
-            raise ValueError('Insufficient precision')
-        raise ValueError('This is not an eigenform')
-
     def hecke_P(self, N):
         r"""
         Apply the Nth Hecke projection map.
@@ -1745,16 +1726,37 @@ class WeilRepModularForm:
 
     def eigenvalue(self, p):
         r"""
+        Compute self's Hecke eigenvalue with respect to the operator T_p.
+
+        This will return a ValueError if self is not an eigenvector of T_p.
+
+        NOTE: In some conventions T_p is known as T_{p^2}.
+        """
+        from .weilrep_misc import relations
+        V = relations(self.hecke_T(p), self).basis_matrix()
+        if V.nrows():
+            if V.nrows() > 1:
+                raise ValueError
+            a, b = V.rows()[0]
+            if b:
+                return -b / a
+            raise ValueError('Insufficient precision')
+        raise ValueError('This is not an eigenform')
+
+    def eigenvalue(self, p):
+        r"""
         Compute self's eigenvalue at a prime p.
+
+        DUPLICATE OF PREVIOUS METHOD, MERGE !
         """
         from .weilrep_misc import relations
         V = relations(self.hecke_T(p), self).basis_matrix()
         if not V.nrows():
-            raise ValueError('This form is not an eigenvalue of T_{%s}' % p)
+            raise ValueError(f'This form is not an eigenform of T_{p}')
         elif V.nrows() != 1:
             raise ValueError('Insufficient precision')
-        v, = V.rows()
-        return -(v[1] / v[0])
+        (a, b), = V.rows()
+        return -b / a
 
     def euler_factor(self, p):
         m = self.weilrep().level()
@@ -2170,7 +2172,7 @@ class WeilRepModularForm:
             [(1/8), O(q^(81/16))]
         """
         S = self.gram_matrix()
-        if not (b * S * b / 2) in ZZ:
+        if (b * S * b / 2) not in ZZ:
             raise ValueError('Nonzero norm vector in method .symmetrized()')
         d_b = denominator(b)
         if d_b == 1:

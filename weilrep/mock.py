@@ -42,7 +42,6 @@ from sage.symbolic.constants import pi
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
 
 
-
 class WeilRepQuasiModularForm(WeilRepModularForm):
     r"""
     Class for quasimodular forms.

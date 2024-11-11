@@ -4292,8 +4292,7 @@ class WeilRep:
         try:
             _, N = self._flag()
             sturm_bound *= N
-            if sturm_bound < 0:
-                sturm_bound = 0
+            sturm_bound = max(sturm_bound, 0)
         except (AttributeError, TypeError):
             pass
         prec = max(prec, sturm_bound)

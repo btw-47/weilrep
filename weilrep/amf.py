@@ -517,7 +517,7 @@ class AlgebraicModularForms:
         - ``X`` -- an integer, OR a list of AlgebraicModularForm instances
         - ``spin`` -- an integer dividing self's determinant
         - ``det`` -- either 1 or -1
-        - ``dimension_bound" -- a natural number (only eigenforms over fields of degree at most this will be found) default None
+        - ``dimension_bound`` -- a natural number (only eigenforms over fields of degree at most this will be found) default ``None``
 
         EXAMPLES::
 

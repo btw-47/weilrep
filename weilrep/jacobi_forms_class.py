@@ -1503,7 +1503,7 @@ class JacobiForm:
 
     def _rescale_q(self, a):
         from .jacobi_lvl import JacobiFormWithLevel
-        return JacobiFormWithLevel(self.weight(), 1, self.index_matrix(), self.qexp().V(a), q_scale = a, w_scale = self.scale())
+        return JacobiFormWithLevel(self.weight(), 1, self.index_matrix(), self.qexp().V(a), q_scale=a, w_scale=self.scale())
 
     def scale(self):
         return self.__wscale

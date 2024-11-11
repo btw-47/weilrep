@@ -124,6 +124,7 @@ class ParamodularForms(OrthogonalModularFormsPositiveDefinite):
 class ParamodularForm(OrthogonalModularFormPositiveDefinite):
 
     def level(self):
+        # should this use // 2 instead ?
         return Integer(self.gram_matrix()[0, 0] / 2)
 
     def __getitem__(self, a):
@@ -282,9 +283,6 @@ class ParamodularForm(OrthogonalModularFormPositiveDefinite):
                             break
         h = h.add_bigoh(bound)
         return OrthogonalModularForm(k, self.weilrep(), h, 1, vector([0] * 3), qexp_representation='siegel')
-
-    def level(self):
-        return self.gram_matrix()[0, 0] / 2
 
     def level_raising_operator_1(self, m):
         r"""
