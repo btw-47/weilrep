@@ -259,7 +259,6 @@ def local_normal_form_with_change_vars(S, p):
         [-1  2]
         )
     """
-    #
     Q = QuadraticForm(S)
     I = list(range(Q.dim()))
     M = identity_matrix(QQ, Q.dim())
