@@ -1734,28 +1734,13 @@ class WeilRepModularForm:
         """
         from .weilrep_misc import relations
         V = relations(self.hecke_T(p), self).basis_matrix()
-        if V.nrows():
-            if V.nrows() > 1:
-                raise ValueError
-            a, b = V.rows()[0]
-            if b:
-                return -b / a
-            raise ValueError('Insufficient precision')
-        raise ValueError('This is not an eigenform')
-
-    def eigenvalue(self, p):
-        r"""
-        Compute self's eigenvalue at a prime p.
-
-        DUPLICATE OF PREVIOUS METHOD, MERGE !
-        """
-        from .weilrep_misc import relations
-        V = relations(self.hecke_T(p), self).basis_matrix()
         if not V.nrows():
             raise ValueError(f'This form is not an eigenform of T_{p}')
         elif V.nrows() != 1:
             raise ValueError('Insufficient precision')
         (a, b), = V.rows()
+        if not a:
+            raise ValueError('Insufficient precision')
         return -b / a
 
     def euler_factor(self, p):
