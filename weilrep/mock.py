@@ -536,9 +536,6 @@ class WeilRepAlmostHolomorphicModularForm:
     def valuation(self):
         return self[0].valuation()
 
-    def coefficient_vector(self):
-        return self[0].coefficient_vector()
-
     def coefficient_vector(self, *args, **kwargs):
         kwargs['completion'] = False
         return vector([y for x in self for y in x.coefficient_vector(*args, **kwargs)])
