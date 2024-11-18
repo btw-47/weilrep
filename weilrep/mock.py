@@ -21,23 +21,19 @@ AUTHORS:
 import cmath
 import math
 
-from itertools import chain
 from re import sub
-from scipy.special import gamma, hyperu
+from scipy.special import hyperu
 
-from sage.functions.generalized import sgn
-from sage.functions.other import ceil, factorial, floor, sqrt
+from sage.functions.other import factorial, floor
 from sage.misc.cachefunc import cached_method
-from sage.misc.latex import latex
 from sage.modules.free_module_element import vector
 from sage.plot.complex_plot import complex_plot
 from sage.rings.all import CC
 from sage.rings.big_oh import O
-from sage.rings.infinity import Infinity, SignError
+from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 from sage.rings.rational_field import QQ
-from sage.symbolic.constants import pi
 
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis, WeilRepModularFormWithCharacter
 
@@ -79,7 +75,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         else:
             self.__class__ = WeilRepModularForm
 
-    ## arithmetic ##
+    # ## arithmetic ##
 
     def __add__(self, other):
         r"""
@@ -166,6 +162,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         (Tensor) Product of quasimodular forms, reversed
 
         EXAMPLES::
+
             sage: from weilrep import *
             sage: f = WeilRep([[-2]]).theta_series(10)
             sage: fd = f.derivative()
@@ -285,7 +282,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
                 X[i + j] += t1[i] & t2[j]
         return WeilRepQuasiModularForm(k, w.gram_matrix(), X, weilrep=w)
 
-    ## other ##
+    # ## other ##
 
     def _terms(self):
         r"""
@@ -325,6 +322,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         Return self's completion to an almost-holomorphic modular form.
 
         EXAMPLES::
+
             sage: from weilrep import WeilRep
             sage: w = WeilRep([])
             sage: e2 = w.eisenstein_series(2, 5)
@@ -376,6 +374,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         Compute self's derivative. This is a quasimodular form whose depth is (usually) one greater than self.
 
         EXAMPLES::
+
             sage: from weilrep import WeilRep
             sage: w = WeilRep([])
             sage: e2 = w.eisenstein_series(2, 5)
@@ -462,6 +461,7 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         Apply the "shift operator" on quasimodular forms. This is a quasimodular form whose depth is one less than self.
 
         EXAMPLES::
+
             sage: from weilrep import WeilRep
             sage: w = WeilRep([])
             sage: e2 = w.eisenstein_series(2, 5)
@@ -536,8 +536,9 @@ class WeilRepAlmostHolomorphicModularForm:
     def valuation(self):
         return self[0].valuation()
 
-    def coefficient_vector(self):
-        return self[0].coefficient_vector()
+    def coefficient_vector(self, *args, **kwargs):
+        kwargs['completion'] = False
+        return vector([y for x in self for y in x.coefficient_vector(*args, **kwargs)])
 
     def completion(self):
         return self
@@ -607,10 +608,6 @@ class WeilRepAlmostHolomorphicModularForm:
 
     def character(self):
         return self.__character
-
-    def coefficient_vector(self, *args, **kwargs):
-        kwargs['completion'] = False
-        return vector([y for x in self for y in x.coefficient_vector(*args, **kwargs)])
 
     def __getattr__(self, x):
         try:
