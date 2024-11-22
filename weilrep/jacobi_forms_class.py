@@ -1024,7 +1024,7 @@ class JacobiForm:
             s = str(self.fourier_expansion())
             if not self._base_ring_is_laurent_polynomial_ring():  # represent 'w'-terms as Laurent polynomials if possible
                 n = self.nvars()
-                r = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(n)))
+                r = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(n)])
 
                 def m(obj):
                     obj_s = obj.string[slice(*obj.span())]
@@ -1225,7 +1225,7 @@ class JacobiForm:
             Sz = S * z_tr
             if matrix(v) * Sz:
                 raise ValueError('The development coefficient must be evaluated along vectors orthogonal to the sublattice.')
-            Rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(ell)))
+            Rb = LaurentPolynomialRing(K, [f'w_{i}' for i in range(ell)])
         else:
             Rb = K
             Sz = matrix([])
@@ -1290,7 +1290,7 @@ class JacobiForm:
         elif self.nvars():
             for i, x in enumerate(f):
                 for j, c in x.dict().items():
-                    d[tuple([Integer(i) + qs, Integer(j)/ws])] = c
+                    d[(Integer(i) + qs, Integer(j)/ws)] = c
         else:
             d = {Integer(i) + qs: c for i, c in enumerate(f)}
         return d
@@ -1934,7 +1934,7 @@ class JacobiForm:
         S2 = other.index_matrix()
         bigS = block_diagonal_matrix([S1, S2])
         K = self.base_ring().base_ring()
-        rb = LaurentPolynomialRing(K, list('w_%d' % i for i in range(bigS.nrows())))
+        rb = LaurentPolynomialRing(K, [f'w_{i}' for i in range(bigS.nrows())])
         r, q = PowerSeriesRing(rb, 'q').objgen()
         g = rb.gens()
         e1 = S1.nrows()
@@ -2217,7 +2217,7 @@ class JacobiForm:
         S = self.index_matrix()
         e = S.nrows()
         Rb = self.base_ring()
-        Rb_new = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(new_e)))
+        Rb_new = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(new_e)])
         if self._base_ring_is_laurent_polynomial_ring():
             R, q = PowerSeriesRing(Rb_new, 'q').objgen()
         else:
@@ -2268,9 +2268,9 @@ class JacobiForm:
         f = self.fourier_expansion()
         S = self.index_matrix()
         e = S.nrows()
-        Rb = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(e)))
+        Rb = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(e)])
         try:
-            Rb_new = LaurentPolynomialRing(QQ, list('w_%d' % i for i in range(e - len(indices))))
+            Rb_new = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(e - len(indices))])
         except ValueError:
             Rb_new = QQ
         R_new, q = PowerSeriesRing(Rb_new, 'q').objgen()

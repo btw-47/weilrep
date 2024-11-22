@@ -924,7 +924,7 @@ class JacobiFormWithLevel:
         elif self.nvars():
             for i, x in enumerate(f):
                 for j, c in x.dict().items():
-                    d[tuple([Integer(i)/qs, Integer(j)/ws])] = c
+                    d[(Integer(i)/qs, Integer(j)/ws)] = c
         else:
             d = {Integer(i) / qs: c for i, c in enumerate(f)}
         return d
