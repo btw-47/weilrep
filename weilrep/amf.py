@@ -1307,7 +1307,7 @@ def antisymmetric_matrices_mod(n, p):
         ]
     """
     r = range(p)
-    X = product(*[r for _ in range((n * (n - 1) // 2))])
+    X = product(*[r for _ in range((n * (n - 1)) // 2)])
     for x in X:
         y = matrix(ZZ, n, n)
         s = 0
