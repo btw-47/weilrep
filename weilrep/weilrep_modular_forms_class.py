@@ -1360,6 +1360,7 @@ class WeilRepModularForm:
             except KeyError:
                 pass
         return WeilRepModularForm(self.weight(), S_new, X, w_new) * multiplier
+    hecke_U_adj = hecke_P
 
     def _hecke_at_bad_prime(self, p):
         r"""
@@ -1435,6 +1436,18 @@ class WeilRepModularForm:
             X[j][2] += p**Integer(k + k - 2) * h2
         return WeilRepModularForm(k, S, X, w)
 
+    def _hecke_at_bad_prime_power(self, p, ell):
+        r"""
+        Apply the p^{\ell}-th Hecke operator, where p may divide the discriminant.
+        """
+        fv = [self]
+        p_pow = [1]
+        pk = p ** ZZ(self.weight() + self.gram_matrix().nrows() / 2 - 2)
+        for j in range(ell):
+            fv.append(self.hecke_V(p ** (2 * j + 2)))
+            p_pow.append(-p_pow[-1] * pk)
+        return sum(p_pow[ell - i] * fv[i].hecke_P(p ** i) for i in range(ell + 1))
+
     def hecke_T(self, N):
         r"""
         Apply the Nth Hecke operator where N is coprime to the level.
@@ -1463,10 +1476,16 @@ class WeilRepModularForm:
         w = self.weilrep()
         l = w.level()
         S = self.gram_matrix()
-        if GCD(l, N) != 1:
+        a = GCD(l, N)
+        if a != 1:
             if is_prime(N):
                 return self._hecke_at_bad_prime(N)
-            raise ValueError('hecke_T() only takes indices coprime to the level of the discriminant form.')
+            factor_a = a.factor()
+            m = N // a
+            f = self.hecke_T(m)
+            for p, e in factor_a:
+                f = f._hecke_at_bad_prime_power(p, e)
+            return f
         nrows = S.nrows()
         N_sqr = N * N
         eps = nrows - w.signature()
@@ -1663,7 +1682,7 @@ class WeilRepModularForm:
                         offset = X[i][1]
                         prec_0 = X[i][2].prec()
                         n = big_offset + val * ceil(a / d)
-                        while n < (prec_0 + offset) * (a / d):
+                        while n < min((prec_0 + offset) * (a / d), Y[j][2].prec()):
                             if (n + r_val) % a == 0:
                                 Y[j][2] += X[i][2][Integer(d * n / a - offset)] * q ** (ceil(n)) * a_pow
                             n += 1
@@ -1732,7 +1751,7 @@ class WeilRepModularForm:
 
         This will return a ValueError if self is not an eigenvector of T_p.
 
-        NOTE: In some conventions T_p is known as T_{p^2}.
+        NOTE: In some conventions T_p is known as T_{p^2}. p doesn't have to be a prime.
         """
         from .weilrep_misc import relations
         V = relations(self.hecke_T(p), self).basis_matrix()

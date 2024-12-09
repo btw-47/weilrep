@@ -1050,8 +1050,6 @@ class JacobiForm:
                 s = sub(r'((?<!q)\^-?\d+)|w\_\d+(?!\^)', m, s)
             if self.nvars() == 1:
                 s = s.replace('w_0', 'w')
-            s = s.replace('((', '(')
-            s = s.replace('))', ')')
             self.__string = s
             return s
 
@@ -2088,7 +2086,8 @@ class JacobiForm:
 
     def hecke_P(self, N):
         # fix this!!
-        return self.theta_decomposition().hecke_P().jacobi_form()
+        return self.theta_decomposition().hecke_P(N).jacobi_form()
+    hecke_U_adj = hecke_P
 
     def hecke_T(self, N):
         # fix this!!

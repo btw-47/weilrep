@@ -429,7 +429,10 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
         r"""
         Apply the Maass lowering operator to self's completion and take the first term.
         """
-        return self.completion().lowering_operator()[0]
+        f = self.completion().lowering_operator()
+        if f.is_modular():
+            return f
+        return f[0]
 
     def raising_operator(self):
         r"""
