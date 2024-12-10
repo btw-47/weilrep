@@ -1513,7 +1513,8 @@ class WeilRep:
                                     else:
                                         D *= (p ** (e % 2))
                                 little_D = abs(fundamental_discriminant(D))
-                                sqrt_factor = sqrt(2 * n * dets / little_D)
+                                a = 2 * n * dets / little_D
+                                sqrt_factor = isqrt(a.numerator()) / isqrt(a.denominator())
                                 correct_L_function = quadratic_L_function__corrector(k_shift, D) * quadratic_L_function__cached(1 - k_shift, D)
                                 D_list.append(D)
                                 main_term_list.append(correct_L_function * ((4 * n / little_D) ** k_shift) / sqrt_factor)
@@ -3466,7 +3467,7 @@ class WeilRep:
                     rank = 0
             if symm and k >= sage_nine_half:
                 discr = self.discriminant()
-                if dim >= discr / 2:    #don't do this otherwise because it's slow
+                if dim >= discr / 2 and k in ZZ:    #don't do this otherwise because it's slow
                     E, Y = self._eisenstein_packet(k, prec, dim=dim+1)
                 else:
                     E = None
@@ -3485,7 +3486,8 @@ class WeilRep:
             if symm and not E:
                 b0 = G[0]
                 m0 = 1 + _norm_dict[b0]
-                if m0 < 1/2:
+                #if m0 < 1/2 or k not in ZZ:
+                if k not in ZZ or (m0 < 1/2 and prec < 20):
                     E = self.pss(k, vector(b0), m0, prec)
                 else:
                     E = self.eisenstein_series(k, prec)
@@ -3501,7 +3503,7 @@ class WeilRep:
 
             def t_packet_1(X, k, m, b, max_dim, prec, verbose=False): #symmetric
                 w_new = self._embiggen(b, m)
-                if max_dim > 3 and k in ZZ:
+                if max_dim > 3 or k in ZZ:
                     z = w_new.cusp_forms_basis(k - sage_one_half, prec, echelonize=False, verbose=verbose, dim=max_dim).theta(weilrep=self)
                     if z and verbose:
                         print('-'*80)
@@ -3510,7 +3512,7 @@ class WeilRep:
                     if funct:
                         z = WeilRepModularFormsBasis(z.weight(), [funct(x) for x in z], self)
                     X.extend(z)
-                if k > sage_nine_half:
+                if k > sage_nine_half and (k not in ZZ or prec < 20):
                     _, x = w_new._eisenstein_packet(k - sage_one_half, prec, dim=dim_rank)
                     z = x.theta(weilrep=self)
                     if funct:
@@ -3518,7 +3520,8 @@ class WeilRep:
                     X.extend(z)
                     if x and verbose:
                         print('I computed a packet of %d cusp forms using the index %s.' % (len(x), (b, m)))
-                X.append(E - self.pss(k, b, m, prec, weilrep=w_new))
+                if k not in ZZ or prec < 20:
+                    X.append(E - self.pss(k, b, m, prec, weilrep=w_new))
                 if verbose:
                     print('I computed a Poincare square series of index %s and weight %s.' % ([b, m], k))
                 if m <= 1:
@@ -3588,7 +3591,7 @@ class WeilRep:
                                 rank = len(X)
                                 dim_rank = dim - rank
                             if symm:
-                                if dim_rank > 2:
+                                if dim_rank > 2 or (k in ZZ and prec > 20):
                                     X, rank = t_packet_1(X, k, m, b, dim_rank, prec, verbose=verbose)
                                 elif dim_rank:
                                     X.append(E - self.pss(k, b, m, prec))
@@ -4291,8 +4294,7 @@ class WeilRep:
         sturm_bound = k/12
         try:
             _, N = self._flag()
-            sturm_bound *= N
-            sturm_bound = max(sturm_bound, 0)
+            sturm_bound = max(N * sturm_bound, 0)
         except (AttributeError, TypeError):
             pass
         prec = max(prec, sturm_bound)
