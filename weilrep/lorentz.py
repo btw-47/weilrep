@@ -434,6 +434,8 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             if isinstance(h.parent(), LaurentSeriesRing):
                 v = ZZ(max(h.valuation(), 0))
                 h = h.valuation_zero_part()
+            else:
+                qsval = 0
             m = ZZ(max(max(x.degree(), -x.valuation()) - i for i, x in enumerate(h.list())))
             if m:
                 h = h.shift(m)

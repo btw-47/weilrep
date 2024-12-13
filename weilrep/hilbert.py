@@ -208,14 +208,17 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
 
     def fundamental_unit(self):
         r"""
-        Return the fundamental unit in self's base field.
+        Return the totally positive fundamental unit in self's base field.
         """
         try:
             return self.__unit
         except AttributeError:
             K = self.base_field()
-            self.__unit = K(K.unit_group().gens()[1])
-            return self.__unit
+            a = K(K.unit_group().gens()[1])
+            if a.norm() < 1:
+                a = a * a
+            self.__unit = a
+            return a
 
     def hecke_operator(self, p):
         return HilbertHeckeOperator(self, p)
@@ -586,6 +589,10 @@ class HilbertHeckeOperator:
     def __init__(self, hmf, p):
         self.__hmf = hmf
         self.__index = p
+        K = hmf.base_field()
+        p = K(p)
+        if p.norm() < 0 or not p.is_prime():
+            raise NotImplementedError('Hecke operators are only implemented for totally positive prime index')
 
     def __repr__(self):
         return 'Hecke operator of index %s acting on Hilbert modular forms over %s' % (self.__index, self.__hmf.base_field())
@@ -626,23 +633,33 @@ class HilbertHeckeOperator:
         t, = g.parent().gens()
         x, = g.base_ring().gens()
         sqrtD = self.hmf()._sqrtd()
+        D = K.discriminant()
         sqrtd_n = math.sqrt(K.discriminant())
         h = g.parent()(0)
         for i, u in enumerate(g.list()):
             i = ZZ(i)
             for n in range(ceil(-i * sqrtd_n), floor(i * sqrtd_n) + 1):
-                if n % 2 == i % 2:
+                if (D % 2 and (n % 2 == i % 2)) or not (D % 2 or n % 2):
                     N = (i + n/sqrtD)/(d + d)
                     try:
                         c = f.__getitem__(p * N)
+                        #if (p*N).trace() > len(g.list()):
+                        #    raise IndexError from None
                         if N * sqrtD / p in O:
                             c += f.__getitem__(N / p) * norm**(k - 1)
-                        h += c * t**i * x**n
+                        if D % 2:
+                            h += c * t**i * x**n
+                        else:
+                            h += c * t**i * x**(n // 2)
                     except IndexError:
                         return OrthogonalModularForm(k, f.weilrep(),
                                                      h.add_bigoh(i - 1),
                                                      d, f.weyl_vector(),
                                                      qexp_representation=f.qexp_representation())
+        return OrthogonalModularForm(k, f.weilrep(),
+                                     h.add_bigoh(g.prec()),
+                                     d, f.weyl_vector(),
+                                     qexp_representation=f.qexp_representation())
 
     def matrix(self, X):
         L = []

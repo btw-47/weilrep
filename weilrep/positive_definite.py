@@ -1264,7 +1264,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
             c = coeff[tuple([j] + [0]*nrows)]
             rho_z += c * (j * (j - 1) + Integer(1) / 6) / 4
         e2 = eisenstein_series_qexp(2, 1 - val)
-        rho_z_prime = -((X & theta_K) * e2)[0]
+        rho_z_prime = -((X & theta_K) * e2).qexp()[0]
         return vector([N*rho_z] + list(rho/2) + [rho_z_prime])
 
     def borcherds_lift(self, prec=None, verbose=False):
