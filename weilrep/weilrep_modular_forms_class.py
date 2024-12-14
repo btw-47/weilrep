@@ -1952,7 +1952,7 @@ class WeilRepModularForm:
             z = matrix(QQ, v)
         z *= S
         k = z.transpose().integer_kernel()
-        if 'print_basis' in kwargs.keys():
+        if 'print_basis' in kwargs:
             s = kwargs.pop('print_basis')
             if s:
                 print('pullback to basis:', list(k.basis()))

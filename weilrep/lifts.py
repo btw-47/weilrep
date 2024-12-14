@@ -803,7 +803,7 @@ class OrthogonalModularForm:
 
         def p(*args, **kwargs):
             return self.pullback(*args, **kwargs) + other.pullback(*args, **kwargs)
-        if not self_scale == other_scale:
+        if self_scale != other_scale:
             new_scale = lcm(self_scale, other_scale)
             X1 = self.rescale(new_scale // self_scale)
             X2 = other.rescale(new_scale // other_scale)
@@ -820,7 +820,7 @@ class OrthogonalModularForm:
             return self
         if self._base_ring_is_laurent_polynomial_ring() + other._base_ring_is_laurent_polynomial_ring() == 1:
             return self._laurent_to_fraction() - other._laurent_to_fraction()
-        if not self.gram_matrix() == other.gram_matrix():
+        if self.gram_matrix() != other.gram_matrix():
             raise ValueError('Incompatible Gram matrices')
         if not self.weight() == other.weight():
             raise ValueError('Incompatible weights')
@@ -834,7 +834,7 @@ class OrthogonalModularForm:
 
         def p(*args, **kwargs):
             return self.pullback(*args, **kwargs) - other.pullback(*args, **kwargs)
-        if not self_scale == other_scale:
+        if self_scale != other_scale:
             new_scale = lcm(self_scale, other_scale)
             X1 = self.rescale(new_scale // self_scale)
             X2 = other.rescale(new_scale // other_scale)

@@ -1387,7 +1387,7 @@ class WeilRepModularFormLorentzian(WeilRepModularForm):
         if omit_weyl_vector:
             weyl_vector = vector([0] * nrows)
         elif weyl_vector is not None:
-            weyl_vector = weyl_vector
+            pass
         elif extra_plane:
             weyl_vector = X.reduce_lattice(z=vector([1] + [0] * (nrows + 1))).weyl_vector()
         else:
