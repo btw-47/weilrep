@@ -220,9 +220,12 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             nrows -= 2
         except AttributeError:
             N2 = 1
-        rb = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(nrows)])
-        if not self._base_ring_is_laurent_polynomial_ring():
-            rb = FractionField(rb)
+        if nrows:
+            rb = LaurentPolynomialRing(QQ, [f'w_{i}' for i in range(nrows)])
+            if not self._base_ring_is_laurent_polynomial_ring():
+                rb = FractionField(rb)
+        else:
+            rb = QQ
         z = rb.gens()[0]
         r, q = PowerSeriesRing(rb, 'q').objgen()
         k = self.weight()
@@ -248,8 +251,10 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
                     wscale = 2
                 if nrows > 1:
                     u = rb.monomial(*b)
-                else:
+                elif nrows:
                     u = z**(b[0])
+                else:
+                    u = 1
                 L[floor(c)] += (q ** floor(a)) * u * y
             qshift = frac(c)
             self.__fourier_jacobi = [JacobiFormWithLevel(k, N, n * S, j, w_scale=scale, q_scale=d) for n, j in enumerate(L)]

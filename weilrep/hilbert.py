@@ -87,7 +87,7 @@ class HMFCharacter:
         return HMFCharacter(self.base_field, n * self.sl2_val, n * self.t_val)
 
 
-def hmf_inputs(K, level=1):
+def hmf_inputs(K, level=1, minus=False):
     r"""
     Constructs a WeilRep instance whose lifts are Hilbert modular forms.
 
@@ -100,11 +100,14 @@ def hmf_inputs(K, level=1):
     if not (K.is_totally_real() and K.degree() == 2):
         raise ValueError('HMF only accepts real-quadratic number fields.')
     a, b = K.discriminant().quo_rem(2)
-    S = matrix([[-2, b], [b, a]])
+    if minus:
+        S = matrix([[-a, -b], [-b, 2]])
+    else:
+        S = matrix([[-2, b], [b, a]])
     w = WeilRep(S)
     if level > 1:
         w += II(level)
-    w.lift_qexp_representation = 'hilbert', K, level
+    w.lift_qexp_representation = 'hilbert', K, level, minus
     return w
 
 
@@ -125,9 +128,9 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
 
     - ``level`` -- positive integer (default 1); this represents Hilbert modular forms for the subgroup \Gamma_1(N)
     """
-    def __init__(self, K, level=1):
+    def __init__(self, K, level=1, minus=False):
         self.__base_field = K
-        w = hmf_inputs(K, level=level)
+        w = hmf_inputs(K, level=level, minus=minus)
         self._OrthogonalModularForms__weilrep = w
         self._OrthogonalModularForms__gram_matrix = w.gram_matrix()
         d = K.discriminant()
@@ -137,8 +140,11 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         else:
             self.__omega = sqrtd / 2
         self.__sqrtd = sqrtd
+        self.__minus = minus
 
     def __repr__(self):
+        if self._minus():
+            return 'Minus space of Hilbert modular forms over %s' % str(self.__base_field)
         return 'Hilbert modular forms over %s' % str(self.__base_field)
 
     def base_field(self):
@@ -159,7 +165,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = polygen(QQ, 'x')
+            sage: x = var('x')
             sage: K.<sqrt5> = NumberField(x * x - 5)
             sage: chi = DirichletGroup(5)[2]
             sage: HMF(K).doi_naganuma_lift(CuspForms(chi, 6, prec = 20).basis()[0])
@@ -186,16 +192,23 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = polygen(QQ, 'x')
+            sage: x = var('x')
             sage: K.<sqrt5> = NumberField(x^2 - 5)
             sage: HMF(K).eisenstein_series(2, 6)
             1 + 120*q1^(-1/10*sqrt5 + 1/2)*q2^(1/10*sqrt5 + 1/2) + 120*q1^(1/10*sqrt5 + 1/2)*q2^(-1/10*sqrt5 + 1/2) + 120*q1^(-2/5*sqrt5 + 1)*q2^(2/5*sqrt5 + 1) + 600*q1^(-1/5*sqrt5 + 1)*q2^(1/5*sqrt5 + 1) + 720*q1*q2 + 600*q1^(1/5*sqrt5 + 1)*q2^(-1/5*sqrt5 + 1) + 120*q1^(2/5*sqrt5 + 1)*q2^(-2/5*sqrt5 + 1) + 720*q1^(-1/2*sqrt5 + 3/2)*q2^(1/2*sqrt5 + 3/2) + 1200*q1^(-3/10*sqrt5 + 3/2)*q2^(3/10*sqrt5 + 3/2) + 1440*q1^(-1/10*sqrt5 + 3/2)*q2^(1/10*sqrt5 + 3/2) + 1440*q1^(1/10*sqrt5 + 3/2)*q2^(-1/10*sqrt5 + 3/2) + 1200*q1^(3/10*sqrt5 + 3/2)*q2^(-3/10*sqrt5 + 3/2) + 720*q1^(1/2*sqrt5 + 3/2)*q2^(-1/2*sqrt5 + 3/2) + 600*q1^(-4/5*sqrt5 + 2)*q2^(4/5*sqrt5 + 2) + 1440*q1^(-3/5*sqrt5 + 2)*q2^(3/5*sqrt5 + 2) + 2520*q1^(-2/5*sqrt5 + 2)*q2^(2/5*sqrt5 + 2) + 2400*q1^(-1/5*sqrt5 + 2)*q2^(1/5*sqrt5 + 2) + 3600*q1^2*q2^2 + 2400*q1^(1/5*sqrt5 + 2)*q2^(-1/5*sqrt5 + 2) + 2520*q1^(2/5*sqrt5 + 2)*q2^(-2/5*sqrt5 + 2) + 1440*q1^(3/5*sqrt5 + 2)*q2^(-3/5*sqrt5 + 2) + 600*q1^(4/5*sqrt5 + 2)*q2^(-4/5*sqrt5 + 2) + 120*q1^(-11/10*sqrt5 + 5/2)*q2^(11/10*sqrt5 + 5/2) + 1440*q1^(-9/10*sqrt5 + 5/2)*q2^(9/10*sqrt5 + 5/2) + 2400*q1^(-7/10*sqrt5 + 5/2)*q2^(7/10*sqrt5 + 5/2) + 3720*q1^(-1/2*sqrt5 + 5/2)*q2^(1/2*sqrt5 + 5/2) + 3600*q1^(-3/10*sqrt5 + 5/2)*q2^(3/10*sqrt5 + 5/2) + 3840*q1^(-1/10*sqrt5 + 5/2)*q2^(1/10*sqrt5 + 5/2) + 3840*q1^(1/10*sqrt5 + 5/2)*q2^(-1/10*sqrt5 + 5/2) + 3600*q1^(3/10*sqrt5 + 5/2)*q2^(-3/10*sqrt5 + 5/2) + 3720*q1^(1/2*sqrt5 + 5/2)*q2^(-1/2*sqrt5 + 5/2) + 2400*q1^(7/10*sqrt5 + 5/2)*q2^(-7/10*sqrt5 + 5/2) + 1440*q1^(9/10*sqrt5 + 5/2)*q2^(-9/10*sqrt5 + 5/2) + 120*q1^(11/10*sqrt5 + 5/2)*q2^(-11/10*sqrt5 + 5/2) + O(q1, q2)^6
         """
         w = self.weilrep()
+        D = self.base_field().discriminant()
+        if self._minus() and D % 2:
+            prec = ceil(prec * (1 + 1 / math.sqrt(self.base_field().discriminant())))
+        a = prec * prec / 4
         try:
-            return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k, ceil(prec * prec / 4) + 1)).theta_lift(prec)
+            return (-((k + k) / bernoulli(k)) * w.eisenstein_series(k, ceil(a) + 1)).theta_lift(prec)
         except (TypeError, ValueError, ZeroDivisionError):
             raise ValueError('Invalid weight')
+
+    def _minus(self):
+        return self.__minus
 
     def omega(self):
         r"""
@@ -217,6 +230,8 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
             a = K(K.unit_group().gens()[1])
             if a.norm() < 1:
                 a = a * a
+            if a.trace() < 0:
+                a = -a
             self.__unit = a
             return a
 
@@ -296,9 +311,10 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
     r"""
     This class represents Hilbert modular forms for the full modular group in real-quadratic number fields.
     """
-    def __init__(self, base_field, level):
+    def __init__(self, base_field, level, minus):
         self.__base_field = base_field
         self.__level = level
+        self.__minus = minus
 
     def __repr__(self):
         r"""
@@ -308,11 +324,15 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         h = self.true_fourier_expansion()
         hprec = h.prec()
         d = self.scale()
+        u = 1
+        D = K.discriminant()
+        sqrtD = K(D).sqrt()
+        if not D % 4:
+            sqrtD /= 2
+        x = hprec
+        if self._minus() and D % 2:
+            x = floor(hprec / (1 + 1 / math.sqrt(D)))
         if h:
-            D = K.discriminant()
-            sqrtD = K(D).sqrt()
-            if not D % 4:
-                sqrtD /= 2
             s = ''
             sign = False
             _b = False
@@ -324,49 +344,65 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                 if _b:
                     p = X(p)
                 for n in p.exponents():
+                    n = Integer(n)
                     c = p[n]
                     if c:
-                        q2exp = (i - n/sqrtD)/(d + d)
-                        q1exp = i / d - q2exp
-                        coef = True
-                        if sign:
-                            if c > 0 and c != 1:
-                                s += ' + ' + str(c)
-                            elif c + 1 and c != 1:
-                                s += ' - ' + str(-c)
-                            elif c + 1:
-                                s += ' + '
-                                coef = False
-                            elif c - 1:
-                                s += ' - '
-                                coef = False
+                        if self._minus():
+                            if D % 2:
+                                q1exp = (i + n) / (d * (D - 1)) + (i + n / D) * sqrtD / (d * (D - 1))
+                                q2exp = (i + n) / (d * (D - 1)) - (i + n / D) * sqrtD / (d * (D - 1))
+                            else:
+                                q2exp = (n - i/sqrtD)/(d + d)
+                                q1exp = n / d - q2exp
                         else:
-                            if abs(c) != 1 or not q1exp:
-                                s += str(c)
+                            q2exp = (i - n/sqrtD)/(d + d)
+                            q1exp = i / d - q2exp
+                        coef = True
+                        if not (self._minus() and D % 2) or (D * i + n < x * (D - 1)):
+                            if sign:
+                                if c > 0 and c != 1:
+                                    s += ' + ' + str(c)
+                                elif c + 1 and c != 1:
+                                    s += ' - ' + str(-c)
+                                elif c + 1:
+                                    s += ' + '
+                                    coef = False
+                                elif c - 1:
+                                    s += ' - '
+                                    coef = False
                             else:
-                                coef = False
-                                if c == -1:
-                                    s += '-'
+                                if abs(c) != 1 or not q1exp:
+                                    s += str(c)
+                                else:
+                                    coef = False
+                                    if c == -1:
+                                        s += '-'
+                                sign = True
+                            if q1exp:
+                                if coef:
+                                    s += '*'
+                                if q1exp != q2exp or q1exp not in ZZ:
+                                    s += 'q1^(%s)*q2^(%s)' % (q1exp, q2exp)
+                                elif q1exp != 1:
+                                    s += 'q1^%s*q2^%s' % (q1exp, q2exp)
+                                else:
+                                    s += 'q1*q2'
                             sign = True
-                        if q1exp:
-                            if coef:
-                                s += '*'
-                            if q1exp != q2exp or q1exp not in ZZ:
-                                s += 'q1^(%s)*q2^(%s)' % (q1exp, q2exp)
-                            elif q1exp != 1:
-                                s += 'q1^%s*q2^%s' % (q1exp, q2exp)
-                            else:
-                                s += 'q1*q2'
-                        sign = True
-            if hprec % d:
-                self.__string = s + ' + O(q1, q2)^(%s)' % (hprec/d)
+            if self._minus():
+                hprec = x
+                x = str(x / (D * d)) + '*%s'%sqrtD
+            if hprec % d or self._minus():
+                self.__string = s + ' + O(q1, q2)^(%s)' % x
             else:
-                self.__string = s + ' + O(q1, q2)^%s' % (hprec/d)
+                self.__string = s + ' + O(q1, q2)^%s' % x
         else:
-            if hprec % d:
-                self.__string = 'O(q1, q2)^(%s)' % (hprec/d)
+            if self._minus():
+                hprec = x
+                x = str(x / (D * d)) + '*%s'%sqrtD
+            if hprec % d or self._minus():
+                self.__string = 'O(q1, q2)^(%s)' % x
             else:
-                self.__string = 'O(q1, q2)^%s' % (hprec/d)
+                self.__string = 'O(q1, q2)^%s' % x
         return self.__string
 
     def base_field(self):
@@ -387,6 +423,9 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         if d % 4:
             return HMFCharacter(self.base_field(), (24 * val)/scale, (12 * (val + r))/scale)
         return HMFCharacter(self.base_field(), (24 * val)/scale, (24 * r)/scale)
+
+    def _minus(self):
+        return self.__minus
 
     def nvars(self):
         return 2
@@ -412,8 +451,15 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         if not D % 4:
             sqrtD /= 2
         h = self.fourier_expansion()
-        return {(i + n/sqrtD)/(d + d): p[n]
-                for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
+        if not self._minus():
+            return {(i + n/sqrtD)/(d + d): p[n]
+                    for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
+        if D % 2:
+            q1exp = (i + n) / (d * (D - 1)) + (i + n / D) * sqrtD / (d * (D - 1))
+            return {((i + n) / (d * (D - 1))) + (i + n / D) * sqrtD / (d * (D - 1)): p[n]
+                    for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
+        return {(n + i/sqrtD)/(d + d): p[n]
+                    for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
 
     def __getitem__(self, a):
         r"""
@@ -427,7 +473,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = polygen(QQ, 'x')
+            sage: x = var('x')
             sage: K.<sqrt2> = NumberField(x^2 - 2)
             sage: e2 = HMF(K).eisenstein_series(2, 5)
             sage: e2[2 - sqrt2]
@@ -436,21 +482,42 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         scale = self.scale()
         K = self.base_field()
         D = K.discriminant()
+        if D % 4:
+            sqrtD = K(D).sqrt()
+        else:
+            sqrtD = K(D).sqrt() / 2
         try:
+            # q1exp = (i + n) / (d * (D - 1)) + (i + n / D) * sqrtD / (d * (D - 1))
             tt = K(a).trace()
+            if not self._minus() and tt < 0:
+                return 0
+            if self._minus():
+                tt1 = K(a * sqrtD).trace()
+                if tt1 < 0:
+                    return 0
+                if D % 2:
+                    i = (tt1 - tt) // 2
+                    n = (D * tt - tt1) // 2
+                    return self.fourier_expansion()[i][n]
             i = ZZ(scale * tt)
-            if D % 4:
-                sqrtD = K(D).sqrt()
-            else:
-                sqrtD = K(D).sqrt() / 2
             n = ZZ(scale * (2 * a - tt) * sqrtD)
+            if self._minus():
+                return self.fourier_expansion()[n][i]
             return self.fourier_expansion()[i][n]
-        # except TypeError:
-        #    return 0
         except IndexError:
             u = self.hmf().fundamental_unit()
             au = a * u
             k = self.weight()
+            if self._minus():
+                ausqrtD = au * sqrtD
+                asqrtD = K(a) * sqrtD
+                if ausqrtD.trace() < asqrtD.trace():
+                    return (-1)**k * self.__getitem__(au)
+                au = a / u
+                ausqrtD = au * sqrtD
+                if ausqrtD.trace() < asqrtD.trace():
+                    return (-1)**k * self.__getitem__(au)
+                raise IndexError('coefficient not known') from None
             if au.trace() < K(a).trace():
                 return (-1)**k * self.__getitem__(au)
             au = a / u
@@ -481,7 +548,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         EXAMPLES::
 
             sage: from weilrep import *
-            sage: x = polygen(QQ, 'x')
+            sage: x = var('x')
             sage: K.<sqrt13> = NumberField(x * x - 13)
             sage: HMF(K).eisenstein_series(2, 15).hz_pullback(4 - sqrt13)
             1 + 24*q + O(q^2)
@@ -591,8 +658,8 @@ class HilbertHeckeOperator:
         self.__index = p
         K = hmf.base_field()
         p = K(p)
-        if p.norm() < 0 or not p.is_prime():
-            raise NotImplementedError('Hecke operators are only implemented for totally positive prime index')
+        if not p.is_prime():
+            raise NotImplementedError('Hecke operators are only implemented for prime index')
 
     def __repr__(self):
         return 'Hecke operator of index %s acting on Hilbert modular forms over %s' % (self.__index, self.__hmf.base_field())
@@ -636,30 +703,62 @@ class HilbertHeckeOperator:
         D = K.discriminant()
         sqrtd_n = math.sqrt(K.discriminant())
         h = g.parent()(0)
-        for i, u in enumerate(g.list()):
-            i = ZZ(i)
-            for n in range(ceil(-i * sqrtd_n), floor(i * sqrtd_n) + 1):
-                if (D % 2 and (n % 2 == i % 2)) or not (D % 2 or n % 2):
-                    N = (i + n/sqrtD)/(d + d)
-                    try:
-                        c = f.__getitem__(p * N)
-                        #if (p*N).trace() > len(g.list()):
-                        #    raise IndexError from None
-                        if N * sqrtD / p in O:
-                            c += f.__getitem__(N / p) * norm**(k - 1)
-                        if D % 2:
-                            h += c * t**i * x**n
-                        else:
-                            h += c * t**i * x**(n // 2)
-                    except IndexError:
-                        return OrthogonalModularForm(k, f.weilrep(),
-                                                     h.add_bigoh(i - 1),
-                                                     d, f.weyl_vector(),
-                                                     qexp_representation=f.qexp_representation())
-        return OrthogonalModularForm(k, f.weilrep(),
-                                     h.add_bigoh(g.prec()),
+        q = f.qexp_representation()
+        w = f.weilrep()
+        if norm < 0:
+            w = w.dual()
+            q = q[0], q[1], q[2], not q[3]
+        norm = abs(norm)
+        prec = g.prec()
+        if not q[3]:
+            for i, u in enumerate(g.list()):
+                i = ZZ(i)
+                for n in range(ceil(-i * sqrtd_n), floor(i * sqrtd_n) + 1):
+                    if (D % 2 and (n % 2 == i % 2)) or not (D % 2 or n % 2):
+                        N = (i + n/sqrtD)/(d + d)
+                        try:
+                            c = f.__getitem__(p * N) + f.__getitem__(-p * N)
+                            if N * sqrtD / p in O:
+                                c += (f.__getitem__(N / p) + f.__getitem__(-N / p))* norm**(k - 1)
+                            if not N:
+                                c /= 2
+                            if D % 2:
+                                h += c * t**i * x**n
+                            else:
+                                h += c * t**i * x**(n // 2)
+                        except IndexError:
+                            return OrthogonalModularForm(k, w,
+                                                         h.add_bigoh(i - 1),
+                                                         d, f.weyl_vector(),
+                                                         qexp_representation=q)
+        else:
+            if not D % 2:
+                prec = prec // 2
+            for i, u in enumerate(g.list()):
+                i = ZZ(i)
+                for n in range(ceil(-i * sqrtd_n), floor(i * sqrtd_n) + 1):
+                    if (D % 2 and (n % 2 == i % 2)) or not (D % 2 or i % 2):
+                        N = (n + i/sqrtD)/(d + d)
+                        try:
+                            c = f.__getitem__(p * N) + f.__getitem__(-p * N)
+                            if N * sqrtD / p in O:
+                                c += (f.__getitem__(N / p) + f.__getitem__(-N / p)) * norm**(k - 1)
+                            if not N:
+                                c /= 2
+                            if D % 2:
+                                h += c * t**i * x**n
+                            else:
+                                h += c * t**(i // 2) * x**n
+                        except IndexError:
+                            a = i // (2 - (D % 2))
+                            return OrthogonalModularForm(k, w,
+                                                         h.add_bigoh(a - 1),
+                                                         d, f.weyl_vector(),
+                                                         qexp_representation=q)
+        return OrthogonalModularForm(k, w,
+                                     h.add_bigoh(prec),
                                      d, f.weyl_vector(),
-                                     qexp_representation=f.qexp_representation())
+                                     qexp_representation=q)
 
     def matrix(self, X):
         L = []
