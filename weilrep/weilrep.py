@@ -358,7 +358,6 @@ class WeilRep:
                     X1 = self._evaluate(0, -1, 1, 0)
                     X2 = self._evaluate(c, d, -a, -b)
                     X = X1 * X2
-                    X = X
                     self.__vals[A] = X
                     return X
             elif (a - 1):

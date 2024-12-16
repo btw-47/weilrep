@@ -625,7 +625,6 @@ def hecke_coeff(f, p, A):
             b1 = b + dc*c
             c1 = p*c
             if a1 in ZZ:
-                a1, b1, c1 = (a1, b1, c1)
                 A1 = matrix([[a1, b1], [b1.conjugate(), c1]])
                 s = s + (p**(k - 3)) * f[A1]
             if d and ZZ(d*dc) % p == 0:
@@ -633,7 +632,6 @@ def hecke_coeff(f, p, A):
                 b2 = b+d*a
                 c2 = ZZ(c + dc*b + d*bc + d*dc*a)/p
                 if c2 in ZZ:
-                    a2, b2, c2 = (a2, b2, c2)
                     A2 = matrix([[a2, b2], [b2.conjugate(), c2]])
                     s = s + (p**(k - 3)) * f[A2]
                 if ZZ((1+d)*(1+dc)) % p == 0:
@@ -642,7 +640,6 @@ def hecke_coeff(f, p, A):
                     a3 = p * a3
                     c3 = ZZ(c * (1 + d) * (1 + dc) + b * dc + bc * d + (a + b + bc)*d*dc) / p
                     if c3 in ZZ:
-                        a3, b3, c3 = (a3, b3, c3)
                         A3 = matrix([[a3, b3], [b3.conjugate(), c3]])
                         s = s + (p**(k - 3)) * f[A3]
     return s
