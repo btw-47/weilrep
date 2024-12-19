@@ -3502,7 +3502,7 @@ class WeilRep:
 
             def t_packet_1(X, k, m, b, max_dim, prec, verbose=False): #symmetric
                 w_new = self._embiggen(b, m)
-                if max_dim > 3 or k in ZZ:
+                if max_dim > 3 or (k in ZZ and prec > 20) or failed:
                     z = w_new.cusp_forms_basis(k - sage_one_half, prec, echelonize=False, verbose=verbose, dim=max_dim).theta(weilrep=self)
                     if z and verbose:
                         print('-'*80)
@@ -3574,6 +3574,7 @@ class WeilRep:
                 rank = len(X)
                 return X, rank
             failure_count = 0
+            failed = False
             excluded = set()
             while rank < dim:
                 for b_tuple in G:
@@ -3592,7 +3593,7 @@ class WeilRep:
                             if symm:
                                 if dim_rank > 2 or (k in ZZ and prec > 20):
                                     X, rank = t_packet_1(X, k, m, b, dim_rank, prec, verbose=verbose)
-                                elif dim_rank:
+                                elif dim_rank or failed:
                                     X.append(E - self.pss(k, b, m, prec))
                                     if verbose:
                                         print('I computed a Poincare square series of index %s.' % ([b, m]))
@@ -3632,7 +3633,11 @@ class WeilRep:
                             #    failure_count = 0
                 m0 += 1
                 if m0 > prec and rank < dim:#this will probably never happen but lets be safe
-                    raise RuntimeError('Something went horribly wrong!')
+                    if not failed:
+                        m0 = 1
+                        failed = True
+                    else:
+                        raise RuntimeError('Something went horribly wrong!')
             if echelonize:
                 if verbose:
                     print('I am computing an echelon form.')
