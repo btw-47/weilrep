@@ -448,15 +448,17 @@ class OrthogonalModularForm:
             if s is None:
                 self.__qexp_representation = 'PD+II'
         if s:
+            if len(s) == 4:
+                from .hilbert import HilbertModularForm
+                self.__class__ = HilbertModularForm
+                HilbertModularForm.__init__(self, s[1], s[2], s[3])
             if len(s) == 3:
                 if s[0] == 'hermite':
-                    from .hermitian import HermitianModularForm
-                    self.__class__ = HermitianModularForm
-                    HermitianModularForm.__init__(self, s[1], s[2])
+                    from .hermitian import HermitianModularForm as X
                 elif s[0] == 'hilbert':
-                    from .hilbert import HilbertModularForm
-                    self.__class__ = HilbertModularForm
-                    HilbertModularForm.__init__(self, s[1], s[2])
+                    from .hilbert import HilbertModularForm as X
+                self.__class__ = X
+                X.__init__(self, s[1], s[2])
             elif s == 'siegel':
                 from .paramodular import ParamodularForm
                 self.__class__ = ParamodularForm
@@ -671,7 +673,7 @@ class OrthogonalModularForm:
                                         s = PowerSeriesRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)], default_prec=constant_prec)
                                         h = s(h).add_bigoh(constant_prec)
                                     else:
-                                        s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)])
+                                        s =  s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)])
                                         h = s(hn) / s(hd)
                                     for j_r, y in h.dict().items():
                                         g = tuple([j_t / d, j_x / d] + list(vector(ZZ, j_r) / d))
@@ -822,7 +824,7 @@ class OrthogonalModularForm:
             return self._laurent_to_fraction() - other._laurent_to_fraction()
         if self.gram_matrix() != other.gram_matrix():
             raise ValueError('Incompatible Gram matrices')
-        if not self.weight() == other.weight():
+        if self.weight() != other.weight():
             raise ValueError('Incompatible weights')
         self_v = self.weyl_vector()
         other_v = other.weyl_vector()
@@ -834,7 +836,7 @@ class OrthogonalModularForm:
 
         def p(*args, **kwargs):
             return self.pullback(*args, **kwargs) - other.pullback(*args, **kwargs)
-        if self_scale != other_scale:
+        if not self_scale == other_scale:
             new_scale = lcm(self_scale, other_scale)
             X1 = self.rescale(new_scale // self_scale)
             X2 = other.rescale(new_scale // other_scale)
