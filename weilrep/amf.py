@@ -537,8 +537,8 @@ class AlgebraicModularForms:
             return self.eigenforms(X, spin=spin, det=det, dimension_bound=dimension_bound)
         if not X:
             return []
-        while self.level() % _p == 0:
-            _p = next_prime(_p)
+        #while self.level() % _p == 0:
+        #    _p = next_prime(_p)
         T = self.hecke_operator(_p)
         M = T.matrix(X)
         chi = M.characteristic_polynomial()
@@ -920,8 +920,8 @@ class AlgebraicModularFormEigenform(AlgebraicModularForm):
 
     def eigenvalue(self, p, d=1):
         K = self.base_field()
-        if not self.amf().level() % p:
-            raise ValueError('The prime %s divides the lattice level %s.' % (p, self.amf().level()))
+        #if not self.amf().level() % p:
+        #    raise ValueError('The prime %s divides the lattice level %s.' % (p, self.amf().level()))
         T = self.amf().hecke_operator(p, d=d)
         n = self.amf().gram_matrix().nrows()
         denominator = 10 * n
@@ -942,6 +942,8 @@ class AlgebraicModularFormEigenform(AlgebraicModularForm):
 
         NOTE: this only works if the rank of the lattice is <= 8.
         We use Murphy's formulas for the explicit Satake transform.
+
+        WARNING: may be incorrect if self's level is a multiple of p
         """
         rank = self.gram_matrix().nrows()
         k = self.weight()
@@ -1263,6 +1265,33 @@ def isotropic_subspaces(S, p, k):
             X += [x + y for x in B for y in A]
         return X
 
+@cached_function
+def isotropic_vectors_p2(S):
+    r"""
+    Compute isotropic vectors mod 2.
+    Witt decomposition theorem may fail over F_2 if the quadratic form is defective (i.e. the bilinear form x,y -> x^T S y is degenerate)
+    so we better not use it.
+    """
+    N = S.nrows()
+    pN = [vector(x) for x in product(*[[0, 1] for _ in range(N)])]
+    return [v for v in pN if any(v) and not ((v * S * v) // 2) % 2]
+
+def isotropic_spaces_p2(S, k):
+    if k == 1:
+        return [[x] for x in isotropic_vectors_p2(S)]
+    X = isotropic_spaces_p2(S, k - 1)
+    Y = isotropic_vectors_p2(S)
+    Z = []
+    for x in X:
+        Sx = [S * z for z in x]
+        pivot = max(next(i for i, j in enumerate(z) if j) for z in x)
+        for y in Y:
+            j = next(j for j, z in enumerate(y) if z)
+            if j > pivot and not any(z[j] for z in x):
+                if not any((y * z) % 2 for z in Sx):
+                    Z.append(x + [y])
+    return Z
+
 
 def lift_p_to_psqr(S, p, X, Z):
     r"""
@@ -1374,7 +1403,10 @@ def pk_neighbors(S, G, p, k):
     r"""
     Compute (p^k)-neighbors with change-of-basis matrices.
     """
-    X = isotropic_subspaces(S, p, k)
+    if p == 2 and not S.determinant() % p:
+        X = isotropic_spaces_p2(S, k)
+    else:
+        X = isotropic_subspaces(S, p, k)
     n = S.nrows()
     G_tr = [matrix(n, n, g).transpose() for g in G]
     Y = orbits(X, G_tr, p)

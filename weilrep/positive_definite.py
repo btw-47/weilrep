@@ -427,23 +427,23 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         except AttributeError:
             h = self._OrthogonalModularForm__fourier_expansion
             q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
-            qsval = ZZ(self.valuation()) / 2
-            v = ZZ(min(0, self.valuation()))
+            qsval = min(0, ZZ(h.valuation()) / 2)
+            v = ZZ(min(0, h.valuation()))
             u = 0
             if isinstance(h.parent(), LaurentSeriesRing):
-                u = ZZ(max(0, self.valuation()))
+                u = ZZ(max(0, h.valuation())) / 2
                 h = h.valuation_zero_part()
             try:
                 m = ZZ(max(max(x.degree(), -x.valuation()) - i for i, x in enumerate(h.list())))
             except ValueError:
                 m = 0
-            if m:
-                h = h.shift(m)
-                qsval -= m / 2
+            if m > 0:
+                h = h.shift(2*m)
+                qsval -= m
             else:
                 m = 0
                 qsval = 0
-            self.__qexp = O(q ** (h.prec() - v)) + sum([(q ** ((i + u - n) // 2)) * (s ** ((i + u + n) // 2)) * p.coefficients()[j] for i, p in enumerate(h.list()) for j, n in enumerate(p.exponents())])
+            self.__qexp = O(q ** (h.prec() - v)) + sum([(q ** ((i + u - n) // 2)) * (s ** ((i + u + n) // 2)) * p.coefficients()[j] for i, p in enumerate(h.padded_list()) for j, n in enumerate(p.exponents())])
             self.__qsval = qsval
             return self.__qexp
     qexp = fourier_expansion

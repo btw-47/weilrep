@@ -442,13 +442,13 @@ class OrthogonalModularFormLorentzian(OrthogonalModularForm):
             else:
                 qsval = 0
             m = ZZ(max(max(x.degree(), -x.valuation()) - i for i, x in enumerate(h.list())))
-            if m:
+            if m > 0:
                 h = h.shift(m)
                 qsval -= m / 2
             else:
                 m = 0
                 qsval = 0
-            self.__qs_valuation = qsval
+            self.__qs_valuation = hval
             try:
                 q, s = PowerSeriesRing(self.base_ring(), ('q', 's')).gens()
                 self.__q_s_exp = sum((q ** (ZZ(i + v - n) / 2)) * (s ** (ZZ(i + v + n) / 2)) * p[n] for i, p in enumerate(h.list()) for n in p.exponents()).O(h.prec() + v)
