@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2024 Brandon Williams
+#       Copyright (C) 2020-2025 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -624,7 +624,8 @@ class JacobiForms:
                 U.append(A.rows()[i])
                 n += 1
             J = JacobiForms(S + A)
-            X = J.cusp_forms_basis(weight + n/2, prec=prec, eta_twist=eta_twist + 3 * n, verbose=verbose, try_theta_blocks=try_theta_blocks)
+            w = J.weilrep()
+            X = w.basis_vanishing_to_order(weight + n/2 - S.nrows() / 2, 1/8, prec=prec, eta_twist=eta_twist + 3 * n, verbose=verbose, inclusive=False).jacobi_forms()
             if not X:
                 return []
             prec = max(1, X[0].precision())
@@ -732,7 +733,7 @@ class JacobiForms:
                 n += 1
             J = JacobiForms(S + A)
             w = J.weilrep()
-            X = w.basis_vanishing_to_order(weight + n/2, 1/8, prec=prec, eta_twist=eta_twist + 3 * n, verbose=verbose).jacobi_forms()
+            X = w.basis_vanishing_to_order(weight + n/2 - S.nrows() / 2, 1/8, prec=prec, eta_twist=eta_twist + 3 * n, verbose=verbose).jacobi_forms()
             if not X:
                 return []
             prec = max(1, X[0].precision())

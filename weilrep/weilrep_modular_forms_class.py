@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2024 Brandon Williams
+#       Copyright (C) 2020-2025 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1134,6 +1134,9 @@ class WeilRepModularForm:
     def __rdiv__(self, other): #divide 'other' by 'self'
         return (~self).__mul__(other)
     __rtruediv__ = __rdiv__
+
+    def __rsub__(self, other):
+        return self.__neg__().__add__(other)
 
     def __sub__(self, other):
         r"""
@@ -3278,7 +3281,9 @@ def smf_delta(prec=20):
     - ``prec`` -- precision (default 20)
     OUTPUT: WeilRepModularForm
     """
-    return smf(Integer(12), delta_qexp(prec))
+    f = delta_qexp(prec)
+    r = PowerSeriesRing(QQ, 'q')
+    return smf(Integer(12), r(f))
 
 
 def smf_j(prec=20):

@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2024 Brandon Williams
+#       Copyright (C) 2020-2025 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -388,6 +388,21 @@ class OrthogonalModularForms:
                 X.extend(Y)
                 return X
         return Y
+
+    ## divisors
+    def heegner_divisor(self, *x, primitive=False):
+        r"""
+        Construct the Heegner divisor H(beta, m)
+        """
+        from .heegner import HeegnerDivisor, PrimitiveHeegnerDivisor
+        if len(x) > 1:
+            if isinstance(x[1], bool):
+                primitive = x[1]
+            else:
+                x = tuple(list(x[0]) + [x[1]])
+        if primitive:
+            return PrimitiveHeegnerDivisor(self.weilrep(), {x : 1}, Integer(self.nvars()) / 2 + 1)
+        return HeegnerDivisor(self.weilrep(), {x : 1}, Integer(self.nvars()) / 2 + 1)
 
 
 class Spezialschar:

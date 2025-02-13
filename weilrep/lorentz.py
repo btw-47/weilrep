@@ -10,7 +10,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2024 Brandon Williams
+#       Copyright (C) 2020-2025 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,11 +29,13 @@ from .weilrep_modular_forms_class import WeilRepModularForm
 from re import sub
 
 from sage.arith.functions import lcm
-from sage.arith.misc import bernoulli, GCD, is_prime, is_square, XGCD
+from sage.arith.misc import bernoulli, GCD, is_prime, is_square, kronecker_symbol, prime_divisors, XGCD
 from sage.arith.srange import srange
 from sage.combinat.combinat import bernoulli_polynomial
+from sage.functions.gamma import gamma
 from sage.functions.log import exp, log
-from sage.functions.other import ceil, floor, frac
+from sage.functions.other import ceil, factorial, floor, frac
+from sage.functions.transcendental import zeta
 from sage.matrix.constructor import matrix
 from sage.matrix.special import block_diagonal_matrix, identity_matrix
 from sage.misc.functional import denominator, isqrt
@@ -50,10 +52,13 @@ from sage.rings.integer_ring import ZZ
 from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.number_field.number_field import CyclotomicField
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing
+from sage.rings.polynomial.polynomial_ring import polygen
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
 from sage.rings.power_series_ring import PowerSeriesRing
 from sage.rings.rational_field import QQ
+from sage.symbolic.constants import pi
 
+from .eisenstein_series import quadratic_L_function__correct, twoadic_classify, twoadic_jordan_blocks, twonf_with_change_vars
 from .lifts import OrthogonalModularForm, OrthogonalModularForms
 
 sage_one_half = Integer(1) / 2
@@ -82,6 +87,98 @@ class OrthogonalModularFormsLorentzian(OrthogonalModularForms):
 
     def nvars(self):
         return Integer(self.weilrep()._lorentz_gram_matrix().nrows())
+
+    def volume(self):
+        r"""
+        Compute the Hirzebruch--Mumford volume of the orthogonal group.
+        """
+        rank = self.nvars() + 2
+        w = self.weilrep()
+        if w.is_lorentzian():
+            q = (w.dual() + II(1)).quadratic_form()
+            g = 1
+        else:
+            q = w.dual().quadratic_form()
+            a, k = w.dual().genus()._proper_spinor_kernel()
+            g = ZZ(len(a)) / ZZ(len(k))
+        d = w.discriminant()
+        if rank % 2:
+            u = prod(zeta(2*i) for i in srange(1, (rank + 1) // 2))
+        else:
+            if rank % 4:
+                d = -d
+            #u = (~quadratic_L_function__correct(rank // 2, d) * prod(zeta(2*i) for i in srange(1, rank // 2 + 1)))
+            u = (quadratic_L_function__correct(rank // 2, d) * prod(zeta(2*i) for i in srange(1, rank // 2)))
+        alpha = 1
+        def _P(p, m):
+            p = ZZ(p)
+            return prod((1 - p**(-2*i)) for i in srange(1, m + 1))
+        zero = QuadraticForm(matrix([]))
+        for p in prime_divisors(2 * d):
+            if p != 2:
+                x = q.jordan_blocks_by_scale_and_unimodular(p)
+            else:
+                x = twoadic_jordan_blocks(twonf_with_change_vars(q.matrix())[0])
+            x0= [y[0] for y in x]
+            y = []
+            for j in range(x[-1][0] + 1):
+                try:
+                    i = x0.index(j)
+                    y.append(x[i])
+                except ValueError:
+                    y.append((j, zero))
+            x = y
+            dim = []
+            e = []
+            P = []
+            Q = []
+            parity = []
+            for j, ell in x:
+                ell_dim = ell.dim()
+                dim.append(ell_dim)
+                if p == 2:
+                    h = twoadic_classify(ell)
+                    half_rank = h[1] + h[2]
+                    parity.append(bool(len(h[0])))
+                    P.append(_P(2, half_rank))
+                    if len(h[0]) < 2 or (len(h[0]) == 2 and h[0][0] % 4 != h[0][1] % 4):
+                        if (j == 0 or j > 0 and not parity[j - 1]) and (j == len(x)-1 or j < len(x)-1 and not twoadic_classify(x[j + 1][1])[0]):
+                            chi = (-1) ** h[1]
+                            e.append(((1 + chi * ZZ(2)**(-half_rank)) / 2)**(-1))
+                        else:
+                            e.append(2)
+                    else:
+                        e.append(2)
+                    if j:
+                        if parity[j - 1]:
+                            Q.append(dim[-1] + parity[-1])
+                else:
+                    if ell_dim % 2 or not ell_dim:
+                        e.append(1)
+                    else:
+                        chi = kronecker_symbol(ell.det() * (-1)**(ell_dim // 2), p)
+                        e.append(1 / (1 + chi * p**(-ell_dim // 2)))
+                    P.append(_P(p, ell_dim // 2))
+            w = sum(j * n * ((n + 1) / 2 + sum(dim[k] for k in range(j+1, len(dim)))) for j, n in enumerate(dim))
+            if p == 2 and parity[-1]:
+                Q.append(ell_dim)
+            if p == 2:
+                N = rank - 1 - sum(Q)
+            else:
+                N = len([x for x in dim if x]) - 1
+            alpha *= (prod(P) * prod(e) * ZZ(2)**N * p**(w) / _P(p, rank // 2))
+            if not rank % 2:
+                alpha *= (1 - p**(-rank)) / (1 - kronecker_symbol(d, p) * p**(-rank//2))
+        return 2 * u * abs(d)**((rank + 1) / 2) * prod(pi**(-k/2) * gamma(k/2) for k in srange(1, rank+1)) / (g * alpha)
+
+    def dimension_main_term(self):
+        r"""
+        Compute the asymptotic value of dim M_k(O^+(L)) as k becomes large.
+        """
+        k = polygen(QQ, 'k')
+        vol = self.volume()
+        n = self.nvars()
+        return 2 * (2 - n % 2) * vol * k**n / factorial(n)
 
 
 class OrthogonalModularFormLorentzian(OrthogonalModularForm):

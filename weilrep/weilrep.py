@@ -9,7 +9,7 @@ AUTHORS:
 """
 
 # ****************************************************************************
-#       Copyright (C) 2020-2024 Brandon Williams
+#       Copyright (C) 2020-2025 Brandon Williams
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -3591,7 +3591,7 @@ class WeilRep:
                                 rank = len(X)
                                 dim_rank = dim - rank
                             if symm:
-                                if dim_rank > 2 or (k in ZZ and prec > 20):
+                                if (dim_rank > 2 or (k in ZZ and prec > 20)) and not failed:
                                     X, rank = t_packet_1(X, k, m, b, dim_rank, prec, verbose=verbose)
                                 elif dim_rank or failed:
                                     X.append(E - self.pss(k, b, m, prec))
@@ -3632,7 +3632,7 @@ class WeilRep:
                             #    rank += 1
                             #    failure_count = 0
                 m0 += 1
-                if m0 > prec and rank < dim:#this will probably never happen but lets be safe
+                if m0 > sturm_bound + 1 and rank < dim:#this will probably never happen but lets be safe
                     if not failed:
                         m0 = 1
                         failed = True
