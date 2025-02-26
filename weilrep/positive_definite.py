@@ -583,6 +583,7 @@ class OrthogonalModularFormPositiveDefinite(OrthogonalModularForm):
         k = self.weight()
         scale = self.scale()
         qsval = self.__qsval
+        v = min(0, self.valuation())
         if scale != 1:
             prec = self.precision()
             floor_prec = floor(prec)

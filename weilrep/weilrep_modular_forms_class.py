@@ -1919,12 +1919,13 @@ class WeilRepModularForm:
         Compute the pullback of self to the lattice spanned by ``*v``.
 
         This computes the theta-contraction of 'self' to an arbitrary sublattice.
+
+        INPUT:
+        - ``v`` -- a list of vectors
+
+        OUTPUT: WeilRepModularForm
         """
-        try:
-            z = matrix(ZZ, v)
-        except TypeError:
-            v = v[0]
-            z = matrix(ZZ, v)
+        z = matrix(ZZ, *v)
         B = matrix(ZZ, z.transpose().echelon_form(transformation=True)[1].inverse())
         A = matrix(z.rows() + B.columns()[len(v):]).transpose()
         n = A.nrows() - len(v)

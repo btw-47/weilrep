@@ -514,7 +514,7 @@ class JacobiForms:
         - ``verbose`` -- verbosity (default False)
 
         """
-        if self.nvars() == 1:
+        if self.nvars() <= 2:
             p = self.weak_hilbert_polynomial()
             if polynomial:
                 return p
@@ -564,10 +564,17 @@ class JacobiForms:
             sage: J.weak_hilbert_polynomial()
             t^-3 + t^-1
         """
+        r, t = LaurentPolynomialRing(ZZ, 't').objgen()
+        if self.nvars() == 0:
+            return r(1)
         if self.nvars() == 1:
-            r, t = LaurentPolynomialRing(ZZ, 't').objgen()
             m = Integer(self.index_matrix()[0, 0])
             return t**(-m) * r([1, 0]+[1]*(m - 1))
+        if self.nvars() == 2:
+            S = self.index_matrix()
+            b = S[0, 1]
+            a, c = S[0, 0] - b, S[1, 1] - b
+            return rank_two_weak_hilbert_polynomial(a, b, c)
         return self.weak_hilbert_series(polynomial=True)
 
     def zero(self, *args, **kwargs):
@@ -2759,6 +2766,27 @@ def _jf_relations(X):
             m = m.intersection(V(n))
         return m
 
+def rank_two_weak_hilbert_polynomial(a, b, c):
+    r"""
+    Compute the numerator of the Hilbert series of weak Jacobi forms
+    for the lattice with Gram matrix [[a+b, b], [b, c+b]]
+    (Theorem 1.3 of [WW])
+    """
+    r, t = LaurentPolynomialRing(QQ, 't').objgen()
+    def P(c):
+        if not c:
+            return 1
+        return t**(-c) + (1 - t**(1 - c)) / (1 - t**(-1))
+    def Q(c):
+        if c <= 0:
+            return 0
+        return (1 - t**(-c)) / (1 - t**(-1))
+    Qa, Qb, Qc = Q(a), Q(b), Q(c)
+    Qa2, Qb2, Qc2 = Q(a - 1), Q(b - 1), Q(c - 1)
+    f = P(a) * P(b) * P(c) + Qa * Qb * Qc + (2 / t - 1) * Qa2 * Qb2 * Qc2 - (Qa * Qb2 * Qc2 + Qa2 * Qb * Qc2 + Qa2 * Qb2 * Qc) * t**(-1)
+    if a and b and c:
+        return r(f + t**(1 - (a + b + c)))
+    return r(f)
 
 def weierstrass_p(prec):
     r"""
