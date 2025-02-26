@@ -1925,15 +1925,20 @@ class WeilRepModularForm:
 
         OUTPUT: WeilRepModularForm
         """
-        z = matrix(ZZ, *v)
+        try:
+            z = matrix(ZZ, *v)
+        except TypeError:
+            z = matrix(ZZ, v)
         B = matrix(ZZ, z.transpose().echelon_form(transformation=True)[1].inverse())
         A = matrix(z.rows() + B.columns()[len(v):]).transpose()
         n = A.nrows() - len(v)
         try:
             f = self.conjugate(A)
-        except TypeError: #are you trying to use an empty matrix? then we do nothing
-            f = self
-            n = self.gram_matrix().nrows()
+        except TypeError as e: #are you trying to use an empty matrix? then we do nothing
+            if not A:
+                f = self
+                n = self.gram_matrix().nrows()
+            raise e
         i = 0
         while i < n:
             f = f.theta_contraction(**kwargs)
@@ -1960,7 +1965,7 @@ class WeilRepModularForm:
             s = kwargs.pop('print_basis')
             if s:
                 print('pullback to basis:', list(k.basis()))
-        return self.pullback(list(k.basis()), **kwargs)
+        return self.pullback(*k.basis(), **kwargs)
 
     def _pullback_perp_complex(self, v, **kwargs):
         v = v[0]
