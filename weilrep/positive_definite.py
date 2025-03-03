@@ -152,16 +152,18 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
             #u = (~quadratic_L_function__correct(rank // 2, d) * prod(zeta(2*i) for i in srange(1, rank // 2 + 1)))
             u = (quadratic_L_function__correct(rank // 2, d) * prod(zeta(2*i) for i in srange(1, rank // 2)))
         alpha = 1
+
         def _P(p, m):
             p = ZZ(p)
             return prod((1 - p**(-2*i)) for i in srange(1, m + 1))
+
         zero = QuadraticForm(matrix([]))
         for p in prime_divisors(2 * d):
             if p != 2:
                 x = q.jordan_blocks_by_scale_and_unimodular(p)
             else:
                 x = twoadic_jordan_blocks(twonf_with_change_vars(q.matrix())[0])
-            x0= [y[0] for y in x]
+            x0 = [y[0] for y in x]
             y = []
             for j in range(x[-1][0] + 1):
                 try:
