@@ -2766,6 +2766,7 @@ def _jf_relations(X):
             m = m.intersection(V(n))
         return m
 
+
 def rank_two_weak_hilbert_polynomial(a, b, c):
     r"""
     Compute the numerator of the Hilbert series of weak Jacobi forms
@@ -2773,20 +2774,24 @@ def rank_two_weak_hilbert_polynomial(a, b, c):
     (Theorem 1.3 of [WW])
     """
     r, t = LaurentPolynomialRing(QQ, 't').objgen()
+
     def P(c):
         if not c:
             return 1
         return t**(-c) + (1 - t**(1 - c)) / (1 - t**(-1))
+
     def Q(c):
         if c <= 0:
             return 0
         return (1 - t**(-c)) / (1 - t**(-1))
+
     Qa, Qb, Qc = Q(a), Q(b), Q(c)
     Qa2, Qb2, Qc2 = Q(a - 1), Q(b - 1), Q(c - 1)
     f = P(a) * P(b) * P(c) + Qa * Qb * Qc + (2 / t - 1) * Qa2 * Qb2 * Qc2 - (Qa * Qb2 * Qc2 + Qa2 * Qb * Qc2 + Qa2 * Qb2 * Qc) * t**(-1)
     if a and b and c:
         return r(f + t**(1 - (a + b + c)))
     return r(f)
+
 
 def weierstrass_p(prec):
     r"""

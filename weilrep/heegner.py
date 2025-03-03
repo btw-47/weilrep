@@ -18,11 +18,7 @@ AUTHORS:
 #                  https://www.gnu.org/licenses/
 # ****************************************************************************
 
-
-
 from collections import defaultdict
-
-
 
 from sage.arith.misc import moebius
 from sage.functions.other import ceil, frac
@@ -32,11 +28,6 @@ from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
 
 from .lifts import OrthogonalModularForms
-
-
-
-
-
 
 
 def heegner_divisor_iterator(w, max_discr = 1):
@@ -60,7 +51,8 @@ def heegner_divisor_iterator(w, max_discr = 1):
                 yield tuple(list(g) + [N])
         m += 1
 
-def primitive_heegner_divisor(w, g, _flag = 0):
+
+def primitive_heegner_divisor(w, g, _flag=0):
     r"""
     Decompose a Heegner divisor (g) attached to the weilrep (w) into irreducible divisors.
 
@@ -86,14 +78,11 @@ def primitive_heegner_divisor(w, g, _flag = 0):
     return x
 
 
-
-
-
 class HeegnerDivisor(object):
     r"""
     This class represents Heegner divisors.
     """
-    def __init__(self, w, d, k, m = None):
+    def __init__(self, w, d, k, m=None):
         self.__dict = defaultdict(int, d)
         self.__w = w
         self.__k = k
@@ -106,7 +95,8 @@ class HeegnerDivisor(object):
         def a(n):
             if n == 1:
                 return ''
-            return str(n)+'*'
+            return str(n) + '*'
+
         def b(x):
             v = vector(x[:-1])
             c = 2 % v.denominator()
@@ -118,7 +108,7 @@ class HeegnerDivisor(object):
             else:
                 c = ''
             return 'H(%s(%s); %s)' % (c, x[1:j], x[j + 1:-1])
-        return ' + '.join('%s%s'%(a(y), b(x)) for x, y in self.__dict.items() if y)
+        return ' + '.join('%s%s' % (a(y), b(x)) for x, y in self.__dict.items() if y)
 
     def dict(self):
         return self.__dict
@@ -172,7 +162,7 @@ class HeegnerDivisor(object):
         indices = w.rds(indices = True)
         dsdict = w.ds_dict()
         d = f.principal_part_coefficients()
-        d = {tuple(list(x[:-1]) + [-x[-1]]) : y for x, y in d.items() if indices[dsdict[tuple(x[:-1])]] is None and x[-1]}
+        d = {tuple(list(x[:-1]) + [-x[-1]]): y for x, y in d.items() if indices[dsdict[tuple(x[:-1])]] is None and x[-1]}
         return HeegnerDivisor(w, d, self.weight() - Integer(1) / 2)
 
     def P(self):
@@ -200,7 +190,7 @@ class HeegnerDivisor(object):
 
     def __mul__(self, n):
         d = self.dict()
-        return HeegnerDivisor(self.__w, {x : n * y for x, y in d.items()}, self.__k)
+        return HeegnerDivisor(self.__w, {x: n * y for x, y in d.items()}, self.__k)
     __rmul__ = __mul__
 
     def __neg__(self):
@@ -219,7 +209,7 @@ class HeegnerDivisor(object):
         r"""
         Compute the arithmetic degree of self.
         """
-        bound = ceil( max(c[1] for c in self.__dict.keys()) ) + 1
+        bound = ceil(max(c[1] for c in self.__dict)) + 1
         vol = self.__m.volume()
         e = self.__w.dual().eisenstein_series(self.__k, bound).coefficients()
         return -sum(e[x] * y for x, y in self.__dict.items()) * vol
@@ -241,7 +231,8 @@ class PrimitiveHeegnerDivisor(object):
         def a(n):
             if n == 1:
                 return ''
-            return str(n)+'*'
+            return str(n) + '*'
+
         def b(x):
             v = vector(x[:-1])
             c = 2 % v.denominator()
@@ -253,7 +244,7 @@ class PrimitiveHeegnerDivisor(object):
             else:
                 c = ''
             return 'P(%s(%s); %s)' % (c, x[1:j], x[j + 1:-1])
-        return ' + '.join('%s%s'%(a(y), b(x)) for x, y in self.__dict.items() if y)
+        return ' + '.join('%s%s' % (a(y), b(x)) for x, y in self.__dict.items() if y)
 
     def dict(self):
         return self.__dict
@@ -289,7 +280,10 @@ class PrimitiveHeegnerDivisor(object):
 
     def __mul__(self, n):
         d = self.dict()
-        return PrimitiveHeegnerDivisor(self.__w, {x : n * y for x, y in d.items()}, self.__k)
+        return PrimitiveHeegnerDivisor(self.__w,
+                                       {x: n * y for x, y in d.items()},
+                                       self.__k)
+
     __rmul__ = __mul__
 
     def __neg__(self):

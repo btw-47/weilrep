@@ -1265,6 +1265,7 @@ def isotropic_subspaces(S, p, k):
             X += [x + y for x in B for y in A]
         return X
 
+
 @cached_function
 def isotropic_vectors_p2(S):
     r"""
@@ -1275,6 +1276,7 @@ def isotropic_vectors_p2(S):
     N = S.nrows()
     pN = [vector(x) for x in product(*[[0, 1] for _ in range(N)])]
     return [v for v in pN if any(v) and not ((v * S * v) // 2) % 2]
+
 
 def isotropic_spaces_p2(S, k):
     if k == 1:

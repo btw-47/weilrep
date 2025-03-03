@@ -390,7 +390,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                             sign = True
             if self._minus():
                 hprec = x
-                x = str(x / (D * d)) + '*%s'%sqrtD
+                x = str(x / (D * d)) + '*%s' % sqrtD
             if hprec % d or self._minus():
                 self.__string = s + ' + O(q1, q2)^(%s)' % x
             else:
@@ -398,7 +398,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
         else:
             if self._minus():
                 hprec = x
-                x = str(x / (D * d)) + '*%s'%sqrtD
+                x = str(x / (D * d)) + '*%s' % sqrtD
             if hprec % d or self._minus():
                 self.__string = 'O(q1, q2)^(%s)' % x
             else:
@@ -458,8 +458,9 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
             q1exp = (i + n) / (d * (D - 1)) + (i + n / D) * sqrtD / (d * (D - 1))
             return {((i + n) / (d * (D - 1))) + (i + n / D) * sqrtD / (d * (D - 1)): p[n]
                     for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
-        return {(n + i/sqrtD)/(d + d): p[n]
-                    for i, p in enumerate(h.list()) if i < d_prec for n in p.exponents()}
+        return {(n + i / sqrtD) / (d + d): p[n]
+                for i, p in enumerate(h.list())
+                if i < d_prec for n in p.exponents()}
 
     def __getitem__(self, a):
         r"""
@@ -719,7 +720,7 @@ class HilbertHeckeOperator:
                         try:
                             c = f.__getitem__(p * N) + f.__getitem__(-p * N)
                             if N * sqrtD / p in O:
-                                c += (f.__getitem__(N / p) + f.__getitem__(-N / p))* norm**(k - 1)
+                                c += (f.__getitem__(N / p) + f.__getitem__(-N / p)) * norm**(k - 1)
                             if not N:
                                 c /= 2
                             if D % 2:

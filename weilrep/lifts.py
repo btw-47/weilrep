@@ -128,7 +128,7 @@ class OrthogonalModularForms:
         """
         return self.__weilrep
 
-    # ## constructors of modular forms
+    # constructors of modular forms
     def eisenstein_series(self, k, prec, allow_small_weight=False):
         r"""
         Compute the Eisenstein series. (i.e. the theta lift of a vector-valued Eisenstein series)
@@ -189,7 +189,7 @@ class OrthogonalModularForms:
         return Spezialschar(self)
     maass_space = spezialschar
 
-    # ## methods for Borcherds products
+    # methods for Borcherds products
 
     def _borcherds_product_polyhedron(self, pole_order, prec, verbose=False):
         r"""
@@ -198,10 +198,13 @@ class OrthogonalModularForms:
         For internal use in the methods borcherds_input_basis() and borcherds_input_Qbasis().
 
         INPUT:
+
         - ``pole_order`` -- pole order
         - ``prec`` -- precision
 
-        OUTPUT: a tuple consisting of an integral matrix M, a Polyhedron p, and a WeilRepModularFormsBasis X
+        OUTPUT:
+
+        a tuple consisting of an integral matrix M, a Polyhedron p, and a WeilRepModularFormsBasis X
 
         EXAMPLES::
 
@@ -389,7 +392,7 @@ class OrthogonalModularForms:
                 return X
         return Y
 
-    ## divisors
+    # divisors
     def heegner_divisor(self, *x, primitive=False):
         r"""
         Construct the Heegner divisor H(beta, m)
@@ -401,8 +404,8 @@ class OrthogonalModularForms:
             else:
                 x = tuple(list(x[0]) + [x[1]])
         if primitive:
-            return PrimitiveHeegnerDivisor(self.weilrep(), {x : 1}, Integer(self.nvars()) / 2 + 1)
-        return HeegnerDivisor(self.weilrep(), {x : 1}, Integer(self.nvars()) / 2 + 1)
+            return PrimitiveHeegnerDivisor(self.weilrep(), {x: 1}, Integer(self.nvars()) / 2 + 1)
+        return HeegnerDivisor(self.weilrep(), {x: 1}, Integer(self.nvars()) / 2 + 1)
 
 
 class Spezialschar:
@@ -482,7 +485,7 @@ class OrthogonalModularForm:
                 # from .unitary import UnitaryModularForm
                 # self.__class__ = UnitaryModularForm
 
-    # ## basic attributes
+    # basic attributes
 
     def base_ring(self):
         r"""
@@ -641,7 +644,7 @@ class OrthogonalModularForm:
         """
         return self.__weylvec
 
-    # ## methods to extract Fourier coefficients
+    # methods to extract Fourier coefficients
 
     def coefficients(self, prec=+Infinity):
         r"""
@@ -688,7 +691,7 @@ class OrthogonalModularForm:
                                         s = PowerSeriesRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)], default_prec=constant_prec)
                                         h = s(h).add_bigoh(constant_prec)
                                     else:
-                                        s =  s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)])
+                                        s = s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)])
                                         h = s(hn) / s(hd)
                                     for j_r, y in h.dict().items():
                                         g = tuple([j_t / d, j_x / d] + list(vector(ZZ, j_r) / d))
@@ -787,7 +790,7 @@ class OrthogonalModularForm:
         r"""
         Return self's Fourier expansion as it is actually stored (as a univariate power series over a ring of Laurent polynomials).
 
-        EXAMPLE::
+        EXAMPLES::
 
             sage: from weilrep import *
             sage: f = ParamodularForms(4).borcherds_input_by_weight(1/2, 10)[0].borcherds_lift()
@@ -796,7 +799,7 @@ class OrthogonalModularForm:
         """
         return self.__fourier_expansion
 
-    # ## arithmetic operations
+    # arithmetic operations
 
     def __add__(self, other):
         r"""
@@ -965,6 +968,7 @@ def orthogonal_eisenstein_series(k, S, prec, w=None):
     Computes the "orthogonal Eisenstein series" as the theta-lift of the vector-valued Eisenstein series E_{k, 0} (if it exists). We renormalize such that the constant term is 1.
 
     INPUT:
+
     - ``k`` -- weight
     - ``S`` -- (positive-definite) Gram matrix
     - ``prec`` -- precision
@@ -989,6 +993,7 @@ def jacobian(*X):
     Compute the Jacobian (Rankin--Cohen--Ibukiyama) operator.
 
     INPUT:
+
     - ``X`` -- a list [F_1, ..., F_N] of N orthogonal modular forms for the same Gram matrix, where N = 3 + (number of self's gram matrix rows)
 
     OUTPUT: OrthogonalModularForm. (If F_1, ..., F_N have weights k_1, ..., k_N then the result has weight k_1 + ... + k_N + N - 1.)
