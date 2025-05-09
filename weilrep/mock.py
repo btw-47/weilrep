@@ -284,6 +284,13 @@ class WeilRepQuasiModularForm(WeilRepModularForm):
 
     # ## other ##
 
+    def change_ring(self, r):
+        r"""
+        Extend coefficients to a ring r.
+        """
+        x = self.__terms
+        return WeilRepQuasiModularForm(self.weight(), self.gram_matrix(), [x.change_ring(r) for x in x], weilrep=self.weilrep())
+
     def _terms(self):
         r"""
         Returns self's Taylor expansion in (4pi y)^(-1) as a list of WeilRepModularForm's.

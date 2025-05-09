@@ -193,6 +193,15 @@ class WeilRepModularForm:
         """
         return self.fourier_expansion()[0][2].base_ring()
 
+    def change_ring(self, r):
+        r"""
+        Extend coefficients to a ring r.
+        """
+        y = [(x[0], x[1], x[2].change_ring(r)) for x in self.qexp()]
+        g = WeilRepModularForm(self.weight(), self.gram_matrix(), y, weilrep=self.weilrep(), symmetry_data = self.__symmetry_data)
+        g.__class__ = self.__class__
+        return g
+
     def character(self):
         r"""
         Return self's character.

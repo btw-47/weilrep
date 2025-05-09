@@ -814,6 +814,10 @@ class WeilRepPositiveDefinite(WeilRep):
         except AttributeError:
             pass
         if isinstance(other, WeilRep):
+            if not other:
+                return self
+            if not self:
+                return other
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide=False))
         return NotImplemented
 

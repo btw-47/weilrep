@@ -537,8 +537,8 @@ class AlgebraicModularForms:
             return self.eigenforms(X, spin=spin, det=det, dimension_bound=dimension_bound)
         if not X:
             return []
-        #while self.level() % _p == 0:
-        #    _p = next_prime(_p)
+        while self.level() % _p == 0:
+            _p = next_prime(_p)
         T = self.hecke_operator(_p)
         M = T.matrix(X)
         chi = M.characteristic_polynomial()

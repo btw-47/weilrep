@@ -681,6 +681,10 @@ class WeilRepLorentzian(WeilRep):
                 return WeilRepPositiveDefinitePlus2II(S_new, self._pos_def_gram_matrix(), self._N(), N, lift_qexp_representation=self.lift_qexp_representation)
             return WeilRepLorentzianPlusII(S_new, S, N, lift_qexp_representation=self.lift_qexp_representation)
         elif isinstance(other, WeilRep):
+            if not other:
+                return self
+            if not self:
+                return other
             return WeilRep(block_diagonal_matrix([self.gram_matrix(), other.gram_matrix()], subdivide=False))
         return NotImplemented
 
