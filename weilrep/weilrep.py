@@ -3632,7 +3632,7 @@ class WeilRep:
                             #    rank += 1
                             #    failure_count = 0
                 m0 += 1
-                if m0 > sturm_bound + 1 and rank < dim:#this will probably never happen but lets be safe
+                if m0 > sturm_bound + 2 and rank < dim:#this will probably never happen but lets be safe
                     if not failed:
                         m0 = 1
                         failed = True
