@@ -265,7 +265,7 @@ def local_normal_form_with_change_vars(S, p):
     Q_Jordan = DiagonalQuadraticForm(ZZ, [])
     while Q.dim() > 0:
         n = Q.dim()
-        (min_i, min_j) = Q.find_entry_with_minimal_scale_at_prime(p)
+        min_i, min_j = Q.find_entry_with_minimal_scale_at_prime(p)
         if min_i == min_j:
             Q.swap_variables(0, min_i, in_place=True)
             M.swap_rows(I[0], I[min_i])

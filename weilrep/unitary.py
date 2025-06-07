@@ -1431,7 +1431,7 @@ def _root(h, n, k, umf):
         discr = umf._discriminant()
         b = _hard_root(b_pow, discr, n, k + h.valuation())
     try:
-        h1 = sum(r1(x.lift() / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for (c, x) in d.items()).add_bigoh(h.prec() - sum(a))
+        h1 = sum(r1(x.lift() / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for c, x in d.items()).add_bigoh(h.prec() - sum(a))
     except (AttributeError, TypeError):
         try:
             h1 = sum(r1(x / b_pow) * prod(z[i]**y for i, y in enumerate(vector(c) - a)) for c, x in d.items()).add_bigoh(h.prec() - sum(a))
