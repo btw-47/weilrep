@@ -691,7 +691,7 @@ class OrthogonalModularForm:
                                         s = PowerSeriesRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)], default_prec=constant_prec)
                                         h = s(h).add_bigoh(constant_prec)
                                     else:
-                                        s = s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)])
+                                        s = LaurentPolynomialRing(r.base_ring(), ['r_%d' % i for i in range(nrows - 2)])
                                         h = s(hn) / s(hd)
                                     for j_r, y in h.dict().items():
                                         g = tuple([j_t / d, j_x / d] + list(vector(ZZ, j_r) / d))

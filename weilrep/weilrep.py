@@ -1033,7 +1033,7 @@ class WeilRep:
                 coeff_list = []
                 N_bSg = Integer(N_b * (b * S * g))
                 gcd_b_gb = GCD(N_b, N_bSg)
-                N_g = prod([p ** d for (p, d) in factor(N_b) if gcd_b_gb % p == 0])
+                N_g = prod([p ** d for p, d in factor(N_b) if gcd_b_gb % p == 0])
                 N_g_prime = N_b // N_g
                 D_g = DirichletGroup(N_g)
                 D_g_prime = DirichletGroup(N_g_prime)
@@ -1151,7 +1151,7 @@ class WeilRep:
                 offset = norm_list[i]
                 N_bSg = Integer(N_b * (b * S * g))
                 gcd_b_gb = GCD(N_b, N_bSg)
-                N_g = prod([p ** d for (p, d) in factor(N_b) if gcd_b_gb % p == 0])
+                N_g = prod([p ** d for p, d in factor(N_b) if gcd_b_gb % p == 0])
                 N_g_prime = N_b // N_g
 
     def eisenstein_oldform(self, k, b, prec, funct=_sentinel, **kwargs):
