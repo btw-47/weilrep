@@ -221,10 +221,25 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
 
     def fundamental_unit(self):
         r"""
-        Return the totally positive fundamental unit in self's base field.
+        Return the fundamental unit in self's base field.
         """
         try:
             return self.__unit
+        except AttributeError:
+            K = self.base_field()
+            a = K(K.unit_group().gens()[1])
+            if a.trace() < 0:
+                a = -a
+            self.__unit = a
+            return a
+
+
+    def positive_fundamental_unit(self):
+        r"""
+        Return the totally positive fundamental unit in self's base field.
+        """
+        try:
+            return self.__pos_unit
         except AttributeError:
             K = self.base_field()
             a = K(K.unit_group().gens()[1])
@@ -232,7 +247,7 @@ class HilbertModularForms(OrthogonalModularFormsLorentzian):
                 a = a * a
             if a.trace() < 0:
                 a = -a
-            self.__unit = a
+            self.__pos_unit = a
             return a
 
     def hecke_operator(self, p):
@@ -506,7 +521,7 @@ class HilbertModularForm(OrthogonalModularFormLorentzian):
                 return self.fourier_expansion()[n][i]
             return self.fourier_expansion()[i][n]
         except IndexError:
-            u = self.hmf().fundamental_unit()
+            u = self.hmf().positive_fundamental_unit()
             au = a * u
             k = self.weight()
             if self._minus():
