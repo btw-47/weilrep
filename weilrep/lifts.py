@@ -48,6 +48,12 @@ from .weilrep import WeilRep
 from .weilrep_modular_forms_class import WeilRepModularForm, WeilRepModularFormsBasis
 
 
+# use PyNormaliz if it's there
+try:
+    from PyNormaliz import Cone as NormalizCone
+except ModuleNotFoundError:
+    pass
+
 try:
     from sage.rings.complex_mpfr import ComplexField_class
 except ModuleNotFoundError:
@@ -310,7 +316,13 @@ class OrthogonalModularForms:
         if verbose:
             print('I will now try to find a Hilbert basis.')
         try:
-            b = matrix(Cone(p).Hilbert_basis())
+            b = matrix(NormalizCone(cone = p.rays()).HilbertBasis())
+            normaliz = 1
+        except NameError:
+            normaliz = 0
+        try:
+            if not normaliz:
+                b = matrix(Cone(p).Hilbert_basis())
             try:
                 u = M.solve_left(b)
                 Y = [v * X for v in u.rows()]
@@ -1009,11 +1021,12 @@ def jacobian(*X):
     if N == 1:
         X = X[0]
         N = len(X)
-    if not all(x._base_ring_is_laurent_polynomial_ring() for x in X):
-        X = [x._laurent_to_fraction() for x in X]
     Xref = X[0]
     if isinstance(Xref, UnitaryModularForm):
         return unitary_jacobian(X)
+    if not all(x._base_ring_is_laurent_polynomial_ring() for x in X):
+        X = [x._laurent_to_fraction() for x in X]
+    Xref = X[0]
     nvars = Xref.nvars()
     f = Xref.true_fourier_expansion()
     t, = f.parent().gens()

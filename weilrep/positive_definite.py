@@ -66,6 +66,11 @@ from .lifts import OrthogonalModularForm, OrthogonalModularForms
 from .weilrep import WeilRep
 from .weilrep_modular_forms_class import EtaCharacterPower, WeilRepModularForm, WeilRepModularFormWithCharacter, WeilRepModularFormsBasis
 
+try:
+    from PyNormaliz import Cone as NormalizCone
+except ModuleNotFoundError:
+    pass
+
 pari = cypari2.Pari()
 PariError = cypari2.PariError
 
@@ -304,7 +309,15 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
             print('I will now find integral points in a polyhedron.')
         p = Polyhedron(ieqs=positive, eqns=[r] + [vector([0] + list(v)) for v in vs], **kwargs)
         try:
-            u = M.solve_left(matrix(p.integral_points()))
+            vertices = list(map(vector, p.vertices()))
+            d = lcm([denominator(x) for x in vertices])
+            pcone = NormalizCone(polytope = [vector(ZZ, x * d) for x in vertices])
+            integral_pts = pcone.Deg1Elements()
+            integral_pts = [x for x in integral_pts if not any(y % d for y in x[:-1])]
+        except NameError:
+            integral_pts = p.integral_points()
+        try:
+            u = M.solve_left(integral_pts)
             Y = [v * X for v in u.rows()]
         except ValueError:
             Y = []
@@ -861,7 +874,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         if w.gram_matrix():
             raise ValueError
         from .lorentz import II
-        w = II(1)
+        w = II(Integer(1))
         X = [(vector([0, 0]), 0, self.fourier_expansion()[0][2])]
         return WeilRepModularForm(self.weight(), w.gram_matrix(), X, weilrep=w)
 
@@ -872,7 +885,7 @@ class WeilRepModularFormPositiveDefinite(WeilRepModularForm):
         f = self.fourier_expansion()
         w = self.weilrep()
         from .lorentz import II
-        w1 = w + II(1)
+        w1 = w + II(Integer(1))
         dsdict = w.ds_dict()
         X = [[g, None, None] for g in w1.ds()]
         for i, x in enumerate(X):

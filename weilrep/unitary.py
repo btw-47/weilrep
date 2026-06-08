@@ -625,7 +625,7 @@ class HermitianWeilRepModularForm(WeilRepModularFormPositiveDefinite):
             y = [v[i+i+1] + rho * v[i+i] for i in range(len(v) // 2)]
             return prod(z[i]*y for i, y in enumerate(y)).exp(prec=prec1)
         theta = w.dual().theta_series(prec, P=r0(1), funct=a, symm=False)
-        f = self & theta
+        f = (self & theta).qexp()
         # reorganize f...
         rq1, q = PowerSeriesRing(K, 'q').objgen()
         rz1 = PowerSeriesRing(rq1, r.gens())

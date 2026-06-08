@@ -37,6 +37,7 @@ from sage.modules.free_module_element import vector
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
+from sage.rings.laurent_series_ring import LaurentSeriesRing
 from sage.rings.number_field.number_field_base import NumberField
 from sage.rings.polynomial.laurent_polynomial_ring import LaurentPolynomialRing, LaurentPolynomialRing_generic
 from sage.rings.power_series_ring import PowerSeriesRing
@@ -863,7 +864,14 @@ class JacobiFormWithLevel:
         e = self.nvars()
         rb_w = f.base_ring()
         d = {rb_w('w_%d' % j): rb_w('w_%d' % j)**a for j in range(e)}
-        f = f.map_coefficients(lambda x: x.subs(d))
+        try:
+            f = f.map_coefficients(lambda x: x.subs(d))
+        except AttributeError:
+            #Laurent series
+            u = f.valuation_zero_part()
+            n = f.valuation()
+            q, = f.parent().gens()
+            f = q**n * u.map_coefficients(lambda x: x.subs(d))
         return JacobiFormWithLevel(self.weight(), self.level(), self.index_matrix(), f, q_scale=self.q_scale(), w_scale=self.scale() * a)
     rescale = _rescale
 
@@ -951,6 +959,11 @@ class JacobiFormWithLevel:
             raise ValueError('Incompatible weights')
         if not self.index_matrix() == other.index_matrix():
             raise ValueError('Incompatible indices')
+        if self.scale() == 2 or other.scale() == 2:
+            if self.scale() == 1:
+                return self._rescale(2) + other
+            if other.scale() == 1:
+                return self + other._rescale(2)
         sf = self.qexp()
         of = other.qexp()
         level = lcm(self.level(), other.level())
@@ -966,14 +979,6 @@ class JacobiFormWithLevel:
         q_scale = lcm([self.q_scale(), other.q_scale(), d])
         q1 = q_scale / self.q_scale()
         q2 = q_scale / other.q_scale()
-        if self.scale() == 2 or other.scale() == 2:
-            r = self.base_ring()
-            q, = self.qexp().parent().gens()
-            scale = 2
-            if self.scale() == 1:
-                sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
-            if other.scale() == 1:
-                of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
         if q1 != 1:
             sf = sf.V(q1)
         if q2 != 1:
@@ -996,6 +1001,11 @@ class JacobiFormWithLevel:
             raise ValueError('Incompatible weights')
         if not self.index_matrix() == other.index_matrix():
             raise ValueError('Incompatible indices')
+        if self.scale() == 2 or other.scale() == 2:
+            if self.scale() == 1:
+                return self._rescale(2) - other
+            if other.scale() == 1:
+                return self - other._rescale(2)
         sf = self.qexp()
         of = other.qexp()
         level = lcm(self.level(), other.level())
@@ -1011,14 +1021,6 @@ class JacobiFormWithLevel:
         q_scale = lcm([self.q_scale(), other.q_scale(), d])
         q1 = q_scale / self.q_scale()
         q2 = q_scale / other.q_scale()
-        if self.scale() == 2 or other.scale() == 2:
-            r = self.base_ring()
-            q, = self.qexp().parent().gens()
-            scale = 2
-            if self.scale() == 1:
-                sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
-            if other.scale() == 1:
-                of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
         if q1 != 1:
             sf = sf.V(q1)
         if q2 != 1:
@@ -1042,6 +1044,11 @@ class JacobiFormWithLevel:
 
     def __mul__(self, other):
         if isinstance(other, (JacobiForm, JacobiFormWithLevel)):
+            if self.scale() == 2 or other.scale() == 2:
+                if self.scale() == 1:
+                    return self._rescale(2) * other
+                if other.scale() == 1:
+                    return self * other._rescale(2)
             scale = 1
             h = other._qshift()
             try:
@@ -1057,14 +1064,6 @@ class JacobiFormWithLevel:
             q2 = q_scale / oq
             sf = self.qexp()
             of = other.qexp()
-            if self.scale() == 2 or other.scale() == 2:
-                r = self.base_ring()
-                q, = self.qexp().parent().gens()
-                scale = 2
-                if self.scale() == 1:
-                    sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
-                if other.scale() == 1:
-                    of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r.gens()}))
             if q1 != 1:
                 sf = sf.V(q1)
             if q2 != 1:
@@ -1107,8 +1106,8 @@ class JacobiFormWithLevel:
                 q2 = q_scale / d
                 if q_scale != 1:
                     q, = of.parent().gens()
-                    of = of.V(q2)
-                    f = sf.V(q1) * of.change_ring(sf.base_ring()) * q**Integer(q2 * qshift)
+                    of = of.V(q_scale)
+                    f = sf.V(q1) * of.change_ring(sf.base_ring()) * q**Integer(q_scale * qshift)
                 else:
                     f = sf * of
                 return JacobiFormWithLevel(self.weight() + other.weight(), self.level(), self.index_matrix(), f, w_scale=scale, q_scale=q_scale)
@@ -1147,8 +1146,11 @@ class JacobiFormWithLevel:
                 else:
                     f = sf / of.change_ring(sf.base_ring())
                 r = f.base_ring()
-                if r is not LaurentPolynomialRing:
-                    f = f.change_ring(LaurentPolynomialRing(r.base_ring(), r.gens()))
+                try:
+                    if r is not LaurentPolynomialRing:
+                        f = f.change_ring(LaurentPolynomialRing(r.base_ring(), r.gens()))
+                except ValueError:
+                    pass
                 return JacobiFormWithLevel(self.weight() - other.weight(), self.level(), self.index_matrix(), f, w_scale=scale, q_scale=q_scale)
         elif isinstance(other, ModularFormElement):
             level = lcm(self.level(), other.level())
@@ -1161,6 +1163,11 @@ class JacobiFormWithLevel:
             f = self.fourier_expansion() / of
             return JacobiFormWithLevel(self.weight() - other.weight(), level, self.index_matrix(), f, w_scale=scale, q_scale=q_scale)
         elif isinstance(other, (JacobiForm, JacobiFormWithLevel)):
+            if self.scale() == 2 or other.scale() == 2:
+                if self.scale() == 1:
+                    return self._rescale(2) / other
+                if other.scale() == 1:
+                    return self / other._rescale(2)
             try:
                 d = other._qshift().denom()
             except AttributeError:
@@ -1178,12 +1185,6 @@ class JacobiFormWithLevel:
             w1 = self.scale()
             w2 = other.scale()
             w_scale = lcm(w1, w2)
-            if w1 != w_scale:
-                r1 = sf.base_ring()
-                sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r1.gens()}))
-            if w2 != w_scale:
-                r1 = of.base_ring()
-                of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r1.gens()}))
             if q1 != 1:
                 sf = sf.V(q1)
             if q2 != 1:
@@ -1252,6 +1253,11 @@ class JacobiFormWithLevel:
             raise ValueError('Cannot multiply these objects')
         elif self.nvars() == 0:
             return other.__pow__(self)
+        if self.scale() == 2 or other.scale() == 2:
+            if self.scale() == 1:
+                return self._rescale(2) ** other
+            if other.scale() == 1:
+                return self ** other._rescale(2)
         S1 = self.index_matrix()
         S2 = other.index_matrix()
         bigS = block_diagonal_matrix([S1, S2])
@@ -1265,12 +1271,6 @@ class JacobiFormWithLevel:
         w1 = self.scale()
         w2 = other.scale()
         w_scale = lcm(w1, w2)
-        if w1 != w_scale:
-            r1 = sf.base_ring()
-            sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r1.gens()}))
-        if w2 != w_scale:
-            r1 = of.base_ring()
-            of = of.map_coefficients(lambda x: x.subs({y: y*y for y in r1.gens()}))
         level = lcm(self.level(), other.level())
         q_scale = lcm(self.q_scale(), other.q_scale())
         q1 = q_scale / self.q_scale()
@@ -1281,9 +1281,21 @@ class JacobiFormWithLevel:
             of = of.V(q2)
         jf = [rb(of[i]).subs({g[j]: g[j+e1] for j in range(e2)}) for i in range(of.valuation(), of.prec())]
         level = lcm(self.level(), other.level())
-        return JacobiFormWithLevel(self.weight() + other.weight(), level, bigS, (r(sf) * r(jf)).add_bigoh(other.precision()), w_scale=w_scale, q_scale=q_scale)
+        try:
+            sf = r(sf)
+            jf = r(jf) * q**of.valuation()
+        except TypeError:
+            r, q = LaurentSeriesRing(rb, 'q').objgen()
+            sf = r(sf)
+            jf = r(jf) * q**of.valuation()
+        return JacobiFormWithLevel(self.weight() + other.weight(), level, bigS, (sf * jf).add_bigoh(other.precision()), w_scale=w_scale, q_scale=q_scale)
 
     def __eq__(self, other):
+        if self.scale() == 2 or other.scale() == 2:
+            if self.scale() == 1:
+                return self._rescale(2) == other
+            if other.scale() == 1:
+                return self == other._rescale(2)
         sf, of = self.qexp(), other.qexp()
         return sf == of
 
