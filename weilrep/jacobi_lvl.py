@@ -969,7 +969,7 @@ class JacobiFormWithLevel:
         sf = self.qexp()
         of = other.qexp()
         level = lcm(self.level(), other.level())
-        scale = 1
+        scale = self.scale()
         h = other._qshift()
         if h:
             try:
@@ -1011,7 +1011,7 @@ class JacobiFormWithLevel:
         sf = self.qexp()
         of = other.qexp()
         level = lcm(self.level(), other.level())
-        scale = 1
+        scale = self.scale()
         h = other._qshift()
         if h:
             try:
@@ -1051,7 +1051,7 @@ class JacobiFormWithLevel:
                     return self._rescale(2) * other
                 if other.scale() == 1:
                     return self * other._rescale(2)
-            scale = 1
+            scale = self.scale()
             h = other._qshift()
             try:
                 d = h.denom()
@@ -1149,13 +1149,10 @@ class JacobiFormWithLevel:
                 else:
                     f = sf / of.change_ring(sf.base_ring())
                 r = f.base_ring()
-                if not isinstance(r, LaurentPolynomialRing_generic) and not r.is_field():
+                if not isinstance(r, LaurentPolynomialRing_generic) and getattr(r, 'ngens', lambda: 0)():
                     r1 = LaurentPolynomialRing(r.base_ring(), r.gens())
-                    try:
-                        f = f.map_coefficients(lambda x: r1(x))
-                    except AttributeError:
-                        p1 = LaurentSeriesRing(r1, f.parent().gens()[0])
-                        f = p1({a : r1(f[a].numerator()) / r1(f[a].denominator()) for a in f.exponents()}).add_bigoh(f.prec())
+                    p1 = LaurentSeriesRing(r1, f.parent().gens()[0])
+                    f = p1({a : r1(f[a].numerator()) / r1(f[a].denominator()) for a in f.exponents()}).add_bigoh(f.prec())
                 return JacobiFormWithLevel(self.weight() - other.weight(), self.level(), self.index_matrix(), f, w_scale=scale, q_scale=q_scale)
         elif isinstance(other, ModularFormElement):
             level = lcm(self.level(), other.level())
