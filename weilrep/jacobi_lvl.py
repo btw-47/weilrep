@@ -1149,7 +1149,7 @@ class JacobiFormWithLevel:
                 else:
                     f = sf / of.change_ring(sf.base_ring())
                 r = f.base_ring()
-                if not isinstance(r, LaurentPolynomialRing_generic):
+                if not isinstance(r, LaurentPolynomialRing_generic) and not r.is_field():
                     r1 = LaurentPolynomialRing(r.base_ring(), r.gens())
                     try:
                         f = f.map_coefficients(lambda x: r1(x))
@@ -1209,7 +1209,7 @@ class JacobiFormWithLevel:
                 f = sf / of
             level = lcm(self.level(), other.level())
             R = f.base_ring()
-            if R is not LaurentPolynomialRing:
+            if not isinstance(R, LaurentPolynomialRing_generic) and not R.is_field():
                 try:
                     R = LaurentPolynomialRing(QQ, R.gens())
                 except ValueError:
@@ -1241,6 +1241,13 @@ class JacobiFormWithLevel:
         return JacobiFormWithLevel(self.weight(), self.level(), self.index_matrix(), self.fourier_expansion() / other, w_scale=self.scale(), q_scale=self.q_scale())
     __div__ = __truediv__
 
+    def __invert__(self):
+        return self.__pow__(-1)
+    
+    def __rtruediv__(self, other):
+        return (~self).__mul__(other)
+    __rfloordiv__ = __rtruediv__
+
     def __pow__(self, other):
         r"""
         Compute the exterior product of Jacobi forms.
@@ -1257,7 +1264,10 @@ class JacobiFormWithLevel:
         elif not isinstance(other, JacobiForm) and not isinstance(other, JacobiFormWithLevel):
             raise ValueError('Cannot multiply these objects')
         elif self.nvars() == 0:
-            return other.__pow__(self)
+            if other.nvars() > 0:
+                return other.__pow__(self)
+            else:
+                return self * other
         if self.scale() == 2 or other.scale() == 2:
             if self.scale() == 1:
                 return self._rescale(2) ** other
