@@ -34,6 +34,7 @@ from sage.modular.arithgroup.congroup_gamma1 import Gamma1_constructor
 from sage.modular.modform.element import ModularFormElement
 from sage.modules.free_module import span
 from sage.modules.free_module_element import vector
+from sage.rings.fraction_field import FractionField
 from sage.rings.infinity import Infinity
 from sage.rings.integer import Integer
 from sage.rings.integer_ring import ZZ
@@ -923,18 +924,19 @@ class JacobiFormWithLevel:
         qs = self.__qscale
         ws = self.__wscale
         f = self.fourier_expansion()
+        val = min(f.valuation(), 0)
         if self.nvars() > 1:
             for i, x in enumerate(f):
-                j = Integer(i) / qs
+                j = Integer(i + val) / qs
                 for y, c in x.dict().items():
                     y = [j] + list(vector(QQ, y) / ws)
                     d[tuple(y)] = c
         elif self.nvars():
             for i, x in enumerate(f):
                 for j, c in x.dict().items():
-                    d[(Integer(i)/qs, Integer(j)/ws)] = c
+                    d[(Integer(i + val)/qs, Integer(j)/ws)] = c
         else:
-            d = {Integer(i) / qs: c for i, c in enumerate(f)}
+            d = {Integer(i + val) / qs: c for i, c in enumerate(f)}
         return d
 
     def q_coefficients(self):
@@ -1069,6 +1071,7 @@ class JacobiFormWithLevel:
             if q2 != 1:
                 of = of.V(q2)
             if h:
+                q = sf.parent().gens()[0]
                 of *= q ** Integer(h * q2)
             S1 = self.index_matrix()
             S2 = other.index_matrix()
@@ -1146,11 +1149,13 @@ class JacobiFormWithLevel:
                 else:
                     f = sf / of.change_ring(sf.base_ring())
                 r = f.base_ring()
-                try:
-                    if r is not LaurentPolynomialRing:
-                        f = f.change_ring(LaurentPolynomialRing(r.base_ring(), r.gens()))
-                except ValueError:
-                    pass
+                if not isinstance(r, LaurentPolynomialRing_generic):
+                    r1 = LaurentPolynomialRing(r.base_ring(), r.gens())
+                    try:
+                        f = f.map_coefficients(lambda x: r1(x))
+                    except AttributeError:
+                        p1 = LaurentSeriesRing(r1, f.parent().gens()[0])
+                        f = p1({a : r1(f[a].numerator()) / r1(f[a].denominator()) for a in f.exponents()}).add_bigoh(f.prec())
                 return JacobiFormWithLevel(self.weight() - other.weight(), self.level(), self.index_matrix(), f, w_scale=scale, q_scale=q_scale)
         elif isinstance(other, ModularFormElement):
             level = lcm(self.level(), other.level())
@@ -1279,16 +1284,21 @@ class JacobiFormWithLevel:
             sf = sf.V(q1)
         if q2 != 1:
             of = of.V(q2)
-        jf = [rb(of[i]).subs({g[j]: g[j+e1] for j in range(e2)}) for i in range(of.valuation(), of.prec())]
+        try:
+            jf = {a : rb(of[a]).subs({g[j] : g[j + e1] for j in range(e2)}) for a in of.exponents()}
+        except TypeError:
+            rb = FractionField(rb)
+            r, q = PowerSeriesRing(rb, 'q').objgen()
+            jf = {a : rb(of[a]).subs({g[j] : g[j + e1] for j in range(e2)}) for a in of.exponents()}
         level = lcm(self.level(), other.level())
         try:
-            sf = r(sf)
-            jf = r(jf) * q**of.valuation()
+            sf = r(sf).add_bigoh(sf.prec())
+            jf = r(jf).add_bigoh(of.prec())
         except TypeError:
             r, q = LaurentSeriesRing(rb, 'q').objgen()
-            sf = r(sf)
-            jf = r(jf) * q**of.valuation()
-        return JacobiFormWithLevel(self.weight() + other.weight(), level, bigS, (sf * jf).add_bigoh(other.precision()), w_scale=w_scale, q_scale=q_scale)
+            sf = r(sf).add_bigoh(sf.prec())
+            jf = r(jf).add_bigoh(of.prec())
+        return JacobiFormWithLevel(self.weight() + other.weight(), level, bigS, sf * jf, w_scale=w_scale, q_scale=q_scale)
 
     def __eq__(self, other):
         if self.scale() == 2 or other.scale() == 2:

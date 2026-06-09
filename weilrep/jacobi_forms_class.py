@@ -1287,18 +1287,19 @@ class JacobiForm:
         qs = self._qshift()
         ws = self.scale()
         f = self.fourier_expansion()
+        val = min(f.valuation(), 0)
         if self.nvars() > 1:
             for i, x in enumerate(f):
-                j = Integer(i) + qs
+                j = Integer(i + val) + qs
                 for y, c in x.dict().items():
                     y = [j] + list(vector(QQ, y) / ws)
                     d[tuple(y)] = c
         elif self.nvars():
             for i, x in enumerate(f):
                 for j, c in x.dict().items():
-                    d[(Integer(i) + qs, Integer(j)/ws)] = c
+                    d[(Integer(i + val) + qs, Integer(j)/ws)] = c
         else:
-            d = {Integer(i) + qs: c for i, c in enumerate(f)}
+            d = {Integer(i + val) + qs: c for i, c in enumerate(f)}
         return d
 
     def fourier_expansion(self):
@@ -1868,9 +1869,14 @@ class JacobiForm:
                     modform = None
                 sf, of = self.qexp(), other.fourier_expansion()[0][2]
                 f = sf / of
-                R = f.base_ring()
-                if R is not LaurentPolynomialRing:
-                    f = f.change_ring(LaurentPolynomialRing(R.base_ring(), R.gens()))
+                r = f.base_ring()
+                if not isinstance(r, LaurentPolynomialRing_generic):
+                    r1 = LaurentPolynomialRing(r.base_ring(), r.gens())
+                    try:
+                        f = f.map_coefficients(lambda x: r1(x))
+                    except AttributeError:
+                        p1 = LaurentSeriesRing(r1, f.parent().gens()[0])
+                        f = p1({a : r1(f[a].numerator()) / r1(f[a].denominator()) for a in f.exponents()}).add_bigoh(f.prec())
                 qshift = other.fourier_expansion()[0][1]
                 if qshift:
                     return JacobiFormWithCharacter(self.weight() - other.weight(), self.index_matrix(), f, modform=modform, w_scale=self.scale(), character=~other.character(), qshift=-qshift)
@@ -1941,22 +1947,31 @@ class JacobiForm:
         bigS = block_diagonal_matrix([S1, S2])
         K = self.base_ring().base_ring()
         rb = LaurentPolynomialRing(K, [f'w_{i}' for i in range(bigS.nrows())])
-        r, q = PowerSeriesRing(rb, 'q').objgen()
         g = rb.gens()
         e1 = S1.nrows()
         e2 = S2.nrows()
         sf, f = self.qexp(), other.qexp()
+        sval = sf.valuation()
+        fval = f.valuation()
+        try:
+            d = {a : rb(f[a]).subs({g[j] : g[j + e1] for j in range(e2)}) for a in f.exponents()}
+        except TypeError:
+            rb = FractionField(rb)
+            d = {a : rb(f[a]).subs({g[j] : g[j + e1] for j in range(e2)}) for a in f.exponents()}
+        if min(sval, fval) < 0:
+            r, q = LaurentSeriesRing(rb, 'q').objgen()
+        else:
+            r, q = PowerSeriesRing(rb, 'q').objgen()
+        jf = r(d).add_bigoh(f.prec())
         scale = 1
         if self.scale() == 2 or other.scale() == 2:
             r0 = self.base_ring()
             scale = 2
             if self.scale() == 1:
-                sf = sf.map_coefficients(lambda x: x.subs({y: y*y for y in r0.gens()}))
+                sf = r({a : sf[a].subs({y: y*y for y in r0.gens()}) for a in sf.exponents()}).add_bigoh(sf.prec())
             if other.scale() == 1:
-                f = f.map_coefficients(lambda x: x.subs({y: y*y for y in r0.gens()}))
-        # val = other.valuation()
-        jf = [rb(f[i]).subs({g[j]: g[j+e1] for j in range(e2)}) for i in range(f.valuation(), f.prec())]
-        return JacobiForm(self.weight() + other.weight(), bigS, r(sf) * r(jf) + O(q**other.precision()), w_scale=scale)
+                jf = r({a : jf[a].subs({y: y*y for y in r0.gens()}) for a in jf.exponents()}).add_bigoh(jf.prec())
+        return JacobiForm(self.weight() + other.weight(), bigS, r(sf) * jf, w_scale=scale)
 
     def __eq__(self, other):
         sf, of = self.qexp(), other.qexp()
@@ -2452,10 +2467,24 @@ class JacobiFormWithCharacter(JacobiForm):
             N = min(0, self.valuation())
             e = self.nvars()
             if super().__bool__():
+                def a(w):
+                    if w == '1':
+                        return ''
+                    elif w == '-1':
+                        return '-'
+                    elif ' ' in w:
+                        return '(%s)*' % w
+                    return '%s*' % w
+                def b(w):
+                    if w == '1':
+                        return ''
+                    elif w == '-1':
+                        return '-'
+                    return w + '*'
                 if e:
-                    s = ' + '.join('(%s)*q^(%s)' % (str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))' % (self.precision() + x)
+                    s = ' + '.join('%sq^(%s)' % (a(str(w)), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))' % (self.precision() + x)
                 else:
-                    s = ' + '.join('%s*q^(%s)' % (str(w), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))' % (self.precision() + x)
+                    s = ' + '.join('%sq^(%s)' % (b(str(w)), i+N+x) for i, w in enumerate(super().q_coefficients()) if w) + ' + O(q^(%s))' % (self.precision() + x)
                     s = s.replace('1*', '')
                     s = s.replace('+ -', '- ')
             else:
@@ -2473,6 +2502,19 @@ class JacobiFormWithCharacter(JacobiForm):
                         return '^(%s)' % u
                     return obj_s + '^(1/2)'
                 s = sub(r'((?<!q)\^-?\d+)|w\_\d+(?!\^)', m, s)
+            if self._qshift():
+                def m(obj):
+                    obj_s = obj.string[slice(*obj.span())]
+                    x = obj_s[0]
+                    if x == '^':
+                        u = Integer(obj_s[1:]) / q
+                        if u.is_integer():
+                            if u == 1:
+                                return ''
+                            return '^%d' % u
+                        return '^(%s)' % u
+                    return obj_s + '^(1/%s)' % q
+                s = sub(r'((?<=q)\^-?\d+)|q+(?!\^)', m, s)
             if self.nvars() == 1:
                 s = s.replace('w_0', 'w')
             self.__string = s
@@ -2541,9 +2583,16 @@ class JacobiFormWithCharacter(JacobiForm):
     __truediv__ = __div__
 
     def __pow__(self, N):
-        f = super().__pow__(N)
-        qshift = self._qshift() * N
-        return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character()**N, qshift=qshift, w_scale=f.scale())
+        if N in ZZ:
+            f = super().__pow__(N)
+            qshift = self._qshift() * N
+            return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character=self.character()**N, qshift=qshift, w_scale=f.scale())
+        else:
+            #N is probably another Jacobi form
+            f = super().__pow__(N)
+            qshift = self._qshift() + N._qshift()
+            return JacobiFormWithCharacter(f.weight(), f.index_matrix(), f.fourier_expansion(), modform=f.modform(error=False), weilrep=f.weilrep(), character = self.character() * N.character(), qshift = qshift, w_scale = f.scale())
+
 
     def __neg__(self):
         f = super().__neg__()
