@@ -3893,7 +3893,6 @@ class WeilRep:
             prec = max([2, prec, ceil(sturm_bound + sage_one_half)])
             e4 = smf(-4, ~eisenstein_series_qexp(4, prec))
             X1 = self.invariant_cusp_forms_basis(k + 4, prec, G=G, chi=chi, verbose=verbose)
-            X1 = self.modular_forms_basis(k+4, prec, verbose=verbose)
             try:
                 B = matrix([x.coefficient_vector() for x in X1])
                 A = matrix([(x * e4).serre_derivative().serre_derivative().coefficient_vector() for x in X1])
