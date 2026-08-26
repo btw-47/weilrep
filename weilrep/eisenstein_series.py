@@ -1017,7 +1017,10 @@ def twoadic_igusa_zetas(Q, L, c_list, t): #compute several igusa zeta functions 
             q_powers.append(1)
     if vb == Infinity:
         w = max(len(Qs)-1, 1)
-        bound = min(w, vc_nonzero + 1)
+        if vc == Infinity:
+            bound = w - 1
+        else:
+            bound = min(w, vc_nonzero + 1)
         Z = sum((t ** i) * iaqqq_v(c / (2 ** i), Infinity, Qs[i], Qs[i+1], jordans[i+2], t)/q_powers[i] for i in range(bound))
         u = []
         for j, cj in enumerate(c):
