@@ -307,17 +307,18 @@ class OrthogonalModularFormsPositiveDefinite(OrthogonalModularForms):
         r = vector(QQ, [k + k] + [(1 + bool(2 % denominator(g))) * e_coeffs[tuple(list(g) + [-exp_list[i]])] for i, g in enumerate(v_list)] + [0])
         if verbose:
             print('I will now find integral points in a polyhedron.')
-        p = Polyhedron(ieqs=positive, eqns=[r] + [vector([0] + list(v)) for v in vs], **kwargs)
         try:
-            vertices = list(map(vector, p.vertices()))
-            d = lcm([denominator(x) for x in vertices])
-            pcone = NormalizCone(polytope = [vector(ZZ, x * d) for x in vertices])
-            integral_pts = pcone.Deg1Elements()
-            integral_pts = [x for x in integral_pts if not any(y % d for y in x[:-1])]
+            NormalizCone
+            kwargs.setdefault('backend', 'normaliz')
         except NameError:
-            integral_pts = p.integral_points()
+            pass
+        # The lattice points of the rational polytope itself.  Scaling its vertices by their
+        # common denominator d and keeping the points divisible by d enumerates about d^dim
+        # times as many points, and d can have dozens of digits.
+        p = Polyhedron(ieqs=positive, eqns=[r] + [vector([0] + list(v)) for v in vs], **kwargs)
+        integral_pts = p.integral_points()
         try:
-            u = M.solve_left(integral_pts)
+            u = M.solve_left(matrix(QQ, len(integral_pts), M.ncols(), integral_pts))
             Y = [v * X for v in u.rows()]
         except ValueError:
             Y = []
